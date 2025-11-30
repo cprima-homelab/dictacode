@@ -9,6 +9,7 @@ dependencies = [
 
 [project.scripts]
 dictacode-hid = "dictacode_hid.main:main"
+dictacode-keymap = "dictacode_hid.cli:main"
 
 [build-system]
 requires = ["hatchling"]
