@@ -1,0 +1,79 @@
+# dictacode Solution Inventory
+# Deployed to /etc/dictacode/inventory.yaml on all devices
+# Each app reads the device entry matching its role (stt, hid)
+version: "1"
+
+# All devices in the solution
+devices:
+  stt:
+    role: stt                    # stt | hid | both
+    hostname: dictacode-pi5      # or IP address
+    platform: pi5                # pi5 | pi4 | pi0 | pi0w | linux-x86
+
+    audio:
+      microphone:
+        device: null             # null = auto-detect, or explicit "hw:0,0"
+        sample_rate: 16000
+        channels: 1
+        # Populated by discovery:
+        # detected:
+        #   card: 0
+        #   device: 0
+        #   name: "RØDE VideoMic NTG"
+        #   alsa_id: "hw:0,0"
+
+    stt:
+      engine: whisper.cpp        # whisper.cpp | vosk | cloud
+      whisper:
+        binary: null             # null = search common paths
+        model: tiny              # tiny | base | small | medium | large (.en variants)
+        model_path: null         # null = ~/whisper.cpp/models/
+        # Populated by discovery:
+        # detected:
+        #   binary: ~/whisper.cpp/build/bin/whisper-cli
+        #   model_file: ~/whisper.cpp/models/ggml-tiny.bin
+        #   version: null
+        #   backends: [CPU]
+        #   features: [NEON, ARM_FMA, FP16_VA, DOTPROD, OPENMP]
+      vosk:
+        model_path: null
+      cloud:
+        provider: null           # azure | google | aws
+        credentials_env: null    # env var name containing credentials
+
+  hid:
+    role: hid
+    hostname: dictacode-pi0
+    platform: pi0w
+
+    hid:
+      gadget_device: /dev/hidg0
+      keymap: de_qwertz          # de_qwertz | us_qwerty | ...
+
+# Connections between devices
+connections:
+  - name: stt-to-hid
+    from: stt
+    to: hid
+    transport: uart              # uart | wifi
+
+    uart:
+      device: /dev/serial0       # on the 'from' device
+      baud_rate: 115200
+
+    wifi:
+      port: 5000
+      ssh_key: null              # path or env:DICTACODE_SSH_KEY
+
+# Discovery settings (used by dictacode-discover CLI)
+discovery:
+  auto_detect:
+    microphone: true
+    uart: true
+    whisper_binary: true
+  search_paths:
+    whisper:
+      - ~/whisper.cpp/build/bin/whisper-cli
+      - /opt/whisper.cpp/build/bin/whisper-cli
+      - ~/.local/bin/whisper-cli
+      - /usr/local/bin/whisper-cli

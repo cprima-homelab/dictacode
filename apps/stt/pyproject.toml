@@ -1,0 +1,17 @@
+[project]
+name = "dictacode-stt"
+version = "0.1.0"
+description = "dictacode Pi5 STT sidecar"
+requires-python = ">=3.9"
+dependencies = [
+    "sounddevice>=0.4",
+    "pyserial>=3.5",
+    "numpy>=1.20",
+]
+
+[project.scripts]
+dictacode-stt = "dictacode_stt.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
