@@ -2,10 +2,24 @@
 
 ## Prerequisites
 
-v0.3.0 builds on top of v0.2.0:
-- ✅ 5-layer architecture (transport, protocol, service, supervisor)
-- ✅ systemd integration
+v0.3.0 builds on top of v0.2.1:
+- ✅ 5-layer architecture (transport, protocol, service)
+- ✅ Supervisor layer (v0.2.1: link health, reconnection, watchdog)
+- ✅ systemd integration with WatchdogSec
 - ✅ Signal handling for graceful shutdown
+- ✅ CLI entry points (dictacode-hid, dictacode-stt)
+
+---
+
+## Note on Supervisor Integration
+
+The supervisor layer from v0.2.1 provides essential data for the web panel:
+- **Link health status**: Display "Connected" vs "Reconnecting" in UI
+- **Last activity timestamp**: Show time since last message
+- **Reconnection attempts**: Display reconnect counter/backoff delay
+- **Watchdog status**: Alert if service is unhealthy
+
+This makes v0.2.1 a **hard prerequisite** for v0.3.0 web panel features.
 
 ---
 
@@ -132,7 +146,16 @@ apps/stt/src/dictacode_stt/
 
 ```
 GET  /api/status
-Response: {"mode": "listening", "keymap": "en_us", "model": "tiny"}
+Response: {
+  "mode": "listening",
+  "keymap": "en_us",
+  "model": "tiny",
+  "supervisor": {
+    "link_healthy": true,
+    "last_activity": "2025-11-30T21:53:18Z",
+    "reconnect_attempts": 0
+  }
+}
 
 POST /api/keymap
 Body: {"layout": "de_de"}
@@ -158,8 +181,9 @@ Response: {"status": "ok"}
 WS /api/ws
 
 // Server → Client
-{"type": "status", "data": {"mode": "listening", ...}}
+{"type": "status", "data": {"mode": "listening", "keymap": "en_us", ...}}
 {"type": "transcription", "data": {"text": "hello world", "final": true}}
+{"type": "supervisor", "data": {"link_healthy": true, "last_activity": "...", "reconnect_attempts": 0}}
 {"type": "error", "data": {"message": "UART disconnected"}}
 
 // Client → Server (optional)
