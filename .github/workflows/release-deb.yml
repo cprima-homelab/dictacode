@@ -1,0 +1,51 @@
+name: Release Debian Package
+
+on:
+  push:
+    tags:
+      - 'dictacode-*-v*'  # e.g., dictacode-hid-v0.1.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for creating releases
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract package name from tag
+        id: pkg
+        run: |
+          # Tag: dictacode-hid-v0.1.0 -> Package: dictacode-hid
+          TAG="${GITHUB_REF#refs/tags/}"
+          PKG_NAME=$(echo "$TAG" | sed 's/-v[0-9].*//')
+          VERSION=$(echo "$TAG" | sed 's/.*-v//')
+          echo "name=$PKG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Package: $PKG_NAME, Version: $VERSION"
+
+      - name: Verify package exists
+        run: |
+          PKG_DIR="ops/packaging/debian/${{ steps.pkg.outputs.name }}"
+          if [ ! -d "$PKG_DIR" ]; then
+            echo "ERROR: Package directory not found: $PKG_DIR"
+            exit 1
+          fi
+          echo "Found package: $PKG_DIR"
+
+      - name: Build package
+        run: |
+          cd ops/packaging
+          ./build-deb.sh ${{ steps.pkg.outputs.name }}
+          ls -la dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ops/packaging/dist/${{ steps.pkg.outputs.name }}*.deb
+          name: ${{ steps.pkg.outputs.name }} v${{ steps.pkg.outputs.version }}
+          tag_name: ${{ steps.pkg.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
