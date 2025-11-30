@@ -6,7 +6,7 @@ This directory contains Debian package definitions for dictacode components.
 
 | Package | Target | Description |
 |---------|--------|-------------|
-| `dictacode-bootstrap` | All | Base package: creates user and directories |
+| `dictacode-core` | All | Base package: creates user and directories |
 | `dictacode-hid` | Pi Zero 2 W | USB HID keyboard gadget setup |
 | `dictacode-stt` | Pi 5 | Speech-to-text engine and whisper.cpp installer |
 
@@ -14,7 +14,7 @@ This directory contains Debian package definitions for dictacode components.
 
 ```bash
 # 1. Install base package (all devices)
-sudo dpkg -i dictacode-bootstrap_*.deb
+sudo dpkg -i dictacode-core_*.deb
 
 # 2a. On Pi 5 (STT Engine):
 sudo dpkg -i dictacode-stt_*.deb
@@ -33,7 +33,7 @@ Use the build script from the packaging directory:
 
 ```bash
 cd ops/packaging
-./build-deb.sh dictacode-bootstrap
+./build-deb.sh dictacode-core
 ./build-deb.sh dictacode-hid
 ./build-deb.sh dictacode-stt
 ```
@@ -43,7 +43,7 @@ Built packages are placed in `ops/packaging/dist/`.
 ## Package Structure
 
 ```
-/opt/dictacode/                    # Base (dictacode-bootstrap)
+/opt/dictacode/                    # Base (dictacode-core)
     hid/                           # dictacode-hid
         setup_hid_gadget.sh
     stt/                           # dictacode-stt
@@ -58,7 +58,7 @@ Built packages are placed in `ops/packaging/dist/`.
 
 ## Package Details
 
-### dictacode-bootstrap
+### dictacode-core
 
 Base package that prepares the system for other dictacode components.
 
@@ -87,7 +87,7 @@ Configures Pi Zero 2 W as USB HID keyboard gadget.
 
 **Requires reboot** after first install.
 
-**Dependencies:** `dictacode-bootstrap`, `python3`, `python3-venv`, `systemd`
+**Dependencies:** `dictacode-core`, `python3`, `python3-venv`, `systemd`
 
 ### dictacode-stt
 
@@ -103,7 +103,7 @@ Speech-to-text pipeline for Pi 5.
 2. Run `sudo /opt/dictacode/stt/install-whisper.sh`
 3. Start service: `sudo systemctl enable --now dictacode-stt`
 
-**Dependencies:** `dictacode-bootstrap`, `python3`, `python3-venv`, `alsa-utils`, `libportaudio2`
+**Dependencies:** `dictacode-core`, `python3`, `python3-venv`, `alsa-utils`, `libportaudio2`
 
 **Recommends:** `build-essential`, `cmake`, `git`, `portaudio19-dev`
 

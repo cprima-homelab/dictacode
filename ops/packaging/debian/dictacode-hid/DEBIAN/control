@@ -3,7 +3,7 @@ Version: 0.1.0-1
 Section: utils
 Priority: optional
 Architecture: all
-Pre-Depends: dictacode-bootstrap
+Pre-Depends: dictacode-core
 Depends: python3, python3-venv, systemd
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
 Homepage: https://github.com/cprima-homelab/dictacode

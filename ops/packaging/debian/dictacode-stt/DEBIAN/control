@@ -3,7 +3,7 @@ Version: 0.1.0
 Section: utils
 Priority: optional
 Architecture: all
-Pre-Depends: dictacode-bootstrap
+Pre-Depends: dictacode-core
 Depends: python3 (>= 3.9), python3-venv, alsa-utils, libportaudio2
 Recommends: build-essential, cmake, git, portaudio19-dev
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
