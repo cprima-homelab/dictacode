@@ -1,0 +1,4 @@
+# dictacode HID gadget device permissions
+# Allow dictacode user to write to /dev/hidg0
+
+KERNEL=="hidg[0-9]*", MODE="0660", GROUP="dictacode"

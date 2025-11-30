@@ -111,6 +111,16 @@ def check_module_loaded(module: str) -> bool:
         return False
 
 
+def check_dwc2_active() -> bool:
+    """Check if dwc2 is active (may be loaded via device tree, not lsmod)."""
+    # If UDC is available, dwc2 is working regardless of lsmod
+    udc_path = Path("/sys/class/udc")
+    if udc_path.exists() and list(udc_path.iterdir()):
+        return True
+    # Fallback to lsmod check
+    return check_module_loaded("dwc2")
+
+
 def get_udc_name() -> str | None:
     """Get the name of the USB Device Controller."""
     udc_path = Path("/sys/class/udc")
@@ -213,11 +223,11 @@ def main() -> int:
     # 3. Kernel Modules
     print("Kernel Modules:")
 
-    if check_module_loaded("dwc2"):
-        result.ok("dwc2 module loaded")
+    if check_dwc2_active():
+        result.ok("dwc2 active (UDC available or module loaded)")
     else:
         result.fail(
-            "dwc2 module not loaded",
+            "dwc2 not active",
             "Reboot after configuring dtoverlay=dwc2"
         )
 

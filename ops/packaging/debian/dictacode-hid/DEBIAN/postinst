@@ -97,6 +97,27 @@ configure_service() {
 set_permissions() {
     # Make setup script executable
     chmod 755 /opt/dictacode/setup_hid_gadget.sh
+
+    # Ensure dictacode group exists for udev rule
+    if ! getent group dictacode > /dev/null 2>&1; then
+        groupadd --system dictacode
+        echo "Created group: dictacode"
+    fi
+
+    # Add dictacode user to dictacode group if user exists
+    if id dictacode > /dev/null 2>&1; then
+        if ! id -nG dictacode | grep -qw dictacode; then
+            usermod -aG dictacode dictacode
+            echo "Added user 'dictacode' to group 'dictacode'"
+            echo "NOTE: User must log out and back in for group change to take effect"
+        else
+            echo "User 'dictacode' already in group 'dictacode'"
+        fi
+    fi
+
+    # Reload udev rules
+    udevadm control --reload-rules 2>/dev/null || true
+    udevadm trigger 2>/dev/null || true
 }
 
 # -----------------------------------------------------------------------------
