@@ -1,0 +1,19 @@
+[Unit]
+Description=dictacode USB HID Keyboard Gadget
+Documentation=https://github.com/cprima-homelab/dictacode
+After=local-fs.target systemd-modules-load.service
+Requires=sys-kernel-config.mount
+ConditionPathExists=/sys/kernel/config
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/dictacode/hid/setup_hid_gadget.sh
+StandardOutput=journal
+StandardError=journal
+
+# The script has its own capability and role checks
+# If checks fail, service will fail gracefully
+
+[Install]
+WantedBy=multi-user.target

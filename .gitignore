@@ -12,6 +12,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# But allow lib/ in debian packaging
+!ops/packaging/debian/*/lib/
 parts/
 sdist/
 var/

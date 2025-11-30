@@ -1,5 +1,6 @@
 [Unit]
-Description=dictacode Pi5 STT sidecar
+Description=dictacode Speech-to-Text Pipeline
+Documentation=https://github.com/cprima-homelab/dictacode
 After=network.target sound.target
 Wants=network.target
 
@@ -10,15 +11,16 @@ Type=simple
 User=dictacode
 Group=dictacode
 
-# systemd-managed state/log dirs (creates /var/lib/dictacode, /var/log/dictacode, etc.)
+# systemd-managed state/log dirs
 StateDirectory=dictacode
 RuntimeDirectory=dictacode-stt
 LogsDirectory=dictacode
 
-WorkingDirectory=/var/lib/dictacode
+WorkingDirectory=/opt/dictacode/stt
 
-# venv entry point from PyPI package
-ExecStart=/opt/dictacode/stt-venv/bin/dictacode-stt
+# STT pipeline executable
+# Note: Requires whisper.cpp to be installed first via install-whisper.sh
+ExecStart=/opt/dictacode/stt/stt-venv/bin/python /opt/dictacode/stt/pipeline_stream.py
 
 Restart=on-failure
 RestartSec=3
@@ -26,9 +28,12 @@ RestartSec=3
 EnvironmentFile=-/etc/dictacode/stt.env
 Environment=PYTHONUNBUFFERED=1
 
+# Security hardening
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
+
+# Audio processing priority
 Nice=-5
 
 StandardOutput=journal

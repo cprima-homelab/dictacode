@@ -1,0 +1,23 @@
+Package: dictacode-stt
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: all
+Pre-Depends: dictacode-bootstrap
+Depends: python3 (>= 3.9), python3-venv, alsa-utils, libportaudio2
+Recommends: build-essential, cmake, git, portaudio19-dev
+Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
+Homepage: https://github.com/cprima-homelab/dictacode
+Description: dictacode speech-to-text engine
+ Provides the speech-to-text pipeline for dictacode.
+ .
+ This package:
+  - Installs the STT pipeline scripts
+  - Provides install-whisper.sh to build whisper.cpp
+  - Configures systemd service for continuous transcription
+  - Sends transcribed text to HID device via UART
+ .
+ After installation:
+  1. Edit /etc/dictacode/stt.conf (optional)
+  2. Run: sudo /opt/dictacode/stt/install-whisper.sh
+  3. Start service: sudo systemctl start dictacode-stt

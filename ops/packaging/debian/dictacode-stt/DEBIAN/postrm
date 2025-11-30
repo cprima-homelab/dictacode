@@ -1,0 +1,34 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Remove stt config
+        rm -f /etc/dictacode/stt.conf
+        # Remove config directory if empty
+        rmdir /etc/dictacode 2>/dev/null || true
+        # Remove stt directory
+        rm -rf /opt/dictacode/stt
+        # Remove whisper.cpp if installed
+        rm -rf /opt/dictacode/whisper.cpp
+        # Remove opt directory if empty
+        rmdir /opt/dictacode 2>/dev/null || true
+        # Reload systemd
+        systemctl daemon-reload || true
+        ;;
+
+    remove)
+        # Reload systemd after service file removal
+        systemctl daemon-reload || true
+        ;;
+
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

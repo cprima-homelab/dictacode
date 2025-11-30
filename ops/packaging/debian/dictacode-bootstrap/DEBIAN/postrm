@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        # Remove directories created by postinst
+        rm -rf /var/lib/dictacode
+        rmdir /etc/dictacode 2>/dev/null || true
+        rmdir /opt/dictacode 2>/dev/null || true
+
+        # Remove user (optional - commented out for safety)
+        # deluser --remove-home dictacode 2>/dev/null || true
+        ;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

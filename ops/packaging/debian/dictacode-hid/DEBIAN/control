@@ -3,16 +3,19 @@ Version: 0.1.0-1
 Section: utils
 Priority: optional
 Architecture: all
-Depends: systemd
+Pre-Depends: dictacode-bootstrap
+Depends: python3, python3-venv, systemd
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
+Homepage: https://github.com/cprima-homelab/dictacode
 Description: dictacode USB HID keyboard gadget
  Configures a Raspberry Pi Zero as a USB HID keyboard device.
  .
  This package:
- - Configures boot parameters for USB gadget mode (dwc2)
- - Installs a systemd service to create the HID gadget at boot
- - Creates /dev/hidg0 for keyboard emulation
+  - Configures boot parameters for USB gadget mode (dwc2)
+  - Installs a systemd service to create the HID gadget at boot
+  - Creates /dev/hidg0 for keyboard emulation
+  - Provides UART-to-HID bridge for receiving text from STT
  .
  Requirements:
- - Raspberry Pi Zero / Zero W / Zero 2 W (OTG capable)
- - Device role must be 'hid' in /etc/dictacode/inventory.yaml
+  - Raspberry Pi Zero / Zero W / Zero 2 W (OTG capable)
+  - Reboot required after first install
