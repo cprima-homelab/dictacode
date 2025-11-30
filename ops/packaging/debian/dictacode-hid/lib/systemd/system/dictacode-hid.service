@@ -1,8 +1,9 @@
 [Unit]
-Description=dictacode Speech-to-Text Pipeline
+Description=dictacode HID Bridge - UART to HID keyboard
 Documentation=https://github.com/cprima-homelab/dictacode
-After=network.target sound.target
-Wants=network.target
+After=dictacode-hid-gadget.service
+Requires=dictacode-hid-gadget.service
+ConditionPathExists=/dev/hidg0
 
 [Service]
 Type=notify
@@ -13,13 +14,13 @@ Group=dictacode
 
 # systemd-managed state/log dirs
 StateDirectory=dictacode
-RuntimeDirectory=dictacode-stt
+RuntimeDirectory=dictacode-hid
 LogsDirectory=dictacode
 
-WorkingDirectory=/opt/dictacode/stt
+WorkingDirectory=/opt/dictacode/hid
 
-# STT pipeline executable
-ExecStart=/opt/dictacode/stt/stt-venv/bin/python -m dictacode_stt
+# HID bridge executable
+ExecStart=/opt/dictacode/hid/hid-venv/bin/python -m dictacode_hid
 
 # Watchdog: systemd will restart if no WATCHDOG=1 within 60s
 WatchdogSec=60
@@ -27,16 +28,13 @@ WatchdogSec=60
 Restart=on-failure
 RestartSec=3
 
-EnvironmentFile=-/etc/dictacode/stt.env
+EnvironmentFile=-/etc/dictacode/hid.env
 Environment=PYTHONUNBUFFERED=1
 
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
-
-# Audio processing priority
-Nice=-5
 
 StandardOutput=journal
 StandardError=journal

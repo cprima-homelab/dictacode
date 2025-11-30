@@ -20,6 +20,9 @@ from dictacode_stt.transport import (
 from dictacode_stt.service import (
     SttService,
 )
+from dictacode_stt.supervisor import (
+    LinkSupervisor,
+)
 
 __all__ = [
     # Protocol
@@ -38,6 +41,8 @@ __all__ = [
     "UartTransport",
     # Service
     "SttService",
+    # Supervisor
+    "LinkSupervisor",
     # Existing
     "main",
 ]

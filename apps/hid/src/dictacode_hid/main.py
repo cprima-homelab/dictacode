@@ -47,13 +47,17 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Environment Variables:
-  DICTACODE_PROTOCOL    Protocol: json (default) or msgpack
-  DICTACODE_MODE        Initial mode: normal, maintenance, paused
-  DICTACODE_KEYMAP      Initial keymap: en_us (default), de_de
+  DICTACODE_PROTOCOL              Protocol: json (default) or msgpack
+  DICTACODE_MODE                  Initial mode: normal, maintenance, paused
+  DICTACODE_KEYMAP                Initial keymap: en_us (default), de_de
+  DICTACODE_SUPERVISOR_TIMEOUT    Link timeout in seconds (default: 30)
+  DICTACODE_SUPERVISOR_PING_INTERVAL  Ping interval in seconds (default: 5)
+  DICTACODE_SUPERVISOR_ENABLED    Enable supervisor: true (default), false
 
 Examples:
   python -m dictacode_hid
   python -m dictacode_hid --dry-run --verbose
+  python -m dictacode_hid --no-supervisor
   DICTACODE_PROTOCOL=msgpack python -m dictacode_hid
         """,
     )
@@ -88,6 +92,23 @@ Examples:
         "-v",
         action="store_true",
         help="Verbose logging (DEBUG level)",
+    )
+    parser.add_argument(
+        "--supervisor-timeout",
+        type=float,
+        default=30.0,
+        help="Link timeout in seconds (default: 30)",
+    )
+    parser.add_argument(
+        "--supervisor-ping-interval",
+        type=float,
+        default=5.0,
+        help="Ping interval in seconds (default: 5)",
+    )
+    parser.add_argument(
+        "--no-supervisor",
+        action="store_true",
+        help="Disable supervisor (for debugging)",
     )
 
     args = parser.parse_args()
@@ -125,6 +146,17 @@ Examples:
         logger.info("DRY RUN - HID output disabled")
     logger.info("=" * 60)
 
+    # Get supervisor configuration from environment (fallback to args)
+    supervisor_timeout = float(
+        os.environ.get("DICTACODE_SUPERVISOR_TIMEOUT", args.supervisor_timeout)
+    )
+    supervisor_ping_interval = float(
+        os.environ.get("DICTACODE_SUPERVISOR_PING_INTERVAL", args.supervisor_ping_interval)
+    )
+    supervisor_enabled = os.environ.get(
+        "DICTACODE_SUPERVISOR_ENABLED", "true"
+    ).lower() != "false" and not args.no_supervisor
+
     # Create service
     try:
         service = HidService(
@@ -135,6 +167,9 @@ Examples:
             initial_mode=initial_mode,
             initial_keymap=initial_keymap,
             dry_run=args.dry_run,
+            supervisor_timeout=supervisor_timeout,
+            supervisor_ping_interval=supervisor_ping_interval,
+            supervisor_enabled=supervisor_enabled,
         )
     except Exception as e:
         logger.error(f"Failed to initialize service: {e}", exc_info=True)

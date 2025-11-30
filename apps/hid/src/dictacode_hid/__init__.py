@@ -23,6 +23,9 @@ from dictacode_hid.transport import (
 from dictacode_hid.service import (
     HidService,
 )
+from dictacode_hid.supervisor import (
+    LinkSupervisor,
+)
 
 __all__ = [
     # Protocol
@@ -44,6 +47,8 @@ __all__ = [
     "HidTransport",
     # Service
     "HidService",
+    # Supervisor
+    "LinkSupervisor",
     # Existing
     "main",
     "keymaps",

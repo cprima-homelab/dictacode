@@ -28,6 +28,7 @@ from dictacode_stt.protocol import (
 )
 from dictacode_stt.state import DeviceMode, SttState
 from dictacode_stt.transport import UartTransport, TransportError
+from dictacode_stt.supervisor import LinkSupervisor
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,9 @@ class SttService:
         language: str = "en",
         initial_mode: DeviceMode = DeviceMode.LISTENING,
         dry_run: bool = False,
+        supervisor_timeout: float = 30.0,
+        supervisor_ping_interval: float = 5.0,
+        supervisor_enabled: bool = True,
     ):
         """
         Initialize STT service.
@@ -77,6 +81,9 @@ class SttService:
             language: Transcription language
             initial_mode: Initial device mode
             dry_run: If True, don't send to UART (for testing)
+            supervisor_timeout: Link timeout in seconds (default: 30)
+            supervisor_ping_interval: Ping interval in seconds (default: 5)
+            supervisor_enabled: Enable supervisor (default: True)
         """
         self.uart_device = uart_device
         self.baud_rate = baud_rate
@@ -88,6 +95,7 @@ class SttService:
         self.recording_duration = recording_duration
         self.language = language
         self.dry_run = dry_run
+        self.supervisor_enabled = supervisor_enabled
 
         # Whisper paths
         if whisper_binary is None:
@@ -103,10 +111,21 @@ class SttService:
         self.state: SttState = SttState(mode=initial_mode)
         self.uart: Optional[UartTransport] = None
 
+        # Initialize supervisor (Layer 5)
+        self.supervisor: LinkSupervisor = LinkSupervisor(
+            timeout=supervisor_timeout,
+            ping_interval=supervisor_ping_interval,
+        )
+
         logger.info(
             f"STT service initialized: uart={uart_device}, protocol={protocol_name}, "
             f"mode={initial_mode.name}, language={language}, duration={recording_duration}s"
         )
+        if supervisor_enabled:
+            logger.info(
+                f"Supervisor enabled: timeout={supervisor_timeout}s, "
+                f"ping_interval={supervisor_ping_interval}s"
+            )
 
     def start(self) -> None:
         """Open UART transport."""
@@ -264,51 +283,105 @@ class SttService:
 
         return " ".join(text_parts)
 
-    def send_text(self, text: str) -> None:
+    def send_text(self, text: str) -> bool:
         """
         Send text over UART.
 
         Args:
             text: Text to send
+
+        Returns:
+            True if sent successfully, False otherwise
         """
         if not text:
             logger.warning("Empty text, not sending")
-            return
+            return False
 
         msg = TextMessage(payload=text)
         encoded = self.protocol.encode(msg)
 
         if self.dry_run:
             logger.info(f"Would send {len(encoded)} bytes: {text}")
-            return
+            if self.supervisor_enabled:
+                self.supervisor.mark_activity()
+            return True
 
         try:
             self.uart.write(encoded)
             logger.info(f"Sent {len(encoded)} bytes: {text}")
+            # Supervisor: mark activity on successful send
+            if self.supervisor_enabled:
+                self.supervisor.mark_activity()
+            return True
         except TransportError as e:
             logger.error(f"UART write failed: {e}")
+            if self.supervisor_enabled:
+                self.supervisor._mark_unhealthy()
+            return False
 
-    def send_command(self, cmd: str, arg: Optional[str] = None) -> None:
+    def send_command(self, cmd: str, arg: Optional[str] = None) -> bool:
         """
         Send command over UART.
 
         Args:
             cmd: Command name
             arg: Command argument (optional)
+
+        Returns:
+            True if sent successfully, False otherwise
         """
         msg = CommandMessage(command=cmd, argument=arg)
         encoded = self.protocol.encode(msg)
 
         if self.dry_run:
             logger.info(f"Would send command: {cmd}" + (f" {arg}" if arg else ""))
-            return
+            if self.supervisor_enabled:
+                self.supervisor.mark_activity()
+            return True
 
         try:
             self.uart.write(encoded)
             arg_str = f" {arg}" if arg else ""
             logger.info(f"Sent command: {cmd}{arg_str}")
+            # Supervisor: mark activity on successful send
+            if self.supervisor_enabled:
+                self.supervisor.mark_activity()
+            return True
         except TransportError as e:
             logger.error(f"UART write failed: {e}")
+            if self.supervisor_enabled:
+                self.supervisor._mark_unhealthy()
+            return False
+
+    def _reconnect(self) -> bool:
+        """
+        Attempt to reconnect UART transport.
+
+        Returns:
+            True if reconnection successful, False otherwise
+        """
+        self.supervisor.on_reconnect_attempt()
+
+        try:
+            # Close existing transport
+            if self.uart:
+                try:
+                    self.uart.close()
+                except Exception:
+                    pass  # Ignore close errors
+
+            # Reopen transport
+            self.uart = UartTransport(self.uart_device, self.baud_rate)
+            self.uart.open()
+
+            # Success
+            self.supervisor.on_reconnect_success()
+            logger.info(f"UART reconnected: {self.uart_device}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Reconnection failed: {e}")
+            return False
 
     def run_once(self) -> Dict[str, any]:
         """
@@ -363,7 +436,7 @@ class SttService:
 
     def run_continuous(self) -> None:
         """
-        Run continuous pipeline loop.
+        Run continuous pipeline loop with supervisor health checks.
 
         Blocks until KeyboardInterrupt.
         """
@@ -372,6 +445,20 @@ class SttService:
         iteration = 0
         try:
             while True:
+                # Supervisor: check health and handle reconnection
+                if self.supervisor_enabled and not self.dry_run:
+                    if not self.supervisor.check_health():
+                        logger.warning("Link unhealthy, attempting reconnection...")
+                        if not self._reconnect():
+                            # Reconnection failed, wait and retry
+                            delay = self.supervisor.reconnect_delay()
+                            logger.info(f"Waiting {delay:.1f}s before retry...")
+                            time.sleep(delay)
+                            continue
+
+                    # Supervisor: notify systemd watchdog
+                    self.supervisor.notify_watchdog()
+
                 iteration += 1
                 logger.info(f"=== ITERATION {iteration} ===")
 
