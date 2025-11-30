@@ -13,6 +13,13 @@ from dictacode_stt.state import (
     DeviceMode,
     SttState,
 )
+from dictacode_stt.transport import (
+    TransportError,
+    UartTransport,
+)
+from dictacode_stt.service import (
+    SttService,
+)
 
 __all__ = [
     # Protocol
@@ -26,6 +33,11 @@ __all__ = [
     # State
     "DeviceMode",
     "SttState",
+    # Transport
+    "TransportError",
+    "UartTransport",
+    # Service
+    "SttService",
     # Existing
     "main",
 ]

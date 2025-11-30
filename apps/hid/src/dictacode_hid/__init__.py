@@ -15,6 +15,14 @@ from dictacode_hid.state import (
     DeviceMode,
     HidState,
 )
+from dictacode_hid.transport import (
+    TransportError,
+    UartTransport,
+    HidTransport,
+)
+from dictacode_hid.service import (
+    HidService,
+)
 
 __all__ = [
     # Protocol
@@ -30,6 +38,12 @@ __all__ = [
     # State
     "DeviceMode",
     "HidState",
+    # Transport
+    "TransportError",
+    "UartTransport",
+    "HidTransport",
+    # Service
+    "HidService",
     # Existing
     "main",
     "keymaps",

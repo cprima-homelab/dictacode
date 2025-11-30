@@ -10,8 +10,8 @@ dependencies = [
     "msgpack>=1.0",
 ]
 
-# [project.scripts]
-# dictacode-stt entry point removed - use sandbox/pipeline.py
+[project.scripts]
+dictacode-stt = "dictacode_stt.main:main"
 
 [dependency-groups]
 dev = [
