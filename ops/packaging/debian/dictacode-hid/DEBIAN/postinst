@@ -1,0 +1,137 @@
+#!/bin/bash
+# postinst - Post-installation script for dictacode-hid
+#
+# Configures boot parameters for USB gadget mode and enables the service.
+
+set -e
+
+REBOOT_REQUIRED=false
+
+# -----------------------------------------------------------------------------
+# Helper Functions
+# -----------------------------------------------------------------------------
+
+add_to_file_if_missing() {
+    local file="$1"
+    local line="$2"
+    local description="$3"
+
+    if [ ! -f "$file" ]; then
+        echo "WARNING: $file not found, skipping $description"
+        return
+    fi
+
+    if grep -q "^$line$" "$file" 2>/dev/null; then
+        echo "$description: already configured"
+    else
+        echo "$line" >> "$file"
+        echo "$description: added"
+        REBOOT_REQUIRED=true
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Configure Boot Parameters
+# -----------------------------------------------------------------------------
+
+configure_boot() {
+    echo "=== Configuring boot parameters ==="
+
+    # Determine config.txt location
+    local config_txt=""
+    if [ -f "/boot/firmware/config.txt" ]; then
+        config_txt="/boot/firmware/config.txt"
+    elif [ -f "/boot/config.txt" ]; then
+        config_txt="/boot/config.txt"
+    else
+        echo "WARNING: config.txt not found"
+    fi
+
+    # Add dtoverlay=dwc2
+    if [ -n "$config_txt" ]; then
+        if grep -q "^dtoverlay=dwc2" "$config_txt" 2>/dev/null; then
+            echo "dtoverlay=dwc2: already configured"
+        else
+            echo "dtoverlay=dwc2" >> "$config_txt"
+            echo "dtoverlay=dwc2: added to $config_txt"
+            REBOOT_REQUIRED=true
+        fi
+    fi
+
+    # Add modules to /etc/modules
+    add_to_file_if_missing "/etc/modules" "dwc2" "dwc2 module"
+    add_to_file_if_missing "/etc/modules" "libcomposite" "libcomposite module"
+}
+
+# -----------------------------------------------------------------------------
+# Configure systemd Service
+# -----------------------------------------------------------------------------
+
+configure_service() {
+    echo "=== Configuring systemd service ==="
+
+    # Reload systemd to pick up new service file
+    systemctl daemon-reload
+
+    # Enable the service
+    systemctl enable dictacode-hid-gadget.service
+    echo "Service enabled: dictacode-hid-gadget.service"
+
+    # Try to start if modules are available (may fail if reboot required)
+    if lsmod | grep -q dwc2 && lsmod | grep -q libcomposite; then
+        echo "Attempting to start service..."
+        if systemctl start dictacode-hid-gadget.service; then
+            echo "Service started successfully"
+        else
+            echo "Service start failed (will work after reboot)"
+        fi
+    else
+        echo "Service will start after reboot (modules not loaded yet)"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# Set Permissions
+# -----------------------------------------------------------------------------
+
+set_permissions() {
+    # Make setup script executable
+    chmod 755 /opt/dictacode/setup_hid_gadget.sh
+}
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
+case "$1" in
+    configure)
+        echo "=== dictacode-hid post-installation ==="
+
+        set_permissions
+        configure_boot
+        configure_service
+
+        echo ""
+        if [ "$REBOOT_REQUIRED" = true ]; then
+            echo "========================================"
+            echo "  REBOOT REQUIRED"
+            echo "  Run: sudo reboot"
+            echo "========================================"
+        else
+            echo "Installation complete."
+            if [ -e /dev/hidg0 ]; then
+                echo "HID device ready: /dev/hidg0"
+            fi
+        fi
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

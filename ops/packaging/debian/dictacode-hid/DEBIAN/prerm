@@ -1,0 +1,41 @@
+#!/bin/bash
+# prerm - Pre-removal script for dictacode-hid
+#
+# Stops and disables the service before package removal.
+
+set -e
+
+case "$1" in
+    remove|upgrade|deconfigure)
+        echo "=== dictacode-hid pre-removal ==="
+
+        # Stop the service if running
+        if systemctl is-active --quiet dictacode-hid-gadget.service 2>/dev/null; then
+            echo "Stopping dictacode-hid-gadget.service..."
+            systemctl stop dictacode-hid-gadget.service || true
+        fi
+
+        # Disable the service
+        if systemctl is-enabled --quiet dictacode-hid-gadget.service 2>/dev/null; then
+            echo "Disabling dictacode-hid-gadget.service..."
+            systemctl disable dictacode-hid-gadget.service || true
+        fi
+
+        # Note: We do NOT remove the boot config (dtoverlay=dwc2, modules)
+        # because other packages or manual usage may depend on it.
+        # The user can remove those manually if desired.
+
+        echo "Service stopped and disabled."
+        echo "Note: Boot config (dtoverlay=dwc2) not removed. Remove manually if needed."
+        ;;
+
+    failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument '$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
