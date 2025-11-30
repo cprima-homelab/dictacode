@@ -1,0 +1,39 @@
+[Unit]
+Description=dictacode Pi5 STT sidecar
+After=network.target sound.target
+Wants=network.target
+
+[Service]
+Type=simple
+
+# Run as non-root service user
+User=dictacode
+Group=dictacode
+
+# systemd-managed state/log dirs (creates /var/lib/dictacode, /var/log/dictacode, etc.)
+StateDirectory=dictacode
+RuntimeDirectory=dictacode-stt
+LogsDirectory=dictacode
+
+WorkingDirectory=/var/lib/dictacode
+
+# venv entry point from PyPI package
+ExecStart=/opt/dictacode/stt-venv/bin/dictacode-stt
+
+Restart=on-failure
+RestartSec=3
+
+EnvironmentFile=-/etc/dictacode/stt.env
+Environment=PYTHONUNBUFFERED=1
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+Nice=-5
+
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

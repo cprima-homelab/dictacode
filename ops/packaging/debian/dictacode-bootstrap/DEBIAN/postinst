@@ -1,0 +1,36 @@
+#!/bin/sh
+set -e
+
+PKG_USER="dictacode"
+PKG_HOME="/opt/dictacode"
+
+case "$1" in
+    configure|reconfigure)
+        if ! id -u "$PKG_USER" >/dev/null 2>&1; then
+            echo "dictacode-bootstrap: creating user '$PKG_USER'"
+            adduser \
+                --system \
+                --home "$PKG_HOME" \
+                --group \
+                --shell /bin/bash \
+                "$PKG_USER"
+        fi
+
+        # ensure directories
+        for d in "$PKG_HOME" /var/lib/dictacode /etc/dictacode; do
+            mkdir -p "$d"
+            chown "$PKG_USER:$PKG_USER" "$d"
+        done
+
+        # useful groups for audio / serial / USB stuff
+        for g in audio video plugdev dialout tty; do
+            if getent group "$g" >/dev/null 2>&1; then
+                if ! id -nG "$PKG_USER" | grep -qw "$g"; then
+                    adduser "$PKG_USER" "$g" >/dev/null
+                fi
+            fi
+        done
+        ;;
+esac
+
+exit 0

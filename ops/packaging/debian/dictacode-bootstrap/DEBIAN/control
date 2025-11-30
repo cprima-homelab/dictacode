@@ -1,0 +1,10 @@
+Package: dictacode-bootstrap
+Version: 0.1.0
+Section: utils
+Priority: optional
+Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
+Architecture: all
+Depends: adduser, systemd
+Description: Bootstrap user and directories for dictacode agents
+ This package prepares a system to run dictacode components by
+ creating the dictacode system user and required directories.
