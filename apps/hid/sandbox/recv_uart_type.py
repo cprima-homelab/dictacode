@@ -1,17 +1,34 @@
 #!/usr/bin/env python3
 """
-recv_uart_type.py - Receive text from UART, type via HID.
+recv_uart_type.py - Receive protocol messages from UART, type via HID.
 
 Sandbox script for dictacode HID.
-Listens on UART, types received text to /dev/hidg0.
+Listens on UART, decodes protocol messages, types text to /dev/hidg0.
 
 Usage:
-    python recv_uart_type.py              # listen and type
-    python recv_uart_type.py --dry-run    # show what would type (no HID)
+    python recv_uart_type.py                    # listen and type
+    python recv_uart_type.py --dry-run          # show what would type (no HID)
+    python recv_uart_type.py --maintenance      # log only, don't type
+    DICTACODE_PROTOCOL=msgpack python recv_uart_type.py  # use msgpack
+
+Environment:
+    DICTACODE_PROTOCOL  - Protocol: json (default) or msgpack
+    DICTACODE_MODE      - Initial mode: normal, maintenance, paused
 """
 
+import os
 import sys
 import time
+
+# Import from src/ package
+from dictacode_hid import (
+    get_protocol,
+    detect_protocol,
+    TextMessage,
+    CommandMessage,
+    DeviceMode,
+    HidState,
+)
 
 # Hardcoded from inventory
 UART_DEVICE = "/dev/serial0"
@@ -76,11 +93,67 @@ def type_text(hid_file, text: str) -> int:
     return count
 
 
+def handle_command(msg: CommandMessage, state: HidState) -> None:
+    """Process a command message."""
+    cmd = msg.command
+    arg = msg.argument
+
+    if cmd == "keymap" and arg:
+        state.set_keymap(arg)
+
+    elif cmd == "pause":
+        state.set_mode(DeviceMode.PAUSED)
+
+    elif cmd == "resume":
+        state.set_mode(DeviceMode.NORMAL)
+
+    elif cmd == "maintenance":
+        state.set_mode(DeviceMode.MAINTENANCE)
+
+    elif cmd == "normal":
+        state.set_mode(DeviceMode.NORMAL)
+
+    else:
+        print(f"[recv_uart_type] unknown command: {cmd}")
+
+
+def handle_text(msg: TextMessage, state: HidState, hid_file) -> None:
+    """Process a text message based on current state."""
+    text = msg.payload
+
+    if state.should_type():
+        if hid_file:
+            typed = type_text(hid_file, text)
+            type_char(hid_file, " ")  # Add space after each utterance
+            print(f"[recv_uart_type] typed {typed} chars: {text}")
+        else:
+            print(f"[recv_uart_type] would type: {text}")
+
+    elif state.should_buffer():
+        state.add_to_buffer(text)
+        print(f"[recv_uart_type] buffered (paused): {text}")
+
+    else:
+        # Maintenance mode - log only
+        print(f"[recv_uart_type] received (maintenance): {text}")
+
+
+def flush_buffer(state: HidState, hid_file) -> None:
+    """Flush buffered text after resume."""
+    buffered = state.flush_buffer()
+    for text in buffered:
+        if hid_file:
+            typed = type_text(hid_file, text)
+            type_char(hid_file, " ")
+            print(f"[recv_uart_type] typed (from buffer) {typed} chars: {text}")
+
+
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="UART to HID bridge")
+    parser = argparse.ArgumentParser(description="UART to HID bridge with protocol support")
     parser.add_argument("--dry-run", action="store_true", help="Don't send to HID")
+    parser.add_argument("--maintenance", action="store_true", help="Start in maintenance mode")
     args = parser.parse_args()
 
     try:
@@ -89,8 +162,27 @@ def main() -> None:
         print("ERROR: pyserial not installed. Run: pip install pyserial")
         sys.exit(1)
 
+    # Get protocol from environment
+    protocol_name = os.environ.get("DICTACODE_PROTOCOL", "json")
+    protocol = get_protocol(protocol_name)
+
+    # Initialize state
+    initial_mode_str = os.environ.get("DICTACODE_MODE", "normal")
+    if args.maintenance:
+        initial_mode_str = "maintenance"
+
+    initial_mode = {
+        "normal": DeviceMode.NORMAL,
+        "maintenance": DeviceMode.MAINTENANCE,
+        "paused": DeviceMode.PAUSED,
+    }.get(initial_mode_str, DeviceMode.NORMAL)
+
+    state = HidState(mode=initial_mode)
+
     print(f"[recv_uart_type] UART: {UART_DEVICE} @ {BAUD_RATE}")
     print(f"[recv_uart_type] HID: {HID_DEVICE}")
+    print(f"[recv_uart_type] Protocol: {protocol_name}")
+    print(f"[recv_uart_type] Mode: {state.mode.name}")
     if args.dry_run:
         print("[recv_uart_type] DRY RUN - not sending to HID")
     print("[recv_uart_type] Listening... (Ctrl+C to stop)")
@@ -101,18 +193,43 @@ def main() -> None:
 
     try:
         while True:
-            line = ser.readline()
-            if line:
-                text = line.decode("utf-8", errors="replace").rstrip("\r\n")
-                if text:
-                    print(f"[recv_uart_type] received: {text}")
-                    if hid_file:
-                        typed = type_text(hid_file, text)
-                        # Add space after each utterance
-                        type_char(hid_file, " ")
-                        print(f"[recv_uart_type] typed {typed} chars")
-                    else:
-                        print(f"[recv_uart_type] would type: {text}")
+            if protocol_name == "json":
+                # JSON: read until newline
+                line = ser.readline()
+                if not line:
+                    continue
+                raw_data = line
+            else:
+                # Msgpack: read 2-byte length prefix, then payload
+                length_bytes = ser.read(2)
+                if len(length_bytes) < 2:
+                    continue
+                length = int.from_bytes(length_bytes, "big")
+                payload = ser.read(length)
+                if len(payload) < length:
+                    print(f"[recv_uart_type] incomplete message: got {len(payload)}/{length} bytes")
+                    continue
+                raw_data = payload
+
+            try:
+                msg = protocol.decode(raw_data)
+            except Exception as e:
+                # Try auto-detection on decode failure
+                detected = detect_protocol(raw_data if protocol_name == "json" else length_bytes + raw_data)
+                if detected != protocol_name:
+                    print(f"[recv_uart_type] protocol mismatch? detected {detected}, expected {protocol_name}")
+                print(f"[recv_uart_type] decode error: {e}")
+                continue
+
+            if isinstance(msg, TextMessage):
+                handle_text(msg, state, hid_file)
+            elif isinstance(msg, CommandMessage):
+                old_mode = state.mode
+                handle_command(msg, state)
+                # If resumed from paused, flush buffer
+                if old_mode == DeviceMode.PAUSED and state.mode == DeviceMode.NORMAL:
+                    flush_buffer(state, hid_file)
+
     except KeyboardInterrupt:
         print("\n[recv_uart_type] stopped")
     finally:

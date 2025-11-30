@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
 """
-send_uart.py - Send text over UART to Pi Zero HID.
+send_uart.py - Send protocol messages over UART to Pi Zero HID.
 
 Sandbox script for dictacode STT.
-Tests: UART reliability, throughput, latency.
+Tests: UART reliability, protocol encoding, commands.
 
 Usage:
-    python send_uart.py "text to send"
-    python send_uart.py --file input.txt
-    python send_uart.py --stress 1000    # send 1000 numbered messages
-    echo "hello" | python send_uart.py --stdin
+    python send_uart.py "text to send"                  # send text message
+    python send_uart.py --cmd keymap de_de              # send command
+    python send_uart.py --cmd pause                     # send command (no arg)
+    python send_uart.py --file input.txt                # send file contents
+    python send_uart.py --stress 1000                   # send 1000 test messages
+    DICTACODE_PROTOCOL=msgpack python send_uart.py "hello"  # use msgpack
+
+Environment:
+    DICTACODE_PROTOCOL  - Protocol: json (default) or msgpack
 """
 
+import os
 import sys
 import time
+
+# Import from src/ package
+from dictacode_stt import (
+    get_protocol,
+    TextMessage,
+    CommandMessage,
+)
 
 # Hardcoded from inventory - sandbox doesn't use config loader
 UART_DEVICE = "/dev/serial0"
@@ -40,11 +53,10 @@ def open_serial():
         sys.exit(1)
 
 
-def send_text(ser, text: str) -> None:
-    """Send text over UART with newline delimiter."""
-    # Simple protocol: text followed by newline
-    message = text + "\n"
-    encoded = message.encode("utf-8")
+def send_text(ser, protocol, text: str) -> None:
+    """Send text message over UART."""
+    msg = TextMessage(payload=text)
+    encoded = protocol.encode(msg)
 
     start_time = time.perf_counter()
     ser.write(encoded)
@@ -52,11 +64,26 @@ def send_text(ser, text: str) -> None:
     elapsed = time.perf_counter() - start_time
 
     chars_per_sec = len(encoded) / elapsed if elapsed > 0 else 0
+    print(f"[send_uart] sent text ({len(encoded)} bytes) in {elapsed*1000:.2f} ms ({chars_per_sec:.0f} bytes/sec)")
+    print(f"[send_uart] payload: {text}")
 
-    print(f"[send_uart] sent {len(encoded)} bytes in {elapsed*1000:.2f} ms ({chars_per_sec:.0f} chars/sec)")
+
+def send_command(ser, protocol, cmd: str, arg: str = None) -> None:
+    """Send command message over UART."""
+    msg = CommandMessage(command=cmd, argument=arg)
+    encoded = protocol.encode(msg)
+
+    start_time = time.perf_counter()
+    ser.write(encoded)
+    ser.flush()
+    elapsed = time.perf_counter() - start_time
+
+    arg_str = f" {arg}" if arg else ""
+    print(f"[send_uart] sent command ({len(encoded)} bytes) in {elapsed*1000:.2f} ms")
+    print(f"[send_uart] command: {cmd}{arg_str}")
 
 
-def stress_test(ser, count: int) -> None:
+def stress_test(ser, protocol, count: int) -> None:
     """Send numbered messages for stress testing."""
     print(f"[send_uart] stress test: {count} messages")
     print()
@@ -65,8 +92,8 @@ def stress_test(ser, count: int) -> None:
     total_bytes = 0
 
     for i in range(count):
-        message = f"stress-test-msg-{i:06d}"
-        encoded = (message + "\n").encode("utf-8")
+        msg = TextMessage(payload=f"stress-test-msg-{i:06d}")
+        encoded = protocol.encode(msg)
         ser.write(encoded)
         total_bytes += len(encoded)
 
@@ -84,42 +111,57 @@ def stress_test(ser, count: int) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: python send_uart.py <text>")
-        print("       python send_uart.py --file <path>")
-        print("       python send_uart.py --stress <count>")
-        print("       python send_uart.py --stdin")
-        sys.exit(1)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Send protocol messages over UART")
+    parser.add_argument("text", nargs="*", help="Text to send")
+    parser.add_argument("--cmd", nargs="+", help="Command to send (e.g., --cmd keymap de_de)")
+    parser.add_argument("--file", help="File to send")
+    parser.add_argument("--stress", type=int, help="Stress test with N messages")
+    parser.add_argument("--stdin", action="store_true", help="Read from stdin")
+    args = parser.parse_args()
+
+    # Get protocol from environment
+    protocol_name = os.environ.get("DICTACODE_PROTOCOL", "json")
+    protocol = get_protocol(protocol_name)
 
     print(f"[send_uart] device: {UART_DEVICE}")
     print(f"[send_uart] baud: {BAUD_RATE}")
+    print(f"[send_uart] protocol: {protocol_name}")
     print()
 
     ser = open_serial()
 
     try:
-        arg = sys.argv[1]
+        if args.cmd:
+            # Send command
+            cmd = args.cmd[0]
+            arg = args.cmd[1] if len(args.cmd) > 1 else None
+            send_command(ser, protocol, cmd, arg)
 
-        if arg == "--file":
-            if len(sys.argv) < 3:
-                print("ERROR: --file requires path")
-                sys.exit(1)
-            with open(sys.argv[2], "r") as f:
+        elif args.file:
+            # Send file contents
+            with open(args.file, "r") as f:
                 text = f.read().strip()
-            send_text(ser, text)
+            send_text(ser, protocol, text)
 
-        elif arg == "--stress":
-            count = int(sys.argv[2]) if len(sys.argv) > 2 else 100
-            stress_test(ser, count)
+        elif args.stress:
+            # Stress test
+            stress_test(ser, protocol, args.stress)
 
-        elif arg == "--stdin":
+        elif args.stdin:
+            # Read from stdin
             text = sys.stdin.read().strip()
-            send_text(ser, text)
+            send_text(ser, protocol, text)
+
+        elif args.text:
+            # Direct text argument
+            text = " ".join(args.text)
+            send_text(ser, protocol, text)
 
         else:
-            # Direct text argument
-            text = " ".join(sys.argv[1:])
-            send_text(ser, text)
+            parser.print_help()
+            sys.exit(1)
 
     finally:
         ser.close()

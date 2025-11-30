@@ -1,6 +1,6 @@
-"""dictacode HID - UART to HID keyboard bridge."""
+"""dictacode STT - Speech-to-text pipeline."""
 
-from dictacode_hid.protocol import (
+from dictacode_stt.protocol import (
     Message,
     TextMessage,
     CommandMessage,
@@ -8,12 +8,10 @@ from dictacode_hid.protocol import (
     JsonProtocol,
     MsgpackProtocol,
     get_protocol,
-    detect_protocol,
-    try_decode,
 )
-from dictacode_hid.state import (
+from dictacode_stt.state import (
     DeviceMode,
-    HidState,
+    SttState,
 )
 
 __all__ = [
@@ -25,13 +23,9 @@ __all__ = [
     "JsonProtocol",
     "MsgpackProtocol",
     "get_protocol",
-    "detect_protocol",
-    "try_decode",
     # State
     "DeviceMode",
-    "HidState",
+    "SttState",
     # Existing
     "main",
-    "keymaps",
-    "cli",
 ]
