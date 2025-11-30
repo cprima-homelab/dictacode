@@ -477,3 +477,39 @@ class SttService:
 
         except KeyboardInterrupt:
             logger.info("Interrupted")
+
+    def run_diagnostic(self, scope: str = "all") -> None:
+        """Run diagnostic checks and log results.
+
+        Only runs in MAINTENANCE mode.
+
+        Args:
+            scope: "audio", "whisper", "uart", or "all"
+        """
+        if self.state.mode != DeviceMode.MAINTENANCE:
+            logger.warning("diagnose ignored - not in MAINTENANCE mode")
+            return
+
+        from dictacode_stt.diagnostics import run_all_checks
+
+        logger.info(f"Running diagnostic: {scope}")
+        result = run_all_checks(
+            device_index=self.device_index,
+            uart_device=self.uart_device,
+            whisper_binary=self.whisper_binary,
+            whisper_model=self.whisper_model,
+        )
+
+        # Log results to journal
+        for check in result.checks:
+            if check.status.value == "ok":
+                logger.info(f"[DIAG OK] {check.name}: {check.message}")
+            elif check.status.value == "warn":
+                logger.warning(f"[DIAG WARN] {check.name}: {check.message}")
+            else:
+                logger.error(f"[DIAG FAIL] {check.name}: {check.message}")
+
+        logger.info(
+            f"Diagnostic complete: {result.passed} passed, "
+            f"{result.failures} failed, {result.warnings} warnings"
+        )

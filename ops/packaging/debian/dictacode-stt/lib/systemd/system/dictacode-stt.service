@@ -18,6 +18,9 @@ LogsDirectory=dictacode
 
 WorkingDirectory=/opt/dictacode/stt
 
+# Hardware check before start (exit 1 = don't start, exit 2 = warn but start)
+ExecStartPre=/opt/dictacode/stt/stt-venv/bin/dictacode-stt-check --quiet
+
 # STT pipeline executable
 ExecStart=/opt/dictacode/stt/stt-venv/bin/python -m dictacode_stt
 

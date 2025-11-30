@@ -11,6 +11,8 @@ dependencies = [
 [project.scripts]
 dictacode-hid = "dictacode_hid.main:main"
 dictacode-keymap = "dictacode_hid.cli:main"
+dictacode-hid-check = "dictacode_hid.diagnostics:check_main"
+dictacode-hid-diagnose = "dictacode_hid.diagnostics:diagnose_main"
 
 [dependency-groups]
 dev = [

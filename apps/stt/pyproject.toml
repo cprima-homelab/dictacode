@@ -12,6 +12,8 @@ dependencies = [
 
 [project.scripts]
 dictacode-stt = "dictacode_stt.main:main"
+dictacode-stt-check = "dictacode_stt.diagnostics:check_main"
+dictacode-stt-diagnose = "dictacode_stt.diagnostics:diagnose_main"
 
 [dependency-groups]
 dev = [

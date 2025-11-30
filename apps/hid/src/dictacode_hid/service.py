@@ -283,8 +283,39 @@ class HidService:
             self.state.set_mode(DeviceMode.NORMAL)
             logger.info("Mode: NORMAL")
 
+        elif cmd == "diagnose":
+            if self.state.mode != DeviceMode.MAINTENANCE:
+                logger.warning("diagnose ignored - not in MAINTENANCE mode")
+            else:
+                self._run_diagnostic(arg or "all")
+
         else:
             logger.warning(f"Unknown command: {cmd}")
+
+    def _run_diagnostic(self, scope: str = "all") -> None:
+        """Run diagnostic checks and log results.
+
+        Args:
+            scope: "hardware", "uart", or "all"
+        """
+        from dictacode_hid.diagnostics import run_all_checks
+
+        logger.info(f"Running diagnostic: {scope}")
+        result = run_all_checks(uart_device=self.uart_device)
+
+        # Log results to journal
+        for check in result.checks:
+            if check.status.value == "ok":
+                logger.info(f"[DIAG OK] {check.name}: {check.message}")
+            elif check.status.value == "warn":
+                logger.warning(f"[DIAG WARN] {check.name}: {check.message}")
+            else:
+                logger.error(f"[DIAG FAIL] {check.name}: {check.message}")
+
+        logger.info(
+            f"Diagnostic complete: {result.passed} passed, "
+            f"{result.failures} failed, {result.warnings} warnings"
+        )
 
     def _handle_text(self, msg: TextMessage) -> None:
         """Process a text message based on current state."""

@@ -19,6 +19,9 @@ LogsDirectory=dictacode
 
 WorkingDirectory=/opt/dictacode/hid
 
+# Hardware check before start (exit 1 = don't start, exit 2 = warn but start)
+ExecStartPre=/opt/dictacode/hid/hid-venv/bin/dictacode-hid-check --quiet
+
 # HID bridge executable
 ExecStart=/opt/dictacode/hid/hid-venv/bin/python -m dictacode_hid
 
