@@ -13,14 +13,19 @@ devices:
     audio:
       microphone:
         device: null             # null = auto-detect, or explicit "hw:0,0"
-        sample_rate: 16000
-        channels: 1
+        # Native hardware settings (RØDE VideoMic NTG only supports these)
+        native_sample_rate: 48000
+        native_channels: 2
+        # Target for whisper (resampled in software)
+        whisper_sample_rate: 16000
         # Populated by discovery:
         # detected:
         #   card: 0
         #   device: 0
         #   name: "RØDE VideoMic NTG"
         #   alsa_id: "hw:0,0"
+        #   supported_rates: [48000]
+        #   supported_channels: [2]
 
     stt:
       engine: whisper.cpp        # whisper.cpp | vosk | cloud
