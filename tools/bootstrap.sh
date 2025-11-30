@@ -1,71 +1,85 @@
 #!/usr/bin/env sh
-# dictacode bootstrap orchestrator
-# - POSIX sh
-# - Options:
-#     -U        fully upgrade system before bootstrap
-#     -h        show help
-#     -t <pi5|pi0>  target device type
+# dictacode bootstrap - fetches and installs .deb packages from GitHub releases
+#
+# POSIX sh compatible
+#
+# Options:
+#   -t <pi5|pi0>    Target device type (required)
+#   -U              Fully upgrade system before bootstrap
+#   -v <version>    Package version (default: 0.1.0)
+#   -h              Show help
 
 set -eu
 
-REPO_OWNER="cprima-homelab"
-REPO_NAME="dictacode"
-# Note: this must match how you call raw.githubusercontent.com
-BRANCH_PATH="${DICTACODE_BRANCH:-refs/heads/exploration}"
-
-RAW_BASE="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH_PATH}"
-PY_BOOTSTRAP_PATH="tools/bootstrap_pi5_phase1.py"
-
+REPO="cprima-homelab/dictacode"
+VERSION="${DICTACODE_VERSION:-0.1.0}"
 UPGRADE=0
 TARGET=""
-TMP_PY=""
 
 __usage() {
     cat <<'EOF'
 Usage: bootstrap.sh [OPTIONS]
 
 Options:
-  -U              Fully upgrade the system (apt-get dist-upgrade) prior to bootstrap
   -t <pi5|pi0>    Target device type (required)
+                    pi5 = STT engine (installs dictacode-core + dictacode-stt)
+                    pi0 = HID gadget (installs dictacode-core + dictacode-hid)
+  -U              Fully upgrade the system (apt-get dist-upgrade) first
+  -v <version>    Package version (default: 0.1.0)
   -h              Show this help and exit
 
 Examples:
-  # Pi5, no dist-upgrade
-  curl -sSL https://raw.githubusercontent.com/cprima-homelab/dictacode/refs/heads/exploration/tools/bootstrap.sh | sudo sh -s -- -t pi5
+  # Pi5 (STT engine)
+  curl -sSL https://raw.githubusercontent.com/cprima-homelab/dictacode/exploration/tools/bootstrap.sh | sudo sh -s -- -t pi5
 
-  # Pi5, with dist-upgrade
-  curl -sSL https://raw.githubusercontent.com/cprima-homelab/dictacode/refs/heads/exploration/tools/bootstrap.sh | sudo sh -s -- -t pi5 -U
+  # Pi Zero (HID gadget)
+  curl -sSL https://raw.githubusercontent.com/cprima-homelab/dictacode/exploration/tools/bootstrap.sh | sudo sh -s -- -t pi0
 
-  # Pi0, no dist-upgrade
-  curl -sSL https://raw.githubusercontent.com/cprima-homelab/dictacode/refs/heads/exploration/tools/bootstrap.sh | sudo sh -s -- -t pi0
+  # With system upgrade first
+  curl -sSL ... | sudo sh -s -- -t pi5 -U
+
+  # Specific version
+  curl -sSL ... | sudo sh -s -- -t pi5 -v 0.2.0
+
+Environment:
+  DICTACODE_VERSION    Override default version (e.g., export DICTACODE_VERSION=0.2.0)
 EOF
 }
 
 cleanup() {
-    if [ -n "$TMP_PY" ] && [ -f "$TMP_PY" ]; then
-        rm -f "$TMP_PY"
-    fi
+    rm -f /tmp/dictacode-*.deb 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
-# ensure python3 exists
-ensure_python3() {
-    if command -v python3 >/dev/null 2>&1; then
-        return
+download_deb() {
+    pkg_name="$1"
+    pkg_version="$2"
+    url="https://github.com/${REPO}/releases/download/${pkg_name}-v${pkg_version}/${pkg_name}.deb"
+    dest="/tmp/${pkg_name}.deb"
+
+    echo "Downloading: ${pkg_name} v${pkg_version}"
+    echo "  URL: ${url}"
+
+    if ! curl -fsSL -o "$dest" "$url"; then
+        echo "ERROR: Failed to download ${pkg_name}" >&2
+        echo "  Check if release exists: https://github.com/${REPO}/releases/tag/${pkg_name}-v${pkg_version}" >&2
+        exit 1
     fi
-    echo "python3 not found, installing via apt-get..." >&2
-    apt-get update
-    apt-get install -y python3
+
+    echo "  Saved: ${dest}"
 }
 
-# parse options (salt-style)
-while getopts "Uht:" opt; do
+# Parse options
+while getopts "Uht:v:" opt; do
     case "$opt" in
         U)
             UPGRADE=1
             ;;
         t)
             TARGET="$OPTARG"
+            ;;
+        v)
+            VERSION="$OPTARG"
             ;;
         h)
             __usage
@@ -79,6 +93,7 @@ while getopts "Uht:" opt; do
 done
 shift $((OPTIND - 1))
 
+# Validate target
 if [ -z "$TARGET" ]; then
     echo "ERROR: -t <pi5|pi0> is required" >&2
     __usage
@@ -95,32 +110,77 @@ case "$TARGET" in
         ;;
 esac
 
-echo "dictacode: bootstrap (phase 1, apt)"
-echo "Branch path: ${BRANCH_PATH}"
-echo "Target: ${TARGET}"
-echo "Upgrade before bootstrap: ${UPGRADE}"
-
-TMP_PY="$(mktemp /tmp/dictacode_bootstrap_pi5_phase1.XXXXXX.py)"
-
-echo "Fetching ${PY_BOOTSTRAP_PATH} from ${RAW_BASE} ..."
-if ! curl -fsSL "${RAW_BASE}/${PY_BOOTSTRAP_PATH}" -o "${TMP_PY}"; then
-    echo "ERROR: failed to fetch ${RAW_BASE}/${PY_BOOTSTRAP_PATH}" >&2
+# Check root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "ERROR: must run as root (use sudo)" >&2
     exit 1
 fi
 
-# simple 404 guard
-if grep -q "404: Not Found" "$TMP_PY"; then
-    echo "ERROR: GitHub returned 404 for ${RAW_BASE}/${PY_BOOTSTRAP_PATH}" >&2
-    exit 1
-fi
+echo "========================================"
+echo "  dictacode bootstrap"
+echo "========================================"
+echo "Target:  ${TARGET}"
+echo "Version: ${VERSION}"
+echo "Upgrade: ${UPGRADE}"
+echo ""
 
-PY_ARGS="--target ${TARGET}"
+# Update package lists
+echo "=== Updating package lists ==="
+apt-get update
+
+# Optional full upgrade
 if [ "$UPGRADE" -eq 1 ]; then
-    PY_ARGS="$PY_ARGS --upgrade"
+    echo "=== Performing system upgrade ==="
+    apt-get dist-upgrade -y
 fi
 
-ensure_python3
-echo "Running: python3 ${TMP_PY} ${PY_ARGS}"
-python3 "${TMP_PY}" ${PY_ARGS}
+# Download packages
+echo ""
+echo "=== Downloading packages ==="
 
-echo "dictacode: bootstrap done."
+download_deb "dictacode-core" "$VERSION"
+
+if [ "$TARGET" = "pi5" ]; then
+    download_deb "dictacode-stt" "$VERSION"
+elif [ "$TARGET" = "pi0" ]; then
+    download_deb "dictacode-hid" "$VERSION"
+fi
+
+# Install packages
+echo ""
+echo "=== Installing packages ==="
+
+dpkg -i /tmp/dictacode-core.deb || true
+
+if [ "$TARGET" = "pi5" ]; then
+    dpkg -i /tmp/dictacode-stt.deb || true
+elif [ "$TARGET" = "pi0" ]; then
+    dpkg -i /tmp/dictacode-hid.deb || true
+fi
+
+# Fix dependencies
+echo ""
+echo "=== Installing dependencies ==="
+apt-get install -f -y
+
+# Summary
+echo ""
+echo "========================================"
+echo "  Bootstrap complete!"
+echo "========================================"
+
+if [ "$TARGET" = "pi5" ]; then
+    echo ""
+    echo "Next steps for Pi5 (STT):"
+    echo "  1. Edit config (optional): sudo nano /etc/dictacode/stt.conf"
+    echo "  2. Build whisper.cpp:      sudo /opt/dictacode/stt/install-whisper.sh"
+    echo "  3. Start service:          sudo systemctl enable --now dictacode-stt"
+elif [ "$TARGET" = "pi0" ]; then
+    echo ""
+    echo "Next steps for Pi Zero (HID):"
+    echo "  1. Reboot:                 sudo reboot"
+    echo "  2. Verify HID device:      ls -la /dev/hidg0"
+    echo "  3. Set keymap (optional):  sudo dictacode-keymap set de_de"
+fi
+
+echo ""
