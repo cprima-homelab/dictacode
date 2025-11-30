@@ -20,8 +20,11 @@ from pathlib import Path
 
 # Hardcoded from inventory - sandbox doesn't use config loader
 DEVICE_INDEX = 0  # hw:0,0 - RØDE VideoMic NTG
-SAMPLE_RATE = 16000
-CHANNELS = 1
+# RØDE VideoMic NTG native: 48000 Hz, 2 channels only
+NATIVE_SAMPLE_RATE = 48000
+NATIVE_CHANNELS = 2
+# Whisper needs 16000 Hz mono
+WHISPER_SAMPLE_RATE = 16000
 
 WHISPER_BINARY = Path.home() / "whisper.cpp/build/bin/whisper-cli"
 WHISPER_MODEL = Path.home() / "whisper.cpp/models/ggml-tiny.bin"
@@ -31,22 +34,23 @@ BAUD_RATE = 115200
 
 
 def record_audio(duration_sec: float) -> bytes:
-    """Record audio from microphone, return raw audio data."""
+    """Record audio from microphone, return 16kHz mono audio for whisper."""
     try:
         import sounddevice as sd
+        import numpy as np
     except ImportError:
-        print("ERROR: sounddevice not installed")
+        print("ERROR: sounddevice/numpy not installed")
         sys.exit(1)
 
-    total_frames = int(SAMPLE_RATE * duration_sec)
+    total_frames = int(NATIVE_SAMPLE_RATE * duration_sec)
 
-    print(f"[pipeline] recording {duration_sec} sec...")
+    print(f"[pipeline] recording {duration_sec} sec at {NATIVE_SAMPLE_RATE}Hz stereo...")
     start = time.perf_counter()
 
     audio_data = sd.rec(
         total_frames,
-        samplerate=SAMPLE_RATE,
-        channels=CHANNELS,
+        samplerate=NATIVE_SAMPLE_RATE,
+        channels=NATIVE_CHANNELS,
         dtype="int16",
         device=DEVICE_INDEX,
     )
@@ -55,17 +59,22 @@ def record_audio(duration_sec: float) -> bytes:
     elapsed = time.perf_counter() - start
     print(f"[pipeline] recorded in {elapsed:.2f} sec")
 
-    return audio_data.tobytes()
+    # Convert stereo to mono and downsample 48000 -> 16000
+    mono = audio_data.mean(axis=1).astype(np.int16)
+    resampled = mono[::3]
+    print(f"[pipeline] resampled to {WHISPER_SAMPLE_RATE}Hz mono: {len(resampled)} frames")
+
+    return resampled.tobytes()
 
 
 def save_wav(audio_bytes: bytes, path: str) -> None:
-    """Save raw audio bytes to WAV file."""
+    """Save 16kHz mono audio bytes to WAV file."""
     import wave
 
     with wave.open(path, "wb") as wf:
-        wf.setnchannels(CHANNELS)
+        wf.setnchannels(1)  # mono
         wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
+        wf.setframerate(WHISPER_SAMPLE_RATE)
         wf.writeframes(audio_bytes)
 
 
@@ -203,7 +212,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print("[pipeline] dictacode STT sandbox")
-    print(f"[pipeline] mic: hw:{DEVICE_INDEX},0")
+    print(f"[pipeline] mic: hw:{DEVICE_INDEX},0 ({NATIVE_SAMPLE_RATE}Hz stereo -> {WHISPER_SAMPLE_RATE}Hz mono)")
     print(f"[pipeline] whisper: {WHISPER_BINARY}")
     print(f"[pipeline] model: {WHISPER_MODEL}")
     print(f"[pipeline] uart: {UART_DEVICE} @ {BAUD_RATE}")
