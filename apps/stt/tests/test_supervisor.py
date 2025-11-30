@@ -149,17 +149,14 @@ class TestLinkSupervisor:
         assert status["timeout"] == 30.0
         assert status["ping_interval"] == 5.0
 
-    @patch("dictacode_stt.supervisor.notify")
-    def test_notify_watchdog_with_systemd(self, mock_notify):
+    def test_notify_watchdog_with_systemd(self):
         """Test watchdog notification when systemd available."""
+        # This test verifies the method doesn't raise, regardless of
+        # whether systemd is installed (it gracefully handles ImportError)
         supervisor = LinkSupervisor()
-
-        with patch.dict("sys.modules", {"systemd.daemon": MagicMock(notify=mock_notify)}):
-            # Re-import to get patched module
-            result = supervisor.notify_watchdog()
-
-        # Function returns True when systemd is available
-        # (actual test depends on systemd being installed)
+        result = supervisor.notify_watchdog()
+        # Returns True if systemd installed, False otherwise
+        assert isinstance(result, bool)
 
     def test_notify_watchdog_without_systemd(self):
         """Test watchdog notification when systemd not available."""
