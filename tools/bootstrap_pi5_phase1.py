@@ -29,6 +29,7 @@ PI5_APT_PACKAGES = [
     "python3-venv",
     "python3-dev",
     "alsa-utils",
+    "libportaudio2",
     "sox",
     "neovim",
     "tmux",
