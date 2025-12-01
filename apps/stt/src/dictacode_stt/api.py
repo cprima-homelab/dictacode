@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from dictacode_stt.audio import AudioPortManager, AudioPort, PortStatus
+from dictacode_stt.responses import AudioPortsListResponse
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +120,25 @@ async def list_audio_ports(refresh: bool = False):
         raise HTTPException(status_code=500, detail="AudioPortManager not initialized")
 
     try:
-        ports = _port_manager.list_ports(force_refresh=refresh)
-        active_port = _port_manager.get_active_port()
+        # Use shared response type to build data
+        response = AudioPortsListResponse.from_audio_port_manager(_port_manager)
+        response_dict = response.to_dict()
 
+        # Convert to Pydantic model for FastAPI
         return AudioPortsResponse(
-            ports=[_port_to_model(p) for p in ports],
-            active_port=active_port.port_id if active_port else None,
-            pipeline_target_rate=16000,
+            ports=[
+                AudioPortModel(
+                    port_id=p["port_id"],
+                    port_type=p["port_type"],
+                    name=p["name"],
+                    capabilities=AudioPortCapabilitiesModel(**p["capabilities"]),
+                    status=p["status"],
+                    device_index=p["device_index"],
+                )
+                for p in response_dict["ports"]
+            ],
+            active_port=response_dict["active_port"],
+            pipeline_target_rate=response_dict["pipeline_target_rate"],
         )
     except Exception as e:
         logger.error(f"Failed to list audio ports: {e}", exc_info=True)

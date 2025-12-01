@@ -3,21 +3,29 @@
 ## Status
 
 ### Phase 1: Audit CLI for Backend Leakage
-- [ ] Review `cli.py` for any business logic that should move to `service.py`
-- [ ] Ensure CLI only does: argparse, console output, call service methods
-- [ ] Document any refactoring needed
+- [x] Review `cli.py` for any business logic that should move to `service.py`
+- [x] Ensure CLI only does: argparse, console output, call service methods
+- [x] Document any refactoring needed
+
+**Phase 1 COMPLETED** - CLI contains only presentation logic. All commands properly delegate to backend APIs (AudioPortManager, UartTransport, Protocol). Minor resampling logic in `cmd_audio_record()` is acceptable for CLI utility.
 
 ### Phase 2: API Scaffold (Preparation for v0.3.0)
-- [ ] Create `api.py` with stub endpoints
-- [ ] Define REST API contract (OpenAPI/JSON schema)
-- [ ] No implementation yet - just structure
+- [x] Create `api.py` with endpoints
+- [x] Define REST API contract (OpenAPI/JSON schema)
+- [x] Full implementation with FastAPI
+
+**Phase 2 COMPLETED** - Implemented in v0.2.4 Phase 6 with full FastAPI implementation, not just scaffold. API provides `/api/audio/ports`, `/api/audio/select`, `/api/audio/ports/{port_id}`, and `/health` endpoints.
 
 ### Phase 3: Shared Response Types
-- [ ] Define response dataclasses that both CLI and API can use
-- [ ] CLI formats as human text, API formats as JSON
-- [ ] Example: `TranscriptionResult`, `StatusResponse`, `PortInfo`
+- [x] Define response dataclasses that both CLI and API can use
+- [x] CLI formats as human text, API formats as JSON
+- [x] Implemented: `AudioPortsListResponse`, `AudioPortResponse`, `AudioPortCapabilitiesResponse`
 
-**v0.2.5 NOT STARTED**
+**Phase 3 COMPLETED** - Created `responses.py` with shared dataclasses. Refactored both `cli.py` and `api.py` to use `AudioPortsListResponse.from_audio_port_manager()`. Eliminated duplication between CLI and API.
+
+**v0.2.5 STATUS:**
+- Phase 1-3: COMPLETED
+- All phases complete! Backend/CLI/API separation achieved.
 
 ---
 

@@ -20,6 +20,7 @@ import numpy as np
 from .protocol import TextMessage, CommandMessage, JsonProtocol, MsgpackProtocol, get_protocol
 from .transport import UartTransport, TransportError
 from .audio import AudioPortManager
+from .responses import AudioPortsListResponse
 
 
 # =============================================================================
@@ -34,31 +35,8 @@ def cmd_audio_ports(as_json: bool = False) -> int:
 
         if as_json:
             # JSON output for programmatic use / web frontend
-            active_port = manager.get_active_port()
-            default_port = manager.get_default_port()
-
-            output = {
-                "ports": [
-                    {
-                        "port_id": port.port_id,
-                        "port_type": port.port_type,
-                        "name": port.name,
-                        "status": port.status.value,
-                        "capabilities": {
-                            "sample_rates": port.capabilities.sample_rates,
-                            "channels": port.capabilities.channels,
-                            "formats": port.capabilities.formats,
-                            "native_rate": port.capabilities.native_rate,
-                        },
-                        "device_index": port.device_index,
-                    }
-                    for port in ports
-                ],
-                "active_port": active_port.port_id if active_port else None,
-                "default_port": default_port.port_id if default_port else None,
-                "pipeline_target_rate": 16000,  # Whisper target rate
-            }
-            print(json.dumps(output, indent=2))
+            response = AudioPortsListResponse.from_audio_port_manager(manager)
+            print(json.dumps(response.to_dict(), indent=2))
             return 0
 
         # Human-readable output
