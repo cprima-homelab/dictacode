@@ -1,274 +1,129 @@
 """
-transport.py - Layer 2: Raw byte I/O for UART and HID.
+transport.py - Backward compatibility wrapper (v0.2.8 Phase 1)
 
-Provides clean interfaces for:
-- UartTransport: Serial port read/write (with exclusive locking)
-- HidTransport: HID report writing to /dev/hidg0
+This module provides backward compatibility for code importing from the old
+transport.py location. All transport classes have been moved to the transport
+package with the adapter pattern.
 
-Usage:
-    uart = UartTransport(device="/dev/serial0", baud_rate=115200)
-    uart.open()
-    data = uart.read(1024)
-    uart.write(b"hello")
-    uart.close()
+Old import (still works):
+    from dictacode_hid.transport import UartTransport, HidTransport, TransportError
 
-    hid = HidTransport(device="/dev/hidg0")
-    hid.open()
-    hid.write_report(bytes([0, 0, 4, 0, 0, 0, 0, 0]))  # 'a' key press
-    hid.close()
+New import (recommended):
+    from dictacode_hid.transport import UartTransport, UartConfig, HidTransport, HidConfig
+
+Migration Guide:
+    Both UartTransport and HidTransport now use config-based constructors
+    and implement the TransportAdapter interface with new method names:
+
+    Old UART API:
+        uart = UartTransport(device="/dev/serial0", baud_rate=115200)
+        uart.open()
+        data = uart.read(1024)
+        uart.write(b"hello")
+        uart.close()
+
+    New UART API (recommended):
+        from dictacode_hid.transport import UartTransport, UartConfig
+        config = UartConfig(device="/dev/serial0", baud_rate=115200)
+        uart = UartTransport(config)
+        uart.connect()
+        data = uart.receive(1024)
+        uart.send(b"hello")
+        uart.disconnect()
+
+    Old HID API:
+        hid = HidTransport(device="/dev/hidg0")
+        hid.open()
+        hid.write_report(bytes([0, 0, 4, 0, 0, 0, 0, 0]))
+        hid.send_key(4)
+        hid.close()
+
+    New HID API (recommended):
+        from dictacode_hid.transport import HidTransport, HidConfig
+        config = HidConfig(device="/dev/hidg0")
+        hid = HidTransport(config)
+        hid.connect()
+        hid.write_report(bytes([0, 0, 4, 0, 0, 0, 0, 0]))
+        hid.send_key(4)
+        hid.disconnect()
+
+    Legacy API (still supported):
+        Both transports maintain compatibility with the old API through
+        legacy methods (open, close, read, write) and property accessors.
 """
 
-import time
-from typing import Optional
+# Re-export all transport classes for backward compatibility
+from dictacode_hid.transport.adapter import (
+    TransportAdapter,
+    TransportConfig,
+    TransportError,
+    ConnectionStatus,
+)
 
-from .lock import SerialLock, LockError
+from dictacode_hid.transport.uart import (
+    UartTransport as _NewUartTransport,
+    UartConfig,
+)
 
+from dictacode_hid.transport.hid import (
+    HidTransport as _NewHidTransport,
+    HidConfig,
+)
 
-class TransportError(Exception):
-    """Base exception for transport layer errors."""
-    pass
+# For backward compatibility: Allow old-style constructors
 
+class _LegacyUartTransport(_NewUartTransport):
+    """Backward compatibility wrapper for old UartTransport constructor.
 
-class UartTransport:
-    """UART transport layer - raw serial I/O with exclusive locking."""
+    This allows existing code using:
+        uart = UartTransport(device="/dev/serial0", baud_rate=115200)
+
+    To continue working without changes.
+    """
 
     def __init__(
         self,
-        device: str,
+        device: str = "/dev/serial0",
         baud_rate: int = 115200,
         timeout: float = 1.0,
-        lock_dir: Optional[str] = None,
+        lock_dir: str = None,
     ):
-        """
-        Initialize UART transport.
-
-        Args:
-            device: Serial device path (e.g., /dev/serial0)
-            baud_rate: Baud rate (default: 115200)
-            timeout: Read timeout in seconds (default: 1.0)
-            lock_dir: Optional lock directory override (for testing)
-        """
-        self.device = device
-        self.baud_rate = baud_rate
-        self.timeout = timeout
-        self._lock_dir = lock_dir
-        self._serial = None
-        self._lock: Optional[SerialLock] = None
-
-    def open(self) -> None:
-        """Open serial port with exclusive lock."""
-        if self._serial is not None:
-            raise TransportError("UART already open")
-
-        try:
-            import serial
-        except ImportError:
-            raise TransportError("pyserial not installed. Run: pip install pyserial")
-
-        # Acquire exclusive lock before opening serial port
-        self._lock = SerialLock(self.device, lock_dir=self._lock_dir)
-        if not self._lock.acquire():
-            pid = self._lock.get_owner_pid()
-            msg = f"{self.device} is locked by another process."
-            if pid:
-                msg += f"\nCheck {self._lock.lock_path} (PID: {pid})"
-            msg += "\n\nTo investigate:"
-            msg += f"\n  cat {self._lock.lock_path}  # See owning PID"
-            msg += "\n  ps aux | grep <PID>        # Find process"
-            msg += "\n  systemctl status dictacode-*  # Check services"
-            self._lock = None
-            raise TransportError(msg)
-
-        try:
-            self._serial = serial.Serial(
-                self.device,
-                self.baud_rate,
-                timeout=self.timeout,
-            )
-        except Exception as e:
-            # Release lock on failure
-            if self._lock:
-                self._lock.release()
-                self._lock = None
-            raise TransportError(f"Failed to open {self.device}: {e}")
-
-    def close(self) -> None:
-        """Close serial port and release lock."""
-        if self._serial is not None:
-            self._serial.close()
-            self._serial = None
-        if self._lock is not None:
-            self._lock.release()
-            self._lock = None
-
-    def is_open(self) -> bool:
-        """Check if port is open."""
-        return self._serial is not None and self._serial.is_open
-
-    def read(self, size: int = 1) -> bytes:
-        """
-        Read bytes from serial port.
-
-        Args:
-            size: Number of bytes to read
-
-        Returns:
-            Bytes read (may be less than size if timeout)
-
-        Raises:
-            TransportError: If port not open or read fails
-        """
-        if not self.is_open():
-            raise TransportError("UART not open")
-
-        try:
-            return self._serial.read(size)
-        except Exception as e:
-            raise TransportError(f"UART read failed: {e}")
-
-    def readline(self) -> bytes:
-        """
-        Read until newline (for JSON protocol).
-
-        Returns:
-            Line including newline, or empty bytes on timeout
-
-        Raises:
-            TransportError: If port not open or read fails
-        """
-        if not self.is_open():
-            raise TransportError("UART not open")
-
-        try:
-            return self._serial.readline()
-        except Exception as e:
-            raise TransportError(f"UART readline failed: {e}")
-
-    def write(self, data: bytes) -> int:
-        """
-        Write bytes to serial port.
-
-        Args:
-            data: Bytes to write
-
-        Returns:
-            Number of bytes written
-
-        Raises:
-            TransportError: If port not open or write fails
-        """
-        if not self.is_open():
-            raise TransportError("UART not open")
-
-        try:
-            n = self._serial.write(data)
-            self._serial.flush()
-            return n
-        except Exception as e:
-            raise TransportError(f"UART write failed: {e}")
-
-    def flush(self) -> None:
-        """Flush write buffer."""
-        if self.is_open():
-            self._serial.flush()
-
-    def __enter__(self):
-        """Context manager entry."""
-        self.open()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+        """Legacy constructor - converts args to UartConfig."""
+        config = UartConfig(
+            device=device,
+            baud_rate=baud_rate,
+            timeout=timeout,
+            lock_dir=lock_dir,
+        )
+        super().__init__(config)
 
 
-class HidTransport:
-    """HID transport layer - write HID reports to /dev/hidg0."""
+class _LegacyHidTransport(_NewHidTransport):
+    """Backward compatibility wrapper for old HidTransport constructor.
 
-    # Standard HID report size (keyboard)
-    REPORT_SIZE = 8
+    This allows existing code using:
+        hid = HidTransport(device="/dev/hidg0")
+
+    To continue working without changes.
+    """
 
     def __init__(self, device: str = "/dev/hidg0"):
-        """
-        Initialize HID transport.
+        """Legacy constructor - converts args to HidConfig."""
+        config = HidConfig(device=device)
+        super().__init__(config)
 
-        Args:
-            device: HID gadget device path (default: /dev/hidg0)
-        """
-        self.device = device
-        self._hid_file = None
 
-    def open(self) -> None:
-        """Open HID device for writing."""
-        if self._hid_file is not None:
-            raise TransportError("HID already open")
+# Export legacy wrappers for maximum compatibility
+UartTransport = _LegacyUartTransport
+HidTransport = _LegacyHidTransport
 
-        try:
-            self._hid_file = open(self.device, "wb")
-        except Exception as e:
-            raise TransportError(f"Failed to open {self.device}: {e}")
-
-    def close(self) -> None:
-        """Close HID device."""
-        if self._hid_file is not None:
-            self._hid_file.close()
-            self._hid_file = None
-
-    def is_open(self) -> bool:
-        """Check if HID device is open."""
-        return self._hid_file is not None
-
-    def write_report(self, report: bytes) -> None:
-        """
-        Write HID report (8 bytes).
-
-        Args:
-            report: 8-byte HID report
-
-        Raises:
-            TransportError: If device not open, invalid report, or write fails
-        """
-        if not self.is_open():
-            raise TransportError("HID not open")
-
-        if len(report) != self.REPORT_SIZE:
-            raise TransportError(
-                f"Invalid HID report size: {len(report)} (expected {self.REPORT_SIZE})"
-            )
-
-        try:
-            self._hid_file.write(report)
-            self._hid_file.flush()
-        except Exception as e:
-            raise TransportError(f"HID write failed: {e}")
-
-    def send_key(self, keycode: int, modifier: int = 0, delay: float = 0.02) -> None:
-        """
-        Send a single key press and release.
-
-        Args:
-            keycode: USB HID keycode (4-57 for a-z, 0-9, etc.)
-            modifier: Modifier byte (0=none, 2=left shift, etc.)
-            delay: Delay between press and release (default: 0.02 sec)
-
-        Raises:
-            TransportError: If device not open or write fails
-        """
-        # Key press
-        press_report = bytes([modifier, 0, keycode, 0, 0, 0, 0, 0])
-        self.write_report(press_report)
-        time.sleep(delay)
-
-        # Key release
-        release_report = bytes([0, 0, 0, 0, 0, 0, 0, 0])
-        self.write_report(release_report)
-        time.sleep(delay)
-
-    def __enter__(self):
-        """Context manager entry."""
-        self.open()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+__all__ = [
+    "UartTransport",
+    "UartConfig",
+    "HidTransport",
+    "HidConfig",
+    "TransportError",
+    "TransportAdapter",
+    "TransportConfig",
+    "ConnectionStatus",
+]

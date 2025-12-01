@@ -20,6 +20,8 @@ from pathlib import Path
 
 from dictacode_stt import SttService, SolutionState
 from dictacode_stt.audio import AudioPortManager
+from dictacode_stt.logging_config import LogConfig, LogFormat, configure_logging
+from dictacode_stt.log_control import log_controller
 
 # Global flag for shutdown
 _shutdown_requested = False
@@ -31,14 +33,28 @@ def request_shutdown(signum, frame):
     _shutdown_requested = True
 
 
-def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="[%(name)s] %(message)s",
-        stream=sys.stdout,
+def setup_logging_v0_2_13(
+    log_level: str = "INFO",
+    log_format: str = "simple",
+    log_file: str = None,
+) -> None:
+    """Configure logging (v0.2.13)."""
+    # Detect if running under systemd
+    output = "console"
+    if os.environ.get("INVOCATION_ID"):  # systemd sets this
+        output = "journald"
+        log_format = "systemd"  # Override format for journald
+
+    config = LogConfig(
+        level=log_level.upper(),
+        format=LogFormat(log_format),
+        output="file" if log_file else output,
+        file_path=Path(log_file) if log_file else None,
     )
+    configure_logging(config)
+
+    # Setup signal handler for debug toggle (SIGUSR1)
+    log_controller.setup_signal_handler()
 
 
 def main() -> int:
@@ -62,6 +78,8 @@ Examples:
   python -m dictacode_stt --port rode-videomic-ntg
   python -m dictacode_stt --duration 10 --language de
   python -m dictacode_stt --no-supervisor
+  python -m dictacode_stt --audio-source file:test.wav:fast --dry-run
+  python -m dictacode_stt --audio-source synthetic:silence:1000 --once
   DICTACODE_PROTOCOL=msgpack python -m dictacode_stt
         """,
     )
@@ -124,7 +142,38 @@ Examples:
         "--verbose",
         "-v",
         action="store_true",
-        help="Verbose logging (DEBUG level)",
+        help="Verbose logging (DEBUG level, legacy - use --log-level DEBUG)",
+    )
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default=None,
+        help="Log level (v0.2.13, default: INFO or DEBUG if --verbose)",
+    )
+    parser.add_argument(
+        "--log-format",
+        type=str,
+        choices=["simple", "json", "systemd"],
+        default="simple",
+        help="Log output format (v0.2.13, default: simple, auto: systemd under systemd)",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Log to file instead of console (v0.2.13)",
+    )
+    parser.add_argument(
+        "--metrics",
+        action="store_true",
+        help="Enable Prometheus metrics (v0.2.13, default: disabled)",
+    )
+    parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=9100,
+        help="Prometheus metrics port (v0.2.13, default: 9100)",
     )
     parser.add_argument(
         "--supervisor-timeout",
@@ -148,12 +197,55 @@ Examples:
         action="store_true",
         help="Enable streaming transcription (v0.2.7, real-time partial results)",
     )
+    parser.add_argument(
+        "--hid-device",
+        type=str,
+        default=None,
+        help="HID device ID to use (v0.2.8, from /etc/dictacode/hid/devices.d/)",
+    )
+    parser.add_argument(
+        "--transport",
+        "-t",
+        type=str,
+        choices=["uart", "usb-serial", "wifi"],
+        default=None,
+        help="Transport type to use (v0.2.8, default: auto-select from registry)",
+    )
+    parser.add_argument(
+        "--audio-source",
+        type=str,
+        default=None,
+        metavar="SPEC",
+        help=(
+            "Audio source for testing (v0.2.11, default: microphone). "
+            "Examples: file:path/to/audio.wav:fast, synthetic:silence:1000"
+        ),
+    )
 
     args = parser.parse_args()
 
-    # Setup logging
-    setup_logging(args.verbose)
+    # Determine log level (v0.2.13 with backward compatibility)
+    if args.log_level:
+        log_level = args.log_level
+    elif args.verbose:
+        log_level = "DEBUG"
+    else:
+        log_level = "INFO"
+
+    # Setup logging (v0.2.13)
+    setup_logging_v0_2_13(
+        log_level=log_level,
+        log_format=args.log_format,
+        log_file=args.log_file,
+    )
     logger = logging.getLogger("dictacode_stt")
+
+    # Initialize metrics (v0.2.13 Phase 4)
+    if args.metrics:
+        from dictacode_stt.metrics import init_metrics
+
+        init_metrics(enabled=True, port=args.metrics_port)
+        logger.info(f"Prometheus metrics enabled on port {args.metrics_port}")
 
     # Install signal handlers
     signal.signal(signal.SIGTERM, request_shutdown)
@@ -200,12 +292,26 @@ Examples:
         device_index = 0
         port_name = f"device {device_index} (default)"
 
+    # v0.2.11: Create audio source if specified
+    audio_source = None
+    if args.audio_source:
+        try:
+            from dictacode_stt.audio.sources import create_audio_source
+            audio_source = create_audio_source(args.audio_source)
+            logger.info(f"Created audio source: {args.audio_source}")
+        except Exception as e:
+            logger.error(f"Failed to create audio source '{args.audio_source}': {e}")
+            return 1
+
     logger.info("=" * 60)
     logger.info("dictacode STT Service starting...")
     logger.info(f"UART: {args.uart} @ {args.baud}")
     logger.info(f"Protocol: {protocol_name}")
     logger.info(f"Mode: {initial_mode.name}")
-    logger.info(f"Audio port: {port_name}")
+    if audio_source:
+        logger.info(f"Audio source: {args.audio_source} (TESTING MODE)")
+    else:
+        logger.info(f"Audio port: {port_name}")
     logger.info(f"Recording duration: {args.duration}s")
     logger.info(f"Language: {args.language}")
     if args.streaming:
@@ -245,6 +351,9 @@ Examples:
             supervisor_timeout=supervisor_timeout,
             supervisor_ping_interval=supervisor_ping_interval,
             supervisor_enabled=supervisor_enabled,
+            transport_type=args.transport,  # v0.2.8
+            hid_device_id=args.hid_device,  # v0.2.8
+            audio_source=audio_source,  # v0.2.11
         )
     except Exception as e:
         logger.error(f"Failed to initialize service: {e}", exc_info=True)

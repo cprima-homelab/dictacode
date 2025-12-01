@@ -215,11 +215,39 @@ async def get_audio_port(port_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get port: {str(e)}")
 
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "dictacode-stt-api",
-        "version": "0.2.4",
-    }
+# v0.2.13: Health endpoints moved to health.py module
+# Import and mount health router
+from dictacode_stt import health
+
+app.include_router(health.router)
+
+
+# v0.2.9 Phase 4: Diagnostics API endpoints
+from dictacode_stt import diagnostics_api
+
+app.include_router(diagnostics_api.router)
+
+
+# v0.2.13 Phase 4: Prometheus metrics endpoint
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Prometheus metrics endpoint (v0.2.13).
+
+    Exposes metrics in Prometheus text format for scraping.
+
+    Returns:
+        Metrics in Prometheus format or 404 if metrics disabled
+    """
+    from dictacode_stt.metrics import metrics
+    from fastapi import Response
+
+    if not metrics.enabled:
+        return Response(
+            content="Metrics not enabled. Start API with --metrics flag or service with --metrics.",
+            status_code=404,
+        )
+
+    return Response(
+        content=metrics.get_metrics(),
+        media_type="text/plain",
+    )

@@ -60,6 +60,19 @@ Examples:
         help="Logging level (default: info)",
     )
 
+    parser.add_argument(
+        "--metrics",
+        action="store_true",
+        help="Enable Prometheus metrics (v0.2.13, default: disabled)",
+    )
+
+    parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=9100,
+        help="Prometheus metrics port (v0.2.13, default: 9100)",
+    )
+
     args = parser.parse_args()
 
     # Configure logging
@@ -67,6 +80,13 @@ Examples:
         level=getattr(logging, args.log_level.upper()),
         format="[%(name)s] %(message)s",
     )
+
+    # Initialize metrics (v0.2.13 Phase 4)
+    if args.metrics:
+        from dictacode_stt.metrics import init_metrics
+
+        init_metrics(enabled=True, port=args.metrics_port)
+        logger.info(f"Prometheus metrics enabled on port {args.metrics_port}")
 
     # Initialize app with config
     from dictacode_stt.api import create_app
@@ -76,6 +96,8 @@ Examples:
     logger.info(f"Starting dictacode STT API server on {args.host}:{args.port}")
     logger.info(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
     logger.info(f"Audio config: {args.config_dir}")
+    if args.metrics:
+        logger.info(f"Metrics endpoint: http://{args.host}:{args.port}/metrics")
 
     # Run server
     uvicorn.run(

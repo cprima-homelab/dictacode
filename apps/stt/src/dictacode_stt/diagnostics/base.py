@@ -1,42 +1,99 @@
-"""Base classes for diagnostic framework.
+"""Base classes for diagnostic framework (v0.2.9).
 
 Provides CheckStatus, CheckResult, and DiagnosticResult for structured diagnostics.
+Enhanced with categories, severity, timestamps, and duration tracking.
 """
 
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 
 class CheckStatus(Enum):
-    """Status of a diagnostic check."""
+    """Status of a diagnostic check (v0.2.9)."""
 
-    OK = "ok"
-    WARN = "warn"
-    FAIL = "fail"
+    PENDING = "pending"  # Not yet run
+    RUNNING = "running"  # Currently executing
+    PASSED = "passed"    # Equivalent to OK (v0.2.9 naming)
+    WARNING = "warning"  # Equivalent to WARN (v0.2.9 naming)
+    FAILED = "failed"    # Equivalent to FAIL (v0.2.9 naming)
+    SKIPPED = "skipped"  # Check was skipped
+    ERROR = "error"      # Check encountered error
+
+    # Legacy aliases for backward compatibility
+    OK = "passed"
+    WARN = "warning"
+    FAIL = "failed"
+
+
+class CheckCategory(Enum):
+    """Category of diagnostic check (v0.2.9)."""
+
+    SYSTEM = "system"           # OS, Python, dependencies
+    AUDIO = "audio"             # Audio devices, recording
+    TRANSCRIPTION = "transcription"  # Whisper, Vosk, etc.
+    TRANSPORT = "transport"     # UART, USB-Serial, WiFi
+    HID = "hid"                 # HID device status
+    CONFIG = "config"           # Configuration files
+
+
+class CheckSeverity(Enum):
+    """Severity of check failure (v0.2.9)."""
+
+    INFO = "info"           # Informational
+    WARNING = "warning"     # May cause issues
+    CRITICAL = "critical"   # Will prevent operation
 
 
 @dataclass
 class CheckResult:
-    """Result of a single diagnostic check."""
+    """Result of a single diagnostic check (v0.2.9 enhanced)."""
 
     name: str
     status: CheckStatus
     message: str
-    next_step: Optional[str] = None
+    # v0.2.9 enhancements:
+    check_id: Optional[str] = None          # Unique check identifier
+    category: Optional[CheckCategory] = None  # Check category
+    details: Optional[Dict[str, Any]] = None  # Additional details
+    severity: CheckSeverity = CheckSeverity.INFO  # Severity level
+    duration_ms: Optional[int] = None       # Execution duration
+    timestamp: Optional[datetime] = None    # When check was run
+    next_step: Optional[str] = None         # Remediation hint (legacy)
+
+    def __post_init__(self):
+        """Set default values for v0.2.9 fields."""
+        if self.check_id is None:
+            # Default: derive check_id from name
+            self.check_id = self.name.replace(" ", "_").lower()
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for JSON serialization."""
+        """Convert to dictionary for JSON serialization (v0.2.9 format)."""
         result = {
+            "check_id": self.check_id,
             "name": self.name,
             "status": self.status.value,
             "message": self.message,
+            "severity": self.severity.value,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
         }
+
+        if self.category:
+            result["category"] = self.category.value
+        if self.details:
+            result["details"] = self.details
+        if self.duration_ms is not None:
+            result["duration_ms"] = self.duration_ms
         if self.next_step:
             result["next_step"] = self.next_step
+
         return result
 
 

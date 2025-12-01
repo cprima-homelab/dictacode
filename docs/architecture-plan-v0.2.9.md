@@ -2,43 +2,44 @@
 
 ## Status
 
-### Phase 1: Diagnostics Backend Service
-- [ ] Create `diagnostics/` package with unified backend
-- [ ] Define `DiagnosticCheck`, `DiagnosticResult`, `SystemReport` types
-- [ ] Extract existing CLI diagnostics to backend methods
-- [ ] Unit tests for diagnostic types
+### Phase 1: Diagnostics Backend Service ✅ COMPLETE
+- [x] Create `diagnostics/` package with unified backend
+- [x] Define `DiagnosticCheck`, `DiagnosticResult`, `SystemReport` types
+- [x] Extract existing CLI diagnostics to backend methods
+- [x] Unit tests for diagnostic types
 
-### Phase 2: Check Registry
-- [ ] Implement `DiagnosticRegistry` for check registration
-- [ ] Categorize checks: audio, whisper, transport, hid, system
-- [ ] Support check dependencies (e.g., transport before hid)
-- [ ] Async check execution with timeouts
+### Phase 2: Check Registry ✅ COMPLETE
+- [x] Implement `DiagnosticRegistry` for check registration
+- [x] Categorize checks: audio, whisper, transport, hid, system
+- [x] Support check dependencies (e.g., transport before hid)
+- [x] Async check execution with timeouts
 
-### Phase 3: CLI Integration
-- [ ] Refactor `dictacode-stt-diagnose` to use backend
-- [ ] Refactor `dictacode-stt-check` (quick health check)
-- [ ] Add `--json` output for all diagnostic commands
-- [ ] Add `--category` filter for specific checks
+### Phase 3: CLI Integration ✅ COMPLETE
+- [x] Refactor `dictacode-stt-diagnose` to use backend
+- [x] Refactor `dictacode-stt-check` (quick health check)
+- [x] Add `--json` output for all diagnostic commands
+- [x] Add `--category` filter for specific checks
 
-### Phase 4: API Integration
-- [ ] Add `/api/diagnostics/run` endpoint
-- [ ] Add `/api/diagnostics/status` endpoint
-- [ ] Add `/api/diagnostics/report` endpoint
-- [ ] WebSocket for real-time check progress (optional)
+### Phase 4: API Integration ✅ COMPLETE
+- [x] Add `/api/diagnostics/run` endpoint
+- [x] Add `/api/diagnostics/status` endpoint
+- [x] Add `/api/diagnostics/checks` endpoint
+- [x] Add `/api/diagnostics/categories` endpoint
+- [ ] WebSocket for real-time check progress (optional, deferred)
 
-### Phase 5: Bug Report Generation
-- [ ] Implement `BugReportGenerator` class
-- [ ] Collect system info, logs, config, diagnostic results
-- [ ] Redact sensitive data (API keys, passwords)
-- [ ] Generate shareable report (JSON + text summary)
-- [ ] Add `dictacode-stt-bugreport` command
+### Phase 5: Bug Report Generation ✅ COMPLETE
+- [x] Implement `BugReportGenerator` class
+- [x] Collect system info, logs, config, diagnostic results
+- [x] Redact sensitive data (API keys, passwords)
+- [x] Generate shareable report (JSON + text summary)
+- [x] Add `dictacode-stt-bugreport` command
 
-### Phase 6: Report Submission Helper
-- [ ] Add GitHub issue template integration
-- [ ] Generate markdown for GitHub issues
-- [ ] Optional: direct submission via `gh` CLI
+### Phase 6: Report Submission Helper ✅ COMPLETE
+- [x] Add GitHub issue template integration
+- [x] Generate markdown for GitHub issues
+- [x] Optional: direct submission via `gh` CLI
 
-**v0.2.9 NOT STARTED**
+**v0.2.9 COMPLETE** ✅
 
 ---
 

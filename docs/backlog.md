@@ -88,6 +88,65 @@ Items discovered during development that could improve the project but are not c
 - Test graceful fallback when streaming unsupported
 **Related**: v0.2.7 Phase 4 (tests deferred)
 
+### Audio Source Unit Tests
+**Gap**: v0.2.11 created integration tests but incomplete unit test coverage
+**Technical Debt**: Tests deferred during implementation
+**Nice-to-have**:
+- Unit tests for AudioSource protocol compliance
+- Unit tests for SyntheticSource patterns (tone, noise, click, sweep)
+- Edge case tests for source lifecycle (double-open, stop-before-start, etc.)
+- Audio resampling accuracy tests
+**Related**: v0.2.11 Phases 1-3 (unchecked unit test items)
+
+### Real Speech Audio Fixtures
+**Gap**: Test infrastructure complete but only synthetic silence fixture exists
+**Nice-to-have**:
+- Create hello_world.wav fixture (actual speech sample)
+- Create numbers_1_to_5.wav fixture for number recognition
+- Create short_phrase.wav for looping tests
+- Record/generate fixtures with known transcriptions for validation
+**Impact**: Without real speech fixtures, integration tests can't verify actual transcription accuracy
+**Related**: v0.2.11 Phase 5 (audio fixtures marked optional)
+
+### CI/CD Pipeline for Audio Tests
+**Gap**: Audio source tests exist but not integrated into CI/CD
+**Nice-to-have**:
+- GitHub Actions workflow to run audio source tests
+- Pytest configuration for CI (pytest.ini or pyproject.toml)
+- Test with file sources in fast mode for speed
+- Coverage reporting for audio module
+**Related**: v0.2.11 Phase 6 (CI pipeline integration deferred)
+
+### Audio Fixture Creation Tooling
+**Gap**: No streamlined tool for creating valid test fixtures
+**Nice-to-have**: `dictacode-stt-audio create-fixture` command that:
+- Records audio from microphone
+- Automatically converts to 16kHz mono WAV
+- Validates format requirements
+- Saves with documented expected transcription
+- Optionally transcribes immediately to verify accuracy
+**Use case**: Developers can easily create test fixtures without manual audio processing
+**Related**: v0.2.11 (fixtures documented but creation is manual)
+
+### Reusable Mock Transcriber
+**Gap**: MockTranscriber created in test file but not exported as reusable utility
+**Nice-to-have**:
+- Move MockTranscriber to `dictacode_stt.testing` module
+- Support configurable transcription text
+- Support simulated delays/errors
+- Make available for all integration tests
+**Related**: v0.2.11 Phase 5 (test utilities)
+
+### Audio Source Performance Benchmarks
+**Gap**: No metrics comparing fast mode vs real-time mode performance
+**Nice-to-have**:
+- Benchmark file source playback speeds (fast vs realtime)
+- Measure overhead of audio resampling
+- CI performance regression detection
+- Document optimal test configuration for CI
+**Use case**: Optimize CI test execution time
+**Related**: v0.2.11 (fast mode implemented but not benchmarked)
+
 ## Operations
 
 ### Background Process Cleanup
@@ -126,10 +185,30 @@ Items discovered during development that could improve the project but are not c
 
 ## Nice-to-Have Features
 
+### MicrophoneSource Implementation
+**Gap**: v0.2.11 Phase 1 deferred MicrophoneSource implementation
+**Current**: Microphone code still uses legacy sounddevice directly in SttService
+**Nice-to-have**:
+- Implement MicrophoneSource using AudioSource protocol
+- Wrap existing sounddevice/port manager logic
+- Unified interface for all audio sources (mic, file, synthetic)
+- Simplifies testing (can mock MicrophoneSource like any other source)
+**Benefit**: Consistent abstraction, easier to test microphone path
+**Related**: v0.2.11 Phase 1 (MicrophoneSource marked as deferred)
+
 ### Audio Device Hot-Plug Detection
 **Scope**: Out of scope for v0.2.4
 **Nice-to-have**: Automatic detection when USB mic plugged/unplugged
 **Use case**: User swaps microphones without restarting service
+
+### Audio Format Validation
+**Gap**: No validation that audio files meet requirements before use
+**Nice-to-have**:
+- Validate WAV format, sample rate, channels before playback
+- Helpful error messages for invalid files
+- Support for auto-conversion (e.g., 48kHz → 16kHz)
+**Use case**: Prevent confusing errors when using wrong audio formats in tests
+**Related**: v0.2.11 (FileSource accepts any WAV but may fail unexpectedly)
 
 ### Whisper Model Auto-Download
 **Gap**: Current setup requires manual Whisper model installation
@@ -158,6 +237,18 @@ Items discovered during development that could improve the project but are not c
 **Nice-to-have**: Language selection via config or CLI flag
 **Consideration**: Whisper supports 99 languages
 
+### mDNS Service Discovery
+**Scope**: v0.2.8 Phase 7 (deferred)
+**Gap**: WiFi HID devices must be manually configured with IP addresses
+**Nice-to-have**:
+- Register HID devices via mDNS (Avahi) on network
+- Auto-discover WiFi HID devices using Zeroconf
+- Update device registry from discovery
+- mDNS service browser in STT service
+**Use case**: WiFi HID devices announce themselves, STT service finds them automatically
+**Consideration**: Requires avahi-daemon on HID devices and zeroconf Python package
+**Related**: v0.2.8 architecture plan - Phase 7 marked as optional enhancement
+
 ## Infrastructure
 
 ### Automated Device Provisioning
@@ -184,4 +275,8 @@ Items discovered during development that could improve the project but are not c
 
 ---
 
-Last updated: 2025-12-01
+
+# transport
+
+evaluate bluetooth transport
+

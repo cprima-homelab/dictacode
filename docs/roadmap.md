@@ -62,12 +62,8 @@ Production-ready diagnostic tools integrated with MAINTENANCE mode.
 - `--json` and `--quiet` output options
 - Runtime `diagnose` command via protocol (MAINTENANCE mode only)
 
----
-
-## Planned
-
 ### v0.2.3 - Expanded Solution State
-**Status: NOT STARTED** | Prerequisites: v0.2.2
+**Status: COMPLETE**
 
 Unified solution state covering the full lifecycle from package install to operation.
 
@@ -79,7 +75,7 @@ Unified solution state covering the full lifecycle from package install to opera
 - `sd_notify STATUS=state={state}` reporting
 
 ### v0.2.4 - Audio Port Abstraction
-**Status: NOT STARTED** | Prerequisites: v0.2.3
+**Status: COMPLETE**
 
 Driver-like abstraction for audio hardware with ring buffer for word cutoff fix.
 
@@ -91,8 +87,8 @@ Driver-like abstraction for audio hardware with ring buffer for word cutoff fix.
 - Device configuration files in `/etc/dictacode/audio/devices.d/`
 - CLI: `dictacode-stt-audio ports`, `--port PORT_ID` flag
 
-### v0.2.5 - Backend/CLI/API Separation
-**Status: NOT STARTED** | Prerequisites: v0.2.4
+### v0.2.6 - Transcription Adapter Pattern
+**Status: COMPLETE**
 
 Clean separation for future web panel support.
 
@@ -103,7 +99,7 @@ Clean separation for future web panel support.
 - No code duplication between CLI and API
 
 ### v0.2.6 - Transcription Adapter Pattern
-**Status: NOT STARTED** | Prerequisites: v0.2.5
+**Status: COMPLETE**
 
 Adapter pattern enabling multiple transcription engines.
 
@@ -115,7 +111,7 @@ Adapter pattern enabling multiple transcription engines.
 - CLI: `--transcriber whisper|vosk|google`
 
 ### v0.2.7 - Streaming Transcription
-**Status: NOT STARTED** | Prerequisites: v0.2.4, v0.2.6
+**Status: COMPLETE**
 
 Real-time partial results during speech.
 
@@ -127,7 +123,7 @@ Real-time partial results during speech.
 - CLI: `--streaming` flag
 
 ### v0.2.8 - Transport Adapter & Multi-HID
-**Status: NOT STARTED** | Prerequisites: v0.2.1, v0.2.3, v0.2.6
+**Status: COMPLETE**
 
 Multiple transport types and HID device registry.
 
@@ -140,7 +136,7 @@ Multiple transport types and HID device registry.
 - CLI: `--transport uart|usb-serial|wifi`, `--hid-device pi0-desk`
 
 ### v0.2.9 - Unified Diagnostics & Bug Reports
-**Status: NOT STARTED** | Prerequisites: v0.2.2, v0.2.5, v0.2.6, v0.2.8
+**Status: COMPLETE**
 
 Comprehensive diagnostics backend with bug report generation.
 
@@ -150,33 +146,86 @@ Comprehensive diagnostics backend with bug report generation.
 - Automatic redaction of sensitive data (API keys, passwords)
 - Markdown output for GitHub issue submission
 - API: `/api/diagnostics/run`, `/api/diagnostics/report`
-- CLI: `dictacode-stt-bugreport`
+- CLI: `dictacode-stt-bugreport`, `--submit` flag for GitHub issue creation
 
 ### v0.2.10 - Cross-Platform Audio Backend
-**Status: NOT STARTED** | Prerequisites: v0.2.4, v0.2.6
+**Status: PHASE 1 COMPLETE** (Phases 2-6 deferred)
 
 Abstract audio backend for future cross-platform support.
 
-- `AudioBackend` ABC with `list_devices()`, `open_input_stream()`
-- `AlsaBackend`: Linux native (wraps current sounddevice code)
-- `PortAudioBackend`: cross-platform fallback
-- `CoreAudioBackend`: macOS stub
-- `WasapiBackend`: Windows stub
-- Auto-detection factory: `get_audio_backend()`
-- Platform detection for Raspberry Pi, Android
+**Completed:**
+- `AudioBackend` ABC with `list_devices()`, `open_input_stream()`, `AudioInputStream` ABC
+- `BackendType` enum (ALSA, PortAudio, CoreAudio, WASAPI)
+- Platform detection module for Raspberry Pi detection
+
+**Deferred:**
+- AlsaBackend, PortAudioBackend, CoreAudioBackend, WasapiBackend implementations
+- Backend factory and auto-detection
 
 ### v0.2.11 - Audio Input Mocking & Testability
-**Status: NOT STARTED** | Prerequisites: v0.2.4, v0.2.10
+**Status: COMPLETE**
 
 Injectable audio sources for testing without physical microphone.
 
-- `AudioSource` protocol: microphone, file, synthetic
-- `MicrophoneSource`: wraps current mic input
-- `FileSource`: WAV playback with real-time or fast pacing
-- `SyntheticSource`: silence, tone, noise generators
-- Test fixtures: `tests/fixtures/audio/speech/hello_world.wav` + expected transcriptions
-- `TestHarness` for automated transcription accuracy tests
-- CLI: `--audio-source file:path.wav`, `--audio-source synthetic:silence`
+**Implemented:**
+- `AudioSource` ABC with open/start/stop/close lifecycle
+- `AudioSourceConfig` with SourceType (FILE, SYNTHETIC, MICROPHONE), PlaybackMode (REALTIME, FAST, CONTROLLED)
+- `FileSource`: WAV playback with automatic resampling, real-time/fast pacing, looping, seeking
+- `SyntheticSource`: silence generator (tone/noise/click/sweep available but not relevant for STT)
+- `create_audio_source()` factory function with string specifications
+- Integration with SttService via `audio_source` parameter
+- pytest fixtures and conftest setup for testing
+- Unit tests (test_audio_sources.py) and integration tests (test_service_with_sources.py)
+- Test fixtures directory structure and documentation (tests/fixtures/audio/)
+- CLI: `--audio-source file:path.wav:fast`, `--audio-source synthetic:silence:1000`
+- Examples: apps/stt/examples/audio_source_examples.py
+- Documentation: apps/stt/docs/AUDIO_SOURCES.md
+
+**Deferred:**
+- MicrophoneSource implementation (legacy mic code still in use)
+- Real speech audio fixtures (only silence_1s.wav generated)
+- CI/CD pipeline integration for audio tests
+
+### v0.2.13 - Logging & Observability
+**Status: COMPLETE**
+
+Structured release process for individual components.
+
+- `components.yaml` manifest documenting releasable components
+- `tools/release-pypi.sh`: PyPI releases with version bumping
+- `tools/release-deb.sh`: Debian package builds (arm64, armhf)
+- `tools/release-tag.sh`: component-specific git tags (`stt/v0.2.12`)
+- `tools/release.sh`: interactive release orchestration
+- GitHub Actions workflow triggered by tags
+
+### v0.2.13 - Logging & Observability
+**Status: COMPLETE**
+
+Structured logging with runtime control and Prometheus metrics.
+
+- Consistent log format: simple, JSON, systemd modes with auto-detection
+- Runtime log level control via CLI (`--log-level`), API, and SIGUSR1 signal
+- `LogController` for runtime debug mode with auto-revert
+- Prometheus metrics server (optional): transcriptions, latency, errors, system resources
+- Metrics endpoints: `/metrics` (Prometheus), `/health`, `/ready`
+- Grafana dashboard JSON and Prometheus alerting rules
+- CLI: `--log-level DEBUG`, `--log-format json`, `--log-file path.log`, `--metrics`, `--metrics-port 9100`
+- Configuration files: ops/prometheus/, ops/grafana/
+
+---
+
+## Planned
+
+### v0.2.5 - Backend/CLI/API Separation
+**Status: NOT STARTED** | Prerequisites: v0.2.4
+
+Clean separation for future web panel support.
+
+- Audit CLI for business logic leakage to service layer
+- `responses.py` with shared response types: `StatusResponse`, `TranscriptionResult`
+- `api.py` scaffold with stub endpoints
+- CLI formats as human text; API formats as JSON
+- No code duplication between CLI and API
 
 ### v0.2.12 - Deployment Hygiene & Component Packaging
 **Status: NOT STARTED** | Prerequisites: v0.2.99
@@ -189,19 +238,6 @@ Structured release process for individual components.
 - `tools/release-tag.sh`: component-specific git tags (`stt/v0.2.12`)
 - `tools/release.sh`: interactive release orchestration
 - GitHub Actions workflow triggered by tags
-
-### v0.2.13 - Logging & Observability
-**Status: NOT STARTED** | Prerequisites: v0.2.5, v0.2.9
-
-Structured logging with runtime control and optional metrics.
-
-- Consistent log format: simple, JSON, systemd modes
-- Runtime log level control via CLI, API, and SIGUSR1 signal
-- Temporary debug mode with auto-revert after timeout
-- Optional Prometheus metrics: transcriptions, latency, HID commands
-- Health endpoints: `/health`, `/ready`, `/status`
-- Grafana dashboard JSON and alerting rules
-- CLI: `--log-level DEBUG`, `--metrics`, `dictacode-stt-log debug`
 
 ### v0.2.14 - LLM Post-Processing & Command Detection
 **Status: NOT STARTED** | Prerequisites: v0.2.6, v0.2.7
@@ -245,18 +281,42 @@ Browser-based control interface and HID acknowledgments.
 
 ---
 
+## Version Status Summary
+
+**Completed:** v0.0.1, v0.2.0, v0.2.1, v0.2.2, v0.2.3, v0.2.4, v0.2.6, v0.2.7, v0.2.8, v0.2.9, v0.2.11, v0.2.13
+
+**Partially Complete:** v0.2.10 (Phase 1 only)
+
+**Not Started:** v0.2.5, v0.2.12, v0.2.14, v0.2.99, v0.3.0
+
 ## Version Dependencies
 
 ```mermaid
 graph LR
-    v0.0.1 --> v0.2.0 --> v0.2.1 --> v0.2.2
-    v0.2.2 --> v0.2.3 --> v0.2.4 --> v0.2.5 --> v0.2.6
-    v0.2.4 & v0.2.6 --> v0.2.7
-    v0.2.6 & v0.2.7 --> v0.2.14
-    v0.2.4 & v0.2.6 --> v0.2.10 --> v0.2.11
-    v0.2.1 & v0.2.3 & v0.2.6 --> v0.2.8
-    v0.2.2 & v0.2.5 & v0.2.6 & v0.2.8 --> v0.2.9
-    v0.2.5 & v0.2.9 --> v0.2.13
-    v0.2.99 --> v0.2.12
-    v0.2.1 --> v0.3.0
+    v0.0.1[v0.0.1 ✅] --> v0.2.0[v0.2.0 ✅] --> v0.2.1[v0.2.1 ✅] --> v0.2.2[v0.2.2 ✅]
+    v0.2.2 --> v0.2.3[v0.2.3 ✅] --> v0.2.4[v0.2.4 ✅] --> v0.2.5[v0.2.5 ⏳] --> v0.2.6[v0.2.6 ✅]
+    v0.2.4 & v0.2.6 --> v0.2.7[v0.2.7 ✅]
+    v0.2.6 & v0.2.7 --> v0.2.14[v0.2.14 ⏳]
+    v0.2.4 & v0.2.6 --> v0.2.10[v0.2.10 🔶] --> v0.2.11[v0.2.11 ✅]
+    v0.2.1 & v0.2.3 & v0.2.6 --> v0.2.8[v0.2.8 ✅]
+    v0.2.2 & v0.2.5 & v0.2.6 & v0.2.8 --> v0.2.9[v0.2.9 ✅]
+    v0.2.5 & v0.2.9 --> v0.2.13[v0.2.13 ✅]
+    v0.2.99[v0.2.99 ⏳] --> v0.2.12[v0.2.12 ⏳]
+    v0.2.1 --> v0.3.0[v0.3.0 ⏳]
+
+    style v0.0.1 fill:#90EE90
+    style v0.2.0 fill:#90EE90
+    style v0.2.1 fill:#90EE90
+    style v0.2.2 fill:#90EE90
+    style v0.2.3 fill:#90EE90
+    style v0.2.4 fill:#90EE90
+    style v0.2.6 fill:#90EE90
+    style v0.2.7 fill:#90EE90
+    style v0.2.8 fill:#90EE90
+    style v0.2.9 fill:#90EE90
+    style v0.2.11 fill:#90EE90
+    style v0.2.13 fill:#90EE90
+    style v0.2.10 fill:#FFD700
 ```
+
+Legend: ✅ Complete | 🔶 Partial | ⏳ Not Started

@@ -10,20 +10,48 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .base import CheckStatus, CheckResult, DiagnosticResult
+from .base import (
+    CheckStatus,
+    CheckCategory,
+    CheckSeverity,
+    CheckResult,
+    DiagnosticResult,
+)
+from .registry import (
+    DiagnosticCheck,
+    DiagnosticRegistry,
+    get_registry,
+)
 from .audio import run_audio_checks
 from .whisper import run_whisper_checks
 from .uart import run_uart_checks
+from .bugreport import (
+    BugReportGenerator,
+    SystemReport,
+)
 
 __all__ = [
+    # v0.2.9 Types
     "CheckStatus",
+    "CheckCategory",
+    "CheckSeverity",
     "CheckResult",
     "DiagnosticResult",
+    # v0.2.9 Phase 2: Registry
+    "DiagnosticCheck",
+    "DiagnosticRegistry",
+    "get_registry",
+    # v0.2.9 Phase 5: Bug Report Generation
+    "BugReportGenerator",
+    "SystemReport",
+    # Check runners
     "run_audio_checks",
     "run_whisper_checks",
     "run_uart_checks",
+    # CLI entry points
     "check_main",
     "diagnose_main",
+    "run_all_checks",
 ]
 
 
