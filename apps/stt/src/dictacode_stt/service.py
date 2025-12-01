@@ -1031,6 +1031,74 @@ class SttService:
                 self.supervisor._mark_unhealthy()
             return False
 
+    def pause(self) -> bool:
+        """Pause transcription (LISTENING → PAUSED).
+
+        v0.3.0 Phase 3.4: User-initiated pause via API.
+        Audio recording continues but transcription is paused.
+
+        Returns:
+            True if successfully paused, False if not in LISTENING state
+        """
+        if self.state.state != SolutionState.LISTENING:
+            logger.warning(f"Cannot pause from state {self.state.state.value}")
+            return False
+
+        logger.info("Pausing service (user requested)")
+        self.state.transition_to(SolutionState.PAUSED)
+
+        # Broadcast state change to WebSocket clients
+        from datetime import datetime
+        self._broadcast_websocket({
+            "type": "state_change",
+            "data": {
+                "new_state": "paused",
+                "old_state": "listening",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        })
+
+        return True
+
+    def resume(self) -> bool:
+        """Resume transcription (PAUSED → LISTENING).
+
+        v0.3.0 Phase 3.4: User-initiated resume via API.
+        Resumes normal transcription operation.
+
+        Returns:
+            True if successfully resumed, False if not in PAUSED state
+        """
+        if self.state.state != SolutionState.PAUSED:
+            logger.warning(f"Cannot resume from state {self.state.state.value}")
+            return False
+
+        logger.info("Resuming service (user requested)")
+        self.state.transition_to(SolutionState.LISTENING)
+
+        # Broadcast state change to WebSocket clients
+        from datetime import datetime
+        self._broadcast_websocket({
+            "type": "state_change",
+            "data": {
+                "new_state": "listening",
+                "old_state": "paused",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        })
+
+        return True
+
+    def get_state(self) -> str:
+        """Get current service state as string.
+
+        v0.3.0 Phase 3.4: For API state queries.
+
+        Returns:
+            Current state value (e.g., 'listening', 'paused', 'degraded')
+        """
+        return self.state.state.value
+
     def _reconnect(self) -> bool:
         """
         Attempt to reconnect transport.

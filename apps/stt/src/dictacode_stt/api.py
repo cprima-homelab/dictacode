@@ -363,6 +363,102 @@ async def prometheus_metrics():
     )
 
 
+# v0.3.0 Phase 3.4: Service state control endpoints
+@router.post("/api/service/pause")
+async def pause_service():
+    """Pause transcription service.
+
+    Transitions service from LISTENING to PAUSED state.
+    Audio recording continues but transcription is paused.
+
+    Returns:
+        {"status": "ok", "state": "paused"} on success
+        {"status": "error", "message": "..."} on failure
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        success = _service_instance.pause()
+        if success:
+            return {
+                "status": "ok",
+                "state": _service_instance.get_state(),
+                "message": "Service paused"
+            }
+        else:
+            current_state = _service_instance.get_state()
+            return {
+                "status": "error",
+                "state": current_state,
+                "message": f"Cannot pause from state '{current_state}'"
+            }
+    except Exception as e:
+        logger.error(f"Failed to pause service: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/service/resume")
+async def resume_service():
+    """Resume transcription service.
+
+    Transitions service from PAUSED to LISTENING state.
+    Resumes normal transcription operation.
+
+    Returns:
+        {"status": "ok", "state": "listening"} on success
+        {"status": "error", "message": "..."} on failure
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        success = _service_instance.resume()
+        if success:
+            return {
+                "status": "ok",
+                "state": _service_instance.get_state(),
+                "message": "Service resumed"
+            }
+        else:
+            current_state = _service_instance.get_state()
+            return {
+                "status": "error",
+                "state": current_state,
+                "message": f"Cannot resume from state '{current_state}'"
+            }
+    except Exception as e:
+        logger.error(f"Failed to resume service: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/service/state")
+async def get_service_state():
+    """Get current service state.
+
+    Returns:
+        {"state": "listening|paused|degraded|...", "timestamp": "..."}
+    """
+    from dictacode_stt.health import _service_instance
+    from datetime import datetime
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return {
+            "state": _service_instance.get_state(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get service state: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # v0.3.0 Phase 2: WebSocket support
 class WebSocketConnectionManager:
     """Manages active WebSocket connections for live updates."""
@@ -433,7 +529,10 @@ async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
 
     try:
-        # Send initial status
+        # Send initial status with current service state (v0.3.0 Phase 3.4)
+        from dictacode_stt.health import _service_instance
+        current_state = _service_instance.get_state() if _service_instance else "unknown"
+
         await ws_manager.send_to(
             websocket,
             {
@@ -442,6 +541,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "connected": True,
                     "api_version": "0.3.0",
                     "message": "WebSocket connected",
+                    "state": current_state,
                 },
             },
         )

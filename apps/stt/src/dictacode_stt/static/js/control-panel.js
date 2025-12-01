@@ -134,6 +134,86 @@
     }
 
     /**
+     * Update service state display (v0.3.0 Phase 3.4)
+     */
+    function updateServiceState(state) {
+        const modeEl = document.getElementById('service-mode');
+        const statusBadge = document.getElementById('service-status');
+        const btn = document.getElementById('pause-resume-btn');
+
+        if (!modeEl || !btn) return;
+
+        // Update mode badge
+        modeEl.className = 'badge';
+        modeEl.textContent = state.toUpperCase();
+
+        // Update toolbar status (if exists)
+        if (statusBadge) {
+            statusBadge.className = 'badge';
+            statusBadge.textContent = `● ${state.charAt(0).toUpperCase() + state.slice(1)}`;
+        }
+
+        // Update button and styling based on state
+        if (state === 'listening') {
+            modeEl.classList.add('badge-ok');
+            if (statusBadge) statusBadge.classList.add('badge-ok');
+            btn.textContent = '⏸ Pause';
+            btn.disabled = false;
+            btn.className = 'primary';
+        } else if (state === 'paused') {
+            modeEl.classList.add('badge-warning');
+            if (statusBadge) statusBadge.classList.add('badge-warning');
+            btn.textContent = '▶ Resume';
+            btn.disabled = false;
+            btn.className = 'primary';
+        } else {
+            // Other states (degraded, failed, etc.)
+            modeEl.classList.add('badge-error');
+            if (statusBadge) statusBadge.classList.add('badge-error');
+            btn.disabled = true;
+            btn.textContent = `⚠ ${state.toUpperCase()}`;
+            btn.className = '';
+        }
+    }
+
+    /**
+     * Toggle pause/resume (v0.3.0 Phase 3.4)
+     */
+    window.togglePauseResume = async function() {
+        const btn = document.getElementById('pause-resume-btn');
+        if (!btn) return;
+
+        const isPaused = btn.textContent.includes('Resume');
+        const endpoint = isPaused ? '/api/service/resume' : '/api/service/pause';
+
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = '⏳ Working...';
+
+        try {
+            const response = await fetch(endpoint, { method: 'POST' });
+            const data = await response.json();
+
+            if (data.status === 'ok') {
+                updateServiceState(data.state);
+                console.log(`Service ${data.state}`);
+            } else {
+                console.error('Failed to toggle state:', data.message);
+                alert(`Failed: ${data.message}`);
+                // Reset button on error
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        } catch (error) {
+            console.error('Error toggling state:', error);
+            alert(`Error: ${error.message}`);
+            // Reset button on error
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    };
+
+    /**
      * Connect to WebSocket
      */
     function connect() {
@@ -168,9 +248,18 @@
                         const text = data.data.text || '';
                         addTranscription(text, isFinal);
                     } else if (data.type === 'status') {
-                        if (data.data.mode) {
+                        // Handle initial state from WebSocket connection (v0.3.0 Phase 3.4)
+                        if (data.data.state) {
+                            updateServiceState(data.data.state);
+                        } else if (data.data.mode) {
                             updateServiceStatus(data.data.mode);
                         }
+                    } else if (data.type === 'state_change') {
+                        // Handle state change broadcasts (v0.3.0 Phase 3.4)
+                        const newState = data.data.new_state;
+                        const oldState = data.data.old_state;
+                        console.log(`State changed: ${oldState} → ${newState}`);
+                        updateServiceState(newState);
                     } else if (data.type === 'supervisor' || data.type === 'link_status') {
                         const healthy = data.data.healthy !== undefined ? data.data.healthy : true;
                         const lastActivity = data.data.last_activity;
