@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from dictacode_stt.audio import AudioPortManager, AudioPort, PortStatus
 from dictacode_stt.responses import AudioPortsListResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +103,12 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
     # Initialize port manager
     _port_manager = AudioPortManager(config_dir=config_dir)
     logger.info(f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports")
+
+    # v0.3.0 Phase 2: Mount static files for WebSocket test client
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        logger.info(f"Static files mounted from {static_dir}")
 
     return app
 
