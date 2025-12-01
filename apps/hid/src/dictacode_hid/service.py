@@ -129,8 +129,11 @@ class HidService:
         logger.info(f"UART opened: {self.uart_device}")
 
         if not self.dry_run:
-            self.hid = HidTransport(self.hid_device)
-            self.hid.open()
+            # v0.2.8: use HidConfig
+            from dictacode_hid.transport.hid import HidConfig
+            hid_config = HidConfig(device=self.hid_device)
+            self.hid = HidTransport(hid_config)
+            self.hid.connect()
             logger.info(f"HID opened: {self.hid_device}")
         else:
             logger.info("DRY RUN mode - HID not opened")
