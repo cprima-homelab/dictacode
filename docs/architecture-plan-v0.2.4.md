@@ -48,13 +48,16 @@
 **Phase 5 COMPLETED** - Commit: 014ea65 (packaging deferred)
 
 ### Phase 6: Backend API (for web)
-- [ ] Add `/api/audio/ports` endpoint (preparation for v0.3.0)
-- [ ] Add `/api/audio/select` endpoint to change active port
-- [ ] Document API schema
+- [x] Add `/api/audio/ports` endpoint (preparation for v0.3.0)
+- [x] Add `/api/audio/select` endpoint to change active port
+- [x] Document API schema (auto-generated OpenAPI at /docs)
+- [x] Add dictacode-stt-api CLI entrypoint
+
+**Phase 6 COMPLETED** - Commit: f7cd237
 
 **v0.2.4 STATUS**:
-- Phase 1-5: COMPLETED
-- Phase 6: NOT STARTED (optional - backend API for web console)
+- Phase 1-6: COMPLETED
+- All phases complete! Audio port abstraction with REST API ready.
 
 ---
 
