@@ -202,15 +202,12 @@ class SttService:
                 f"ping_interval={supervisor_ping_interval}s"
             )
 
-    def _on_audio_data(self, audio_data: bytes, frames: int, time_info: dict, status: int) -> None:
+    def _on_audio_data(self, audio_data: bytes) -> None:
         """
         Audio streaming callback - called when new audio data is available.
 
         Args:
             audio_data: Raw audio bytes from device
-            frames: Number of frames
-            time_info: Timing information
-            status: Stream status flags
         """
         if not self.audio_buffer or not self.resampler or not self.audio_port:
             logger.warning("Audio buffer/resampler not initialized, dropping audio data")
