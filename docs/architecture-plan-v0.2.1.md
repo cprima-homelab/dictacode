@@ -1,5 +1,33 @@
 # dictacode Architecture Plan v0.2.1
 
+## Status
+
+### Phase 1: Basic Supervisor
+- [x] Create `supervisor.py` in both packages
+- [x] Implement `LinkSupervisor` class with timeout detection
+- [x] Integrate with Service layer
+- [x] Unit tests for supervisor
+
+### Phase 2: Reconnection Logic
+- [x] Implement exponential backoff
+- [x] Add reconnection loop in Service
+- [x] Close/reopen transport on failure
+- [x] Reset reconnect counter on success
+
+### Phase 3: Heartbeat
+- [ ] Add `PingMessage` to protocol (deferred to v0.3.0)
+- [x] `should_send_ping()` method implemented
+- [ ] Full ping/pong requires bidirectional protocol
+
+### Phase 4: systemd Watchdog
+- [x] Add `notify_watchdog()` method
+- [x] Tests for watchdog notification
+- [ ] Update systemd unit files with WatchdogSec (ops/packaging)
+
+**v0.2.1 COMPLETE** - Supervisor layer implemented with link health monitoring.
+
+---
+
 ## Prerequisites
 
 v0.2.1 builds on top of v0.2.0:

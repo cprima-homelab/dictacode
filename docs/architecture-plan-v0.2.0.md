@@ -1,5 +1,39 @@
 # dictacode Architecture Plan v0.2.0
 
+## Status
+
+### Phase 1: Transport Layer
+- [x] Create `transport.py` in both packages
+- [x] `UartTransport`: open, read, write, close with error handling
+- [x] `HidTransport` (HID only): write HID reports to /dev/hidg0
+- [x] Tests for transport layer
+- [x] Serial port locking (v0.2.3)
+
+### Phase 2: Service Layer
+- [x] Create `service.py` in both packages
+- [x] HID: `HidService` - command handlers, text handlers, uses keymaps
+- [x] STT: `SttService` - pipeline orchestration
+- [x] Wire service → protocol → transport
+- [x] Tests for service layer
+
+### Phase 3: Supervisor Layer
+- [x] Create `supervisor.py` in both packages
+- [x] `LinkSupervisor`: monitor link health, detect failures
+- [x] Reconnection logic with backoff
+- [x] Watchdog timeout (no data = alert/restart)
+- [x] Tests for supervisor
+
+### Phase 4: Integration
+- [x] Create new `main.py` that wires all layers
+- [x] Update pyproject.toml entry points
+- [x] CLI entry points (dictacode-hid, dictacode-stt)
+- [x] STT CLI utilities (audio, whisper, send)
+- [ ] Deprecate sandbox scripts (kept for experimentation)
+
+**v0.2.0 COMPLETE** - 5-layer architecture implemented.
+
+---
+
 ## Layer Taxonomy
 
 ```

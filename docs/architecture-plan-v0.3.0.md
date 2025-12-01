@@ -1,5 +1,40 @@
 # dictacode Architecture Plan v0.3.0
 
+## Status
+
+### Phase 1: HTTP API
+- [ ] Create `api.py` in dictacode_stt
+- [ ] Implement REST endpoints for status/control
+- [ ] Wire API to service layer
+- [ ] Tests for API
+
+### Phase 2: WebSocket
+- [ ] Add WebSocket endpoint for live updates
+- [ ] Broadcast transcription results
+- [ ] Client-side reconnection logic
+
+### Phase 3: Web Panel
+- [ ] Create `web/` directory with static files
+- [ ] HTML structure with status, controls, log
+- [ ] JavaScript for API calls and WebSocket
+- [ ] Serve static files from Python
+
+### Phase 4: Bidirectional Protocol
+- [ ] Add `ResponseMessage` to protocol.py
+- [ ] Update HID to send responses
+- [ ] Update STT to receive/handle responses
+- [ ] Add request ID tracking
+
+### Phase 5: Streaming (Optional)
+- [ ] Evaluate whisper.cpp streaming support
+- [ ] Or evaluate Vosk for streaming STT
+- [ ] Implement partial result handling
+- [ ] Update web panel for partial display
+
+**v0.3.0 NOT STARTED** - Web panel and bidirectional protocol pending.
+
+---
+
 ## Prerequisites
 
 v0.3.0 builds on top of v0.2.1:

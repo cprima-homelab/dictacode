@@ -1,5 +1,44 @@
 # dictacode Architecture Plan v0.2.2 - Diagnostics Integration
 
+## Status
+
+### Phase 1: Diagnostic Framework
+- [x] Create `diagnostics/` package in both HID and STT
+- [x] Implement `base.py` with CheckStatus, CheckResult, DiagnosticResult
+- [x] Add JSON and human-readable formatters
+- [x] Unit tests for result classes
+
+### Phase 2: HID Hardware Checks
+- [x] Migrate check_hardware.py logic to `diagnostics/hardware.py`
+- [x] Create CLI entry point `dictacode-hid-check`
+- [x] Update pyproject.toml
+- [x] Integration tests
+
+### Phase 3: STT Hardware Checks
+- [x] Create `diagnostics/audio.py` (mic detection)
+- [x] Create `diagnostics/whisper.py` (binary/model checks)
+- [x] Create CLI entry point `dictacode-stt-check`
+- [x] Integration tests
+
+### Phase 4: Full Diagnostic Suite
+- [x] Add keymap diagnostics to HID
+- [x] Create `dictacode-*-diagnose` commands
+- [x] Add `--check NAME` option
+
+### Phase 5: Runtime Integration
+- [x] Add `diagnose` command handler to both services
+- [x] Respect MAINTENANCE mode requirement
+- [x] Log results to journal
+
+### Phase 6: systemd Integration
+- [ ] Update service files with ExecStartPre (ops/packaging)
+- [ ] Test service startup with failing checks
+- [ ] Document journalctl usage
+
+**v0.2.2 COMPLETE** - Diagnostics integration implemented with CLI entry points.
+
+---
+
 ## Prerequisites
 
 v0.2.2 builds on top of v0.2.1:

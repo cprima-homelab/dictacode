@@ -1,5 +1,19 @@
 # dictacode Target Architecture v0.0.1
 
+## Status
+
+- [x] Voice-to-keyboard pipeline (Mic → Pi5 STT → UART → Pi0 HID → PC)
+- [x] UART communication (115200 baud, /dev/serial0)
+- [x] Protocol design (JSON newline-delimited, msgpack length-prefixed)
+- [x] Sandbox experiments (record.py, transcribe.py, send_uart.py, pipeline.py)
+- [x] CLI entry points (dictacode-stt, dictacode-hid)
+- [x] HID keymap support (en_us, de_de)
+- [ ] Single inventory.yaml config (using simpler per-app config instead)
+
+**v0.0.1 COMPLETE** - Sandbox validated architecture, moved to v0.2.x implementation.
+
+---
+
 ## Purpose
 
 This document describes the **target architecture** for dictacode. The `sandbox/` experiments validate assumptions before committing to implementation details.
