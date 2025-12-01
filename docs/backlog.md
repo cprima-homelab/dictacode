@@ -71,6 +71,23 @@ Items discovered during development that could improve the project but are not c
 - UART handshake integration test
 - Device failure simulation tests
 
+### Streaming Adapter Unit Tests
+**Gap**: v0.2.7 streaming adapters (VoskAdapter, WhisperAdapter streaming methods) lack unit tests
+**Technical Debt**: All streaming tests deferred during implementation
+**Nice-to-have**:
+- Mock Vosk model and test streaming callbacks
+- Test WhisperAdapter chunked batch buffering
+- Test StreamingTranscriptionAdapter protocol compliance
+**Related**: v0.2.7 Phase 1-3 (tests deferred)
+
+### Streaming Pipeline Integration Tests
+**Gap**: No integration tests for streaming transcription pipeline
+**Nice-to-have**:
+- Test ring buffer → streaming adapter → callbacks flow
+- Test streaming mode vs batch mode behavior
+- Test graceful fallback when streaming unsupported
+**Related**: v0.2.7 Phase 4 (tests deferred)
+
 ## Operations
 
 ### Background Process Cleanup
@@ -118,6 +135,15 @@ Items discovered during development that could improve the project but are not c
 **Gap**: Current setup requires manual Whisper model installation
 **Nice-to-have**: Service auto-downloads model on first run if missing
 **Consideration**: Large download size, may want user confirmation
+
+### Vosk Model Management
+**Gap**: VoskAdapter (v0.2.7) searches for models but provides no download/management
+**Nice-to-have**:
+- Auto-download Vosk model on first use if missing
+- Support multiple language models
+- Model selection via CLI flag or config
+**Consideration**: Vosk models range from 50MB (small) to 1.8GB (large)
+**Related**: v0.2.7 Phase 2 (VoskAdapter implementation)
 
 ### Diagnostics Mode
 **Gap**: No built-in diagnostics for troubleshooting
