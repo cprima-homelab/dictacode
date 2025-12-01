@@ -188,16 +188,24 @@ class SttService:
             logger.error(f"Failed to send probe: {e}")
             return False
 
-        # Wait for ProbeAck (simple timeout)
-        # TODO: Implement proper message reading loop
+        # Wait for ProbeAck
         start = time.time()
         while time.time() - start < self.handshake_timeout:
-            time.sleep(0.1)
-            # For now, just timeout - full implementation needs message reading
-            # This will be enhanced when we add bidirectional communication
+            try:
+                # Try to read response
+                data = self.uart.read_until(b"\n", timeout=0.5)
+                if data:
+                    msg = self.protocol.decode(data)
+                    if isinstance(msg, ProbeAckMessage):
+                        logger.info(f"Received probe_ack ts={msg.timestamp} - handshake complete!")
+                        return True
+            except Exception as e:
+                # Continue waiting on decode errors
+                logger.debug(f"Handshake read error (continuing): {e}")
+                time.sleep(0.1)
 
         logger.warning(f"Handshake timeout after {self.handshake_timeout}s")
-        return False  # For now, always timeout until HID responds
+        return False
 
     def record_audio(self) -> bytes:
         """
