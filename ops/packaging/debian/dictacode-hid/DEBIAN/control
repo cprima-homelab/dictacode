@@ -1,10 +1,10 @@
 Package: dictacode-hid
-Version: 0.2.3
+Version: 0.2.4
 Section: utils
 Priority: optional
 Architecture: all
 Pre-Depends: dictacode-core
-Depends: python3, python3-venv, systemd
+Depends: python3, python3-venv, python3-systemd, systemd
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
 Homepage: https://github.com/cprima-homelab/dictacode
 Description: dictacode USB HID keyboard gadget
