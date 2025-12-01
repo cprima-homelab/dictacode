@@ -6,6 +6,7 @@ Provides CLI interface and service startup with proper signal handling for syste
 Usage:
     python -m dictacode_stt                      # Start continuous pipeline
     python -m dictacode_stt --once               # Run once and exit
+    python -m dictacode_stt --port rode-videomic-ntg  # Use specific audio port
     python -m dictacode_stt --dry-run            # Dry run (no UART output)
     DICTACODE_PROTOCOL=msgpack python -m dictacode_stt  # Use msgpack protocol
 """
@@ -18,6 +19,7 @@ import sys
 from pathlib import Path
 
 from dictacode_stt import SttService, SolutionState
+from dictacode_stt.audio import AudioPortManager
 
 # Global flag for shutdown
 _shutdown_requested = False
@@ -57,6 +59,7 @@ Environment Variables:
 Examples:
   python -m dictacode_stt
   python -m dictacode_stt --once --verbose
+  python -m dictacode_stt --port rode-videomic-ntg
   python -m dictacode_stt --duration 10 --language de
   python -m dictacode_stt --no-supervisor
   DICTACODE_PROTOCOL=msgpack python -m dictacode_stt
@@ -86,8 +89,15 @@ Examples:
     parser.add_argument(
         "--device",
         type=int,
-        default=0,
-        help="Audio device index (default: 0)",
+        default=None,
+        help="Audio device index (legacy, use --port instead)",
+    )
+    parser.add_argument(
+        "--port",
+        "-p",
+        type=str,
+        default=None,
+        help="Audio port ID (e.g., rode-videomic-ntg, hw:0)",
     )
     parser.add_argument(
         "--duration",
@@ -154,12 +164,43 @@ Examples:
         "maintenance": SolutionState.MAINTENANCE,
     }.get(initial_mode_str, SolutionState.LISTENING)
 
+    # Resolve audio port to device index
+    device_index = None
+    port_name = None
+
+    if args.port:
+        # Use port ID to find device
+        try:
+            manager = AudioPortManager()
+            port = manager.get_port(args.port)
+            if port:
+                device_index = port.device_index
+                port_name = f"{port.port_id} ({port.name})"
+                logger.info(f"Resolved port '{args.port}' to device {device_index}")
+            else:
+                logger.error(f"Audio port '{args.port}' not found")
+                logger.info("Available ports:")
+                for p in manager.list_ports():
+                    logger.info(f"  {p.port_id} - {p.name}")
+                return 1
+        except Exception as e:
+            logger.error(f"Failed to resolve audio port: {e}", exc_info=True)
+            return 1
+    elif args.device is not None:
+        # Legacy device index
+        device_index = args.device
+        port_name = f"device {device_index}"
+    else:
+        # Default to device 0
+        device_index = 0
+        port_name = f"device {device_index} (default)"
+
     logger.info("=" * 60)
     logger.info("dictacode STT Service starting...")
     logger.info(f"UART: {args.uart} @ {args.baud}")
     logger.info(f"Protocol: {protocol_name}")
     logger.info(f"Mode: {initial_mode.name}")
-    logger.info(f"Audio device: {args.device}")
+    logger.info(f"Audio port: {port_name}")
     logger.info(f"Recording duration: {args.duration}s")
     logger.info(f"Language: {args.language}")
     if args.dry_run:
@@ -189,7 +230,7 @@ Examples:
             protocol_name=protocol_name,
             whisper_binary=args.whisper_binary,
             whisper_model=args.whisper_model,
-            device_index=args.device,
+            device_index=device_index,
             recording_duration=args.duration,
             language=args.language,
             dry_run=args.dry_run,

@@ -1,8 +1,6 @@
 # dictacode
 
-Speech-to-text dictation system using Raspberry Pi hardware as a USB HID keyboard.
-
-**Design philosophy:** Reliability over features. Characters must arrive in exact order with no reordering or silent drops—better to halt than type wrong text.
+dictacode is a voice-to-keyboard system that converts speech into keystrokes on a target PC. The system uses a dual-Raspberry Pi architecture: a Pi5 performs speech-to-text transcription while a Pi Zero 2W acts as a USB HID gadget, typing the transcribed text. The critical constraint is sequential character delivery - characters must arrive in exact order with no reordering or silent drops.
 
 ## Architecture
 
@@ -130,22 +128,22 @@ dictacode-hid-diagnose                # Full diagnostic suite
 
 ## Packages
 
-| Package | Target | Description |
-|---------|--------|-------------|
-| `dictacode-core` | All | Base: creates user, directories, groups |
-| `dictacode-hid` | Pi Zero | USB HID keyboard gadget |
-| `dictacode-stt` | Pi 5 | Speech-to-text engine |
+| Package          | Target  | Description                             |
+| ---------------- | ------- | --------------------------------------- |
+| `dictacode-core` | All     | Base: creates user, directories, groups |
+| `dictacode-hid`  | Pi Zero | USB HID keyboard gadget                 |
+| `dictacode-stt`  | Pi 5    | Speech-to-text engine                   |
 
 Packages are available as [GitHub Releases](https://github.com/cprima-homelab/dictacode/releases).
 
 ## Components
 
-| Directory | Description |
-|-----------|-------------|
-| `apps/stt/` | Speech-to-text engine (Pi 5) |
-| `apps/hid/` | USB HID keyboard bridge (Pi Zero) |
-| `ops/packaging/` | Debian packages |
-| `tools/` | Bootstrap script |
+| Directory        | Description                       |
+| ---------------- | --------------------------------- |
+| `apps/stt/`      | Speech-to-text engine (Pi 5)      |
+| `apps/hid/`      | USB HID keyboard bridge (Pi Zero) |
+| `ops/packaging/` | Debian packages                   |
+| `tools/`         | Bootstrap script                  |
 
 ## Configuration
 

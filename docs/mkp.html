@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Header MKP</title>
+<style>
+  :root {
+    --bg:   #fdf6e3;
+    --band: #eee8d5;
+    --mic:  #b58900;
+    --key:  #cb4b16;
+    --usb:  #2aa198;
+    --path: #859900;
+    --icon: #073642;
+  }
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+  }
+  header{
+    padding:8px 12px;
+  }
+  svg{
+    width:100%;
+    height:64px;
+    display:block;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg id="mkp">
+    <rect x="0" y="0" width="100%" height="100%" fill="var(--band)"/>
+    <path id="mkp-path" fill="none" stroke="var(--path)" stroke-width="3"/>
+
+    <!-- LEFT: microphone (rotated -90° "pointing left") -->
+    <g id="m">
+      <circle r="10" fill="var(--mic)"/>
+      <g pointer-events="none" transform="rotate(-90)">
+        <!-- capsule -->
+        <rect x="-3.5" y="-6" width="7" height="9" rx="3.5" fill="var(--icon)"/>
+        <!-- stem -->
+        <rect x="-1" y="3" width="2" height="4" fill="var(--icon)"/>
+        <!-- base -->
+        <rect x="-4" y="7" width="8" height="2" rx="1" fill="var(--icon)"/>
+      </g>
+    </g>
+
+    <!-- MIDDLE: keyboard -->
+    <g id="k">
+      <circle r="10" fill="var(--key)"/>
+      <g pointer-events="none">
+        <!-- body -->
+        <rect x="-8" y="-5" width="16" height="10" rx="2" fill="var(--icon)"/>
+        <!-- rows of keys -->
+        <rect x="-7" y="-3" width="14" height="2" fill="var(--bg)"/>
+        <rect x="-7" y="0"  width="14" height="2" fill="var(--bg)"/>
+      </g>
+    </g>
+
+    <!-- RIGHT: USB-A plug (rotated +90° "pointing right") -->
+    <g id="p">
+      <circle r="10" fill="var(--usb)"/>
+      <g pointer-events="none" transform="rotate(90)">
+        <!-- shell -->
+        <rect x="-6" y="-4" width="12" height="8" rx="1.5" fill="var(--icon)"/>
+        <!-- tongue -->
+        <rect x="-3" y="-2" width="6" height="4" fill="var(--bg)"/>
+        <!-- stem -->
+        <rect x="-1" y="4" width="2" height="3" fill="var(--icon)"/>
+      </g>
+    </g>
+  </svg>
+</header>
+
+<script>
+(() => {
+  const svg  = document.getElementById('mkp');
+  const path = document.getElementById('mkp-path');
+  const gM   = document.getElementById('m');
+  const gK   = document.getElementById('k');
+  const gP   = document.getElementById('p');
+
+  const R   = 10;   // circle radius (px)
+  const PAD = 0.10; // 10% inner padding
+
+  function update() {
+    const box = svg.getBoundingClientRect();
+    const w = box.width;
+    const h = box.height;
+    const cy = h / 2;
+
+    const xM = w * PAD;
+    const xK = w * 0.5;
+    const xP = w * (1 - PAD);
+
+    gM.setAttribute('transform', `translate(${xM},${cy})`);
+    gK.setAttribute('transform', `translate(${xK},${cy})`);
+    gP.setAttribute('transform', `translate(${xP},${cy})`);
+
+    const leftEnd  = xM + R;
+    const midL     = xK - R;
+    const midR     = xK + R;
+    const rightEnd = xP - R;
+
+    const up   = cy - h * 0.45;
+    const down = cy + h * 0.45;
+
+    const d = `
+      M ${leftEnd} ${cy}
+      C ${(leftEnd + midL)/2} ${up}, ${(leftEnd + midL)/2} ${up}, ${midL} ${cy}
+      M ${midR} ${cy}
+      C ${(midR + rightEnd)/2} ${down}, ${(midR + rightEnd)/2} ${down}, ${rightEnd} ${cy}
+    `;
+    path.setAttribute('d', d);
+  }
+
+  window.addEventListener('resize', update);
+  window.addEventListener('DOMContentLoaded', update);
+  update();
+})();
+</script>
+
+</body>
+</html>
