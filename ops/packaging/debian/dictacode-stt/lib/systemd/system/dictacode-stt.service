@@ -16,10 +16,11 @@ StateDirectory=dictacode
 RuntimeDirectory=dictacode-stt
 LogsDirectory=dictacode
 
-WorkingDirectory=/opt/dictacode/stt
+# v0.2.3 DEV: Use development paths
+WorkingDirectory=/home/dictacode/dictacode/apps/stt
 
 # STT pipeline executable (v0.2.3: service always starts, state machine handles lifecycle)
-ExecStart=/opt/dictacode/stt/stt-venv/bin/python -m dictacode_stt
+ExecStart=/home/dictacode/dictacode/apps/stt/.venv/bin/python -m dictacode_stt
 
 # Watchdog: systemd will restart if no WATCHDOG=1 within 60s
 WatchdogSec=60
@@ -35,10 +36,10 @@ Environment=DICTACODE_HANDSHAKE_TIMEOUT=10
 EnvironmentFile=-/etc/dictacode/stt.env
 Environment=PYTHONUNBUFFERED=1
 
-# Security hardening
+# Security hardening (v0.2.3 DEV: ProtectHome disabled for ~/dictacode access)
 NoNewPrivileges=true
 ProtectSystem=full
-ProtectHome=true
+ProtectHome=false
 
 # Audio processing priority
 Nice=-5

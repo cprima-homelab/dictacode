@@ -17,10 +17,11 @@ StateDirectory=dictacode
 RuntimeDirectory=dictacode-hid
 LogsDirectory=dictacode
 
-WorkingDirectory=/opt/dictacode/hid
+# v0.2.3 DEV: Use development paths
+WorkingDirectory=/home/dictacode/dictacode/apps/hid
 
 # HID bridge executable (v0.2.3: service always starts, state machine handles lifecycle)
-ExecStart=/opt/dictacode/hid/hid-venv/bin/python -m dictacode_hid
+ExecStart=/home/dictacode/dictacode/apps/hid/.venv/bin/python -m dictacode_hid
 
 # Watchdog: systemd will restart if no WATCHDOG=1 within 60s
 WatchdogSec=60
@@ -31,10 +32,10 @@ RestartSec=3
 EnvironmentFile=-/etc/dictacode/hid.env
 Environment=PYTHONUNBUFFERED=1
 
-# Security hardening
+# Security hardening (v0.2.3 DEV: ProtectHome disabled for ~/dictacode access)
 NoNewPrivileges=true
 ProtectSystem=full
-ProtectHome=true
+ProtectHome=false
 
 StandardOutput=journal
 StandardError=journal

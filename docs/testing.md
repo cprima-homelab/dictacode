@@ -1,264 +1,273 @@
-# dictacode Testing Guide
+# dictacode Testing Checklist
 
-## Devices
+## Test Devices
 
-| Device | Hostname | Role | Platform |
-|--------|----------|------|----------|
-| Raspberry Pi 5 | `dictacode-pi5` | STT Engine | ARM64 |
-| Raspberry Pi Zero 2 W | `dictacode-pi0` | HID Gadget | ARM32 |
+| Device | Hostname | SSH Alias | Role | Platform |
+|--------|----------|-----------|------|----------|
+| Raspberry Pi 5 | `dictacode-stt` | `dictacode-stt` | STT Engine | ARM64 |
+| Raspberry Pi Zero 2 W | `dictacode-hid` | `dictacode-hid` | HID Gadget | ARM32 |
 
 **Connection:** Pi5 TX → Pi0 RX via UART (`/dev/serial0` @ 115200 baud)
 
 ---
 
-## Development Workflow
+## Development Testing Workflows
 
-### Prerequisites
+### Quick Development (Code Changes Only)
 
-```bash
-# On development machine
-# Ensure SSH keys are set up for both devices
-ssh-copy-id dietpi@dictacode-pi5
-ssh-copy-id dietpi@dictacode-pi0
-```
-
----
-
-## Deploy Code to Devices
-
-**IMPORTANT:** The standard workflow is:
-1. **PUSH** code to git from your development machine
-2. **PULL** code on devices via SSH (devices pull from git)
-3. **EXECUTE** commands on devices via SSH
-
-### Standard Workflow (Git-based)
+**Use when:** Only Python code in `~/dictacode` changed (no system files)
 
 ```bash
-# Step 1: Push from development machine
+# 1. Local testing first (MANDATORY)
+cd apps/stt
+uv run pytest tests/
+
+# 2. Push to GitHub
 git add .
-git commit -m "your changes"
+git commit -m "Your changes"
 git push origin exploration
 
-# Step 2: SSH to devices and pull latest code
-ssh dietpi@dictacode-pi5 "cd /opt/dictacode && git pull"
-ssh dietpi@dictacode-pi0 "cd /opt/dictacode && git pull"
+# 3. Pull on devices
+ssh dictacode-stt "cd ~/dictacode && git pull"
+ssh dictacode-hid "cd ~/dictacode && git pull"
 
-# Step 3: Reinstall packages on devices
-ssh dietpi@dictacode-pi5 "cd /opt/dictacode/stt && source venv/bin/activate && pip install -e ."
-ssh dietpi@dictacode-pi0 "cd /opt/dictacode/hid && source venv/bin/activate && pip install -e ."
+# 4. Restart services (uses code from ~/dictacode)
+ssh dictacode-stt "sudo systemctl restart dictacode-stt"
+ssh dictacode-hid "sudo systemctl restart dictacode-hid"
 
-# Step 4: Restart services on devices
-ssh dietpi@dictacode-pi5 "sudo systemctl restart dictacode-stt"
-ssh dietpi@dictacode-pi0 "sudo systemctl restart dictacode-hid"
-```
-
-### Alternative: Build and Deploy .deb (Release)
-
-```bash
-# Build packages locally
-./ops/packaging/build-deb.sh dictacode-stt
-./ops/packaging/build-deb.sh dictacode-hid
-
-# Copy to devices
-scp ops/packaging/dist/dictacode-stt_*.deb dietpi@dictacode-pi5:/tmp/
-scp ops/packaging/dist/dictacode-hid_*.deb dietpi@dictacode-pi0:/tmp/
-
-# Install on devices
-ssh dietpi@dictacode-pi5 "sudo dpkg -i /tmp/dictacode-stt_*.deb"
-ssh dietpi@dictacode-pi0 "sudo dpkg -i /tmp/dictacode-hid_*.deb"
+# 5. Check logs
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager"
+ssh dictacode-hid "sudo journalctl -u dictacode-hid -n 50 --no-pager"
 ```
 
 ---
 
-## Pull Code from Devices
+### System Changes (Debian Package Deployment)
 
-Retrieve logs, recordings, or modified files:
-
-```bash
-# Pull logs from Pi5
-ssh dietpi@dictacode-pi5 "journalctl -u dictacode-stt --no-pager -n 100" > stt.log
-
-# Pull test recordings
-rsync -avz dietpi@dictacode-pi5:/tmp/*.wav ./test-recordings/
-
-# Pull any modified source files
-rsync -avz dietpi@dictacode-pi5:/opt/dictacode/stt/src/ ./recovered-stt-src/
-```
-
----
-
-## Run Tests
-
-### Local Tests (Development Machine)
+**MANDATORY when:** Changes to files outside `~/dictacode`:
+- systemd service files (`*.service`)
+- Configuration files (`/etc/dictacode/*`)
+- System scripts (`/usr/bin/*`, `/opt/dictacode/*`)
+- Boot configuration (`/boot/*`)
 
 ```bash
-# STT tests
+# 1. Local testing first (MANDATORY)
 cd apps/stt
-uv sync                    # Install dependencies
-uv run pytest              # Run all tests
-uv run pytest -v           # Verbose output
-uv run pytest tests/test_protocol.py  # Specific file
+uv run pytest tests/
 
-# HID tests
-cd apps/hid
-uv sync
-uv run pytest
+# 2. Update package version in control files
+# Edit: ops/packaging/debian/dictacode-stt/DEBIAN/control
+# Edit: ops/packaging/debian/dictacode-hid/DEBIAN/control
+
+# 3. Build packages locally
+cd ops/packaging
+./build-deb.sh dictacode-stt
+./build-deb.sh dictacode-hid
+
+# 4. Copy to devices (use -O for legacy SCP)
+scp -O dist/dictacode-stt_*.deb dictacode-stt:/tmp/
+scp -O dist/dictacode-hid_*.deb dictacode-hid:/tmp/
+
+# 5. Install on devices
+ssh dictacode-stt "sudo dpkg -i /tmp/dictacode-stt_*.deb"
+ssh dictacode-hid "sudo dpkg -i /tmp/dictacode-hid_*.deb"
+
+# 6. Restart services
+ssh dictacode-stt "sudo systemctl daemon-reload && sudo systemctl restart dictacode-stt"
+ssh dictacode-hid "sudo systemctl daemon-reload && sudo systemctl restart dictacode-hid"
+
+# 7. Verify installation
+ssh dictacode-stt "systemctl status dictacode-stt --no-pager"
+ssh dictacode-hid "systemctl status dictacode-hid --no-pager"
 ```
 
-### On-Device Tests
+---
 
-```bash
-# SSH to Pi5 and run STT tests
-ssh dietpi@dictacode-pi5
-cd /opt/dictacode/stt
-source venv/bin/activate
-pytest tests/
+## Verification Checklist
 
-# SSH to Pi0 and run HID tests
-ssh dietpi@dictacode-pi0
-cd /opt/dictacode/hid
-source venv/bin/activate
-pytest tests/
-```
+### After Deployment
+
+- [ ] Services started successfully
+  ```bash
+  ssh dictacode-stt "systemctl is-active dictacode-stt"
+  ssh dictacode-hid "systemctl is-active dictacode-hid"
+  ```
+
+- [ ] No errors in logs (last 50 lines)
+  ```bash
+  ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager"
+  ssh dictacode-hid "sudo journalctl -u dictacode-hid -n 50 --no-pager"
+  ```
+
+- [ ] State transitions working (v0.2.3+)
+  ```bash
+  # Check for state transition logs
+  ssh dictacode-stt "sudo journalctl -u dictacode-stt --no-pager | grep 'State transition'"
+  ```
+
+- [ ] UART link established
+  ```bash
+  ssh dictacode-stt "ls -la /dev/serial0"
+  ssh dictacode-hid "ls -la /dev/serial0"
+  ```
+
+- [ ] HID device available (Pi0)
+  ```bash
+  ssh dictacode-hid "ls -la /dev/hidg0"
+  ```
 
 ---
 
 ## Diagnostics
 
-### Quick Health Check
+### Service Status
 
 ```bash
-# Pi5 - STT prerequisites
-ssh dietpi@dictacode-pi5 "dictacode-stt-check"
+# Quick health check
+ssh dictacode-stt "sudo systemctl status dictacode-stt --no-pager"
+ssh dictacode-hid "sudo systemctl status dictacode-hid --no-pager"
 
-# Pi0 - HID prerequisites
-ssh dietpi@dictacode-pi0 "dictacode-hid-check"
+# Follow live logs
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -f"
+ssh dictacode-hid "sudo journalctl -u dictacode-hid -f"
+
+# View recent errors only
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -p err --no-pager -n 20"
 ```
 
-### Full Diagnostics
+### Device Prerequisites
 
 ```bash
-# Pi5 - Full STT diagnostics
-ssh dietpi@dictacode-pi5 "dictacode-stt-diagnose"
+# Pi5 - Check whisper installation
+ssh dictacode-stt "test -f ~/dictacode/apps/stt/whisper.cpp/build/bin/whisper-cli && echo 'Whisper OK' || echo 'Whisper MISSING'"
+ssh dictacode-stt "test -f ~/dictacode/apps/stt/models/ggml-tiny.bin && echo 'Model OK' || echo 'Model MISSING'"
 
-# Pi0 - Full HID diagnostics
-ssh dietpi@dictacode-pi0 "dictacode-hid-diagnose"
+# Pi5 - Check UART
+ssh dictacode-stt "groups dictacode | grep dialout && echo 'Permissions OK' || echo 'Add to dialout group'"
+
+# Pi0 - Check HID gadget service
+ssh dictacode-hid "systemctl is-active dictacode-hid-gadget.service"
 ```
 
 ### Audio Testing (Pi5)
 
 ```bash
-# List audio devices
-ssh dietpi@dictacode-pi5 "dictacode-stt-audio list"
+# List audio input devices
+ssh dictacode-stt "arecord -l"
 
-# Test recording (5 seconds)
-ssh dietpi@dictacode-pi5 "dictacode-stt-audio test --duration 5"
+# Test 5-second recording
+ssh dictacode-stt "arecord -D hw:3,0 -f S16_LE -r 16000 -d 5 /tmp/test.wav"
 
-# Record to file
-ssh dietpi@dictacode-pi5 "dictacode-stt-audio record /tmp/test.wav --duration 3"
-```
-
-### Whisper Testing (Pi5)
-
-```bash
-# Check whisper installation
-ssh dietpi@dictacode-pi5 "dictacode-stt-whisper check"
-
-# Test transcription
-ssh dietpi@dictacode-pi5 "dictacode-stt-whisper test /tmp/test.wav"
-```
-
----
-
-## Service Management
-
-### Start/Stop Services
-
-```bash
-# Pi5 - STT service
-ssh dietpi@dictacode-pi5 "sudo systemctl start dictacode-stt"
-ssh dietpi@dictacode-pi5 "sudo systemctl stop dictacode-stt"
-ssh dietpi@dictacode-pi5 "sudo systemctl status dictacode-stt"
-
-# Pi0 - HID service
-ssh dietpi@dictacode-pi0 "sudo systemctl start dictacode-hid"
-ssh dietpi@dictacode-pi0 "sudo systemctl stop dictacode-hid"
-ssh dietpi@dictacode-pi0 "sudo systemctl status dictacode-hid"
-```
-
-### View Logs
-
-```bash
-# Pi5 - Follow STT logs
-ssh dietpi@dictacode-pi5 "journalctl -u dictacode-stt -f"
-
-# Pi0 - Follow HID logs
-ssh dietpi@dictacode-pi0 "journalctl -u dictacode-hid -f"
-```
-
----
-
-## End-to-End Testing
-
-### Manual Pipeline Test
-
-1. **Start both services:**
-   ```bash
-   ssh dietpi@dictacode-pi5 "sudo systemctl start dictacode-stt"
-   ssh dietpi@dictacode-pi0 "sudo systemctl start dictacode-hid"
-   ```
-
-2. **Monitor HID output:**
-   ```bash
-   # On Pi0 - watch for typed characters
-   ssh dietpi@dictacode-pi0 "journalctl -u dictacode-hid -f"
-   ```
-
-3. **Speak into microphone** connected to Pi5
-
-4. **Observe:** Transcribed text should appear in HID logs (and type on connected computer)
-
-### Protocol Test (Direct UART)
-
-```bash
-# Send test message from Pi5 to Pi0
-ssh dietpi@dictacode-pi5 "dictacode-stt-send 'Hello World'"
-
-# Watch Pi0 receive it
-ssh dietpi@dictacode-pi0 "journalctl -u dictacode-hid -f"
+# Test whisper transcription
+ssh dictacode-stt "~/dictacode/apps/stt/whisper.cpp/build/bin/whisper-cli -m ~/dictacode/apps/stt/models/ggml-tiny.bin /tmp/test.wav"
 ```
 
 ---
 
 ## Troubleshooting
 
-### UART Connection
+### Service Won't Start
 
 ```bash
-# Check UART device exists
-ssh dietpi@dictacode-pi5 "ls -la /dev/serial0"
-ssh dietpi@dictacode-pi0 "ls -la /dev/serial0"
+# Check systemd unit file syntax
+ssh dictacode-stt "systemd-analyze verify dictacode-stt.service"
+
+# Check ExecStart path exists
+ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep ExecStart"
+ssh dictacode-stt "test -f ~/dictacode/apps/stt/.venv/bin/python && echo 'Python OK' || echo 'VENV MISSING'"
+
+# Check working directory exists
+ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep WorkingDirectory"
+ssh dictacode-stt "test -d ~/dictacode/apps/stt && echo 'WorkDir OK' || echo 'DIR MISSING'"
+```
+
+### Import Errors
+
+```bash
+# Verify package installation
+ssh dictacode-stt "cd ~/dictacode/apps/stt && source .venv/bin/activate && python -c 'import dictacode_stt; print(dictacode_stt.__file__)'"
+
+# Reinstall in editable mode
+ssh dictacode-stt "cd ~/dictacode/apps/stt && source .venv/bin/activate && pip install -e ."
+```
+
+### UART Communication Issues
+
+```bash
+# Check if device exists on both ends
+ssh dictacode-stt "ls -la /dev/serial0"
+ssh dictacode-hid "ls -la /dev/serial0"
 
 # Check permissions
-ssh dietpi@dictacode-pi5 "groups dictacode"  # Should include 'dialout'
+ssh dictacode-stt "sudo chmod 666 /dev/serial0"
+ssh dictacode-hid "sudo chmod 666 /dev/serial0"
+
+# Test raw UART (Pi5 → Pi0)
+# Terminal 1:
+ssh dictacode-hid "cat /dev/serial0"
+# Terminal 2:
+ssh dictacode-stt "echo 'test' > /dev/serial0"
 ```
 
-### HID Device (Pi0)
+---
+
+## End-to-End Test
+
+### Manual Pipeline Test
 
 ```bash
-# Check HID gadget exists
-ssh dietpi@dictacode-pi0 "ls -la /dev/hidg0"
+# 1. Start both services
+ssh dictacode-stt "sudo systemctl restart dictacode-stt"
+ssh dictacode-hid "sudo systemctl restart dictacode-hid"
 
-# Check gadget setup
-ssh dietpi@dictacode-pi0 "ls /sys/kernel/config/usb_gadget/"
+# 2. Monitor logs in separate terminals
+# Terminal 1 (STT):
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -f"
+
+# Terminal 2 (HID):
+ssh dictacode-hid "sudo journalctl -u dictacode-hid -f"
+
+# 3. Speak into microphone on Pi5
+
+# 4. Expected flow:
+# - STT logs: "Recording started"
+# - STT logs: "Transcription: <your words>"
+# - STT logs: "Sending text via UART"
+# - HID logs: "Received text: <your words>"
+# - HID logs: "Typing on HID device"
+# - Text appears on computer connected to Pi0
 ```
 
-### Audio Device (Pi5)
+---
+
+## Quick Reference
+
+### File Locations
+
+**Development (Git Repo):**
+- Code: `~/dictacode/apps/{stt,hid}/`
+- Virtual envs: `~/dictacode/apps/{stt,hid}/.venv/`
+- Tests: `~/dictacode/apps/{stt,hid}/tests/`
+
+**System (Debian Package):**
+- Service files: `/lib/systemd/system/dictacode-{stt,hid}.service`
+- Config files: `/etc/dictacode/{stt,hid}.conf`
+- State directory: `/var/lib/dictacode/`
+- Runtime directory: `/run/dictacode-{stt,hid}/`
+- Logs: `journalctl -u dictacode-{stt,hid}`
+
+### Common Commands
 
 ```bash
-# List ALSA devices
-ssh dietpi@dictacode-pi5 "arecord -l"
+# Restart after code change
+ssh dictacode-stt "cd ~/dictacode && git pull && sudo systemctl restart dictacode-stt"
 
-# Check sounddevice sees devices
-ssh dietpi@dictacode-pi5 "python3 -c 'import sounddevice; print(sounddevice.query_devices())'"
+# View last 100 log lines
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 100 --no-pager"
+
+# Clear failed state
+ssh dictacode-stt "sudo systemctl reset-failed dictacode-stt"
+
+# Stop service
+ssh dictacode-stt "sudo systemctl stop dictacode-stt"
 ```

@@ -17,7 +17,7 @@ import signal
 import sys
 from pathlib import Path
 
-from dictacode_stt import SttService, DeviceMode
+from dictacode_stt import SttService, SolutionState
 
 # Global flag for shutdown
 _shutdown_requested = False
@@ -149,10 +149,10 @@ Examples:
     initial_mode_str = os.environ.get("DICTACODE_MODE", "normal")
 
     initial_mode = {
-        "listening": DeviceMode.LISTENING,
-        "normal": DeviceMode.LISTENING,  # Alias
-        "maintenance": DeviceMode.MAINTENANCE,
-    }.get(initial_mode_str, DeviceMode.LISTENING)
+        "listening": SolutionState.LISTENING,
+        "normal": SolutionState.LISTENING,  # Alias
+        "maintenance": SolutionState.MAINTENANCE,
+    }.get(initial_mode_str, SolutionState.LISTENING)
 
     logger.info("=" * 60)
     logger.info("dictacode STT Service starting...")
