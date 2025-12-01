@@ -2,6 +2,8 @@
 
 Speech-to-text dictation system using Raspberry Pi hardware as a USB HID keyboard.
 
+**Design philosophy:** Reliability over features. Characters must arrive in exact order with no reordering or silent drops—better to halt than type wrong text.
+
 ## Architecture
 
 ```

@@ -18,10 +18,7 @@ LogsDirectory=dictacode
 
 WorkingDirectory=/opt/dictacode/stt
 
-# Hardware check before start (exit 1 = don't start, exit 2 = warn but start)
-ExecStartPre=/opt/dictacode/stt/stt-venv/bin/dictacode-stt-check --quiet
-
-# STT pipeline executable
+# STT pipeline executable (v0.2.3: service always starts, state machine handles lifecycle)
 ExecStart=/opt/dictacode/stt/stt-venv/bin/python -m dictacode_stt
 
 # Watchdog: systemd will restart if no WATCHDOG=1 within 60s
@@ -29,6 +26,11 @@ WatchdogSec=60
 
 Restart=on-failure
 RestartSec=3
+
+# v0.2.3: State polling intervals
+Environment=DICTACODE_PREREQUISITE_POLL=30
+Environment=DICTACODE_LINK_POLL=5
+Environment=DICTACODE_HANDSHAKE_TIMEOUT=10
 
 EnvironmentFile=-/etc/dictacode/stt.env
 Environment=PYTHONUNBUFFERED=1

@@ -30,7 +30,21 @@ class CommandMessage:
     argument: str | None = None
 
 
-Message = Union[TextMessage, CommandMessage]
+@dataclass(frozen=True)
+class ProbeMessage:
+    """Sent during HANDSHAKE_INIT to verify peer is alive."""
+
+    timestamp: float
+
+
+@dataclass(frozen=True)
+class ProbeAckMessage:
+    """Response to probe from HID."""
+
+    timestamp: float
+
+
+Message = Union[TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage]
 
 
 class ProtocolAdapter(ABC):
@@ -65,6 +79,10 @@ class JsonProtocol(ProtocolAdapter):
             obj = {"t": "cmd", "c": msg.command}
             if msg.argument is not None:
                 obj["a"] = msg.argument
+        elif isinstance(msg, ProbeMessage):
+            obj = {"t": "probe", "ts": msg.timestamp}
+        elif isinstance(msg, ProbeAckMessage):
+            obj = {"t": "probe_ack", "ts": msg.timestamp}
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
         return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
@@ -77,6 +95,10 @@ class JsonProtocol(ProtocolAdapter):
             return TextMessage(payload=obj["p"])
         elif msg_type == "cmd":
             return CommandMessage(command=obj["c"], argument=obj.get("a"))
+        elif msg_type == "probe":
+            return ProbeMessage(timestamp=obj["ts"])
+        elif msg_type == "probe_ack":
+            return ProbeAckMessage(timestamp=obj["ts"])
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
 
@@ -97,6 +119,10 @@ class MsgpackProtocol(ProtocolAdapter):
             obj = {"t": "cmd", "c": msg.command}
             if msg.argument is not None:
                 obj["a"] = msg.argument
+        elif isinstance(msg, ProbeMessage):
+            obj = {"t": "probe", "ts": msg.timestamp}
+        elif isinstance(msg, ProbeAckMessage):
+            obj = {"t": "probe_ack", "ts": msg.timestamp}
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
 
@@ -118,6 +144,10 @@ class MsgpackProtocol(ProtocolAdapter):
             return TextMessage(payload=obj["p"])
         elif msg_type == "cmd":
             return CommandMessage(command=obj["c"], argument=obj.get("a"))
+        elif msg_type == "probe":
+            return ProbeMessage(timestamp=obj["ts"])
+        elif msg_type == "probe_ack":
+            return ProbeAckMessage(timestamp=obj["ts"])
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
 

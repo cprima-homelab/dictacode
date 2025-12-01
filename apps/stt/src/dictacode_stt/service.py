@@ -25,10 +25,12 @@ from dictacode_stt.protocol import (
     get_protocol,
     TextMessage,
     CommandMessage,
+    ProbeMessage,
+    ProbeAckMessage,
 )
-from dictacode_stt.state import DeviceMode, SttState
+from dictacode_stt.state import SolutionState, SttState
 from dictacode_stt.transport import UartTransport, TransportError
-from dictacode_stt.supervisor import LinkSupervisor
+from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +60,13 @@ class SttService:
         whisper_sample_rate: int = 16000,
         recording_duration: float = 5.0,
         language: str = "en",
-        initial_mode: DeviceMode = DeviceMode.LISTENING,
         dry_run: bool = False,
         supervisor_timeout: float = 30.0,
         supervisor_ping_interval: float = 5.0,
         supervisor_enabled: bool = True,
+        prerequisite_poll_interval: float = 30.0,
+        link_poll_interval: float = 5.0,
+        handshake_timeout: float = 10.0,
     ):
         """
         Initialize STT service.
@@ -79,11 +83,13 @@ class SttService:
             whisper_sample_rate: Whisper required sample rate (16000)
             recording_duration: Recording duration in seconds
             language: Transcription language
-            initial_mode: Initial device mode
             dry_run: If True, don't send to UART (for testing)
             supervisor_timeout: Link timeout in seconds (default: 30)
             supervisor_ping_interval: Ping interval in seconds (default: 5)
             supervisor_enabled: Enable supervisor (default: True)
+            prerequisite_poll_interval: Poll interval for prerequisites (default: 30)
+            link_poll_interval: Poll interval for UART link (default: 5)
+            handshake_timeout: Handshake timeout in seconds (default: 10)
         """
         self.uart_device = uart_device
         self.baud_rate = baud_rate
@@ -96,6 +102,10 @@ class SttService:
         self.language = language
         self.dry_run = dry_run
         self.supervisor_enabled = supervisor_enabled
+        self.prerequisite_poll_interval = prerequisite_poll_interval
+        self.link_poll_interval = link_poll_interval
+        self.handshake_timeout = handshake_timeout
+        self._shutdown = False
 
         # Whisper paths
         if whisper_binary is None:
@@ -108,18 +118,25 @@ class SttService:
 
         # Initialize layers
         self.protocol: ProtocolAdapter = get_protocol(protocol_name)
-        self.state: SttState = SttState(mode=initial_mode)
+        self.state: SttState = SttState()  # Starts in UNCONFIGURED
         self.uart: Optional[UartTransport] = None
 
-        # Initialize supervisor (Layer 5)
-        self.supervisor: LinkSupervisor = LinkSupervisor(
+        # Initialize supervisor (Layer 5) with config
+        supervisor_config = SupervisorConfig(
+            whisper_binary=whisper_binary,
+            whisper_model=whisper_model,
+            uart_device=uart_device,
             timeout=supervisor_timeout,
             ping_interval=supervisor_ping_interval,
+        )
+        self.supervisor: LinkSupervisor = LinkSupervisor(
+            state=self.state,
+            config=supervisor_config,
         )
 
         logger.info(
             f"STT service initialized: uart={uart_device}, protocol={protocol_name}, "
-            f"mode={initial_mode.name}, language={language}, duration={recording_duration}s"
+            f"state={self.state.state.value}, language={language}, duration={recording_duration}s"
         )
         if supervisor_enabled:
             logger.info(
@@ -142,22 +159,45 @@ class SttService:
             self.uart.close()
             logger.info("UART closed")
 
-    def check_prerequisites(self) -> bool:
+    def _sd_notify(self, message: str) -> None:
+        """Send notification to systemd."""
+        try:
+            from systemd.daemon import notify
+            notify(message)
+        except ImportError:
+            pass
+
+    def _perform_handshake(self) -> bool:
         """
-        Check if Whisper binary and model exist.
+        Perform handshake with HID peer.
 
         Returns:
-            True if prerequisites are met, False otherwise
+            True if handshake successful, False on timeout
         """
-        if not self.whisper_binary.exists():
-            logger.error(f"Whisper binary not found: {self.whisper_binary}")
+        if not self.uart:
             return False
 
-        if not self.whisper_model.exists():
-            logger.error(f"Whisper model not found: {self.whisper_model}")
+        # Send probe message
+        probe = ProbeMessage(timestamp=time.time())
+        encoded = self.protocol.encode(probe)
+
+        try:
+            self.uart.write(encoded)
+            logger.info("Sent probe message, waiting for ack...")
+        except TransportError as e:
+            logger.error(f"Failed to send probe: {e}")
             return False
 
-        return True
+        # Wait for ProbeAck (simple timeout)
+        # TODO: Implement proper message reading loop
+        start = time.time()
+        while time.time() - start < self.handshake_timeout:
+            time.sleep(0.1)
+            # For now, just timeout - full implementation needs message reading
+            # This will be enhanced when we add bidirectional communication
+
+        logger.warning(f"Handshake timeout after {self.handshake_timeout}s")
+        return False  # For now, always timeout until HID responds
 
     def record_audio(self) -> bytes:
         """
@@ -436,58 +476,109 @@ class SttService:
 
     def run_continuous(self) -> None:
         """
-        Run continuous pipeline loop with supervisor health checks.
+        Run continuous state-driven main loop.
 
+        v0.2.3: State machine drives behavior.
         Blocks until KeyboardInterrupt.
         """
-        logger.info("Running continuous pipeline (Ctrl+C to stop)...")
+        logger.info(f"Starting service in state: {self.state.state.value}")
+        self._sd_notify("READY=1")  # Service is UP regardless of state
 
         iteration = 0
         try:
-            while True:
-                # Supervisor: check health and handle reconnection
-                if self.supervisor_enabled and not self.dry_run:
+            while not self._shutdown:
+                # Notify systemd of current state
+                self._sd_notify(f"STATUS=state={self.state.state.value}")
+                self.supervisor.notify_watchdog()
+
+                # State-driven behavior
+                if self.state.should_poll_prerequisites():
+                    # UNCONFIGURED state: poll for prerequisites
+                    if self.supervisor.check_prerequisites():
+                        logger.info("Prerequisites detected, transitioning...")
+                        self.supervisor.signal_prerequisites_ready()
+                    else:
+                        logger.debug(
+                            f"Prerequisites missing, polling in {self.prerequisite_poll_interval}s"
+                        )
+                        time.sleep(self.prerequisite_poll_interval)
+                    continue
+
+                if self.state.should_poll_link():
+                    # LINK_PENDING state: poll for UART
+                    if self.supervisor.check_link_available():
+                        logger.info("UART device detected, transitioning...")
+                        self.supervisor.signal_link_available()
+                        # Open UART now
+                        if not self.dry_run:
+                            try:
+                                self.start()
+                            except Exception as e:
+                                logger.error(f"Failed to open UART: {e}")
+                                time.sleep(self.link_poll_interval)
+                                continue
+                    else:
+                        logger.debug(
+                            f"UART not available, polling in {self.link_poll_interval}s"
+                        )
+                        time.sleep(self.link_poll_interval)
+                    continue
+
+                if self.state.should_handshake():
+                    # HANDSHAKE_INIT state: attempt handshake
+                    if self._perform_handshake():
+                        logger.info("Handshake successful")
+                        self.supervisor.signal_handshake_complete()
+                    else:
+                        # Timeout - back to link pending
+                        logger.warning("Handshake failed, back to LINK_PENDING")
+                        self.state.transition_to(SolutionState.LINK_PENDING)
+                        self.stop()  # Close UART
+                    continue
+
+                # Operational states (LISTENING, MAINTENANCE, DEGRADED)
+                if self.state.should_transcribe():
+                    iteration += 1
+                    logger.info(f"=== ITERATION {iteration} ===")
+                    stats = self.run_once()
+
+                    if "error" not in stats:
+                        logger.info(
+                            f"Timing: record={stats['record_sec']:.2f}s, "
+                            f"transcribe={stats['transcribe_sec']:.2f}s, "
+                            f"send={stats['send_sec']*1000:.2f}ms, "
+                            f"total={stats['total_sec']:.2f}s, "
+                            f"len={stats['text_len']}"
+                        )
+
+                # Health monitoring in operational states
+                if self.state.is_operational() and self.supervisor_enabled:
                     if not self.supervisor.check_health():
                         logger.warning("Link unhealthy, attempting reconnection...")
+                        self.supervisor.signal_link_degraded()
                         if not self._reconnect():
-                            # Reconnection failed, wait and retry
+                            # Reconnection failed
                             delay = self.supervisor.reconnect_delay()
-                            logger.info(f"Waiting {delay:.1f}s before retry...")
+                            logger.error(f"Reconnection failed, waiting {delay:.1f}s...")
                             time.sleep(delay)
-                            continue
-
-                    # Supervisor: notify systemd watchdog
-                    self.supervisor.notify_watchdog()
-
-                iteration += 1
-                logger.info(f"=== ITERATION {iteration} ===")
-
-                stats = self.run_once()
-
-                if "error" not in stats:
-                    logger.info(
-                        f"Timing: record={stats['record_sec']:.2f}s, "
-                        f"transcribe={stats['transcribe_sec']:.2f}s, "
-                        f"send={stats['send_sec']*1000:.2f}ms, "
-                        f"total={stats['total_sec']:.2f}s, "
-                        f"len={stats['text_len']}"
-                    )
+                            self.supervisor.signal_link_lost()
 
                 time.sleep(0.5)  # Brief pause between iterations
 
         except KeyboardInterrupt:
-            logger.info("Interrupted")
+            logger.info("Interrupted by user")
+            self._shutdown = True
 
     def run_diagnostic(self, scope: str = "all") -> None:
         """Run diagnostic checks and log results.
 
-        Only runs in MAINTENANCE mode.
+        Only runs in MAINTENANCE state.
 
         Args:
             scope: "audio", "whisper", "uart", or "all"
         """
-        if self.state.mode != DeviceMode.MAINTENANCE:
-            logger.warning("diagnose ignored - not in MAINTENANCE mode")
+        if self.state.state != SolutionState.MAINTENANCE:
+            logger.warning("diagnose ignored - not in MAINTENANCE state")
             return
 
         from dictacode_stt.diagnostics import run_all_checks

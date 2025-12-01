@@ -1,17 +1,16 @@
 """
 supervisor.py - Layer 5: Link health monitoring and fault tolerance.
 
-Monitors UART link health and handles reconnection with exponential backoff.
+v0.2.3: Detects conditions (prerequisites, link health) and signals state transitions.
 
 Usage:
-    supervisor = LinkSupervisor()
+    state = SttState()
+    supervisor = LinkSupervisor(state, config)
 
     # In main loop
-    if not supervisor.check_health():
-        reconnect()
-
-    # When message sent successfully
-    supervisor.mark_activity()
+    if state.should_poll_prerequisites():
+        if supervisor.check_prerequisites():
+            supervisor.signal_prerequisites_ready()
 
     # Pet systemd watchdog
     supervisor.notify_watchdog()
@@ -20,34 +19,60 @@ Usage:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Callable
+from pathlib import Path
+from typing import Optional
+
+from dictacode_stt.state import SttState, SolutionState
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
+class SupervisorConfig:
+    """Configuration for LinkSupervisor."""
+
+    whisper_binary: Path
+    whisper_model: Path
+    uart_device: str
+    ping_interval: float = 5.0  # seconds between pings
+    timeout: float = 30.0  # seconds without message = dead link
+    max_backoff: float = 30.0  # max reconnect delay
+
+
+@dataclass
 class LinkSupervisor:
     """
-    Monitor UART link health and handle failures.
+    Detect conditions and signal state transitions.
 
-    Responsibilities:
-    - Track last message time
-    - Detect link timeout (no activity for TIMEOUT seconds)
+    v0.2.3 responsibilities:
+    - Detect prerequisites (whisper binary/model)
+    - Detect UART link availability
+    - Monitor link health
+    - Signal state transitions to SttState
     - Calculate exponential backoff for reconnection
-    - Optionally send periodic pings
     - Notify systemd watchdog
     """
 
-    # Configuration (can be overridden at init)
-    ping_interval: float = 5.0      # seconds between pings
-    timeout: float = 30.0           # seconds without message = dead link
-    max_backoff: float = 30.0       # max reconnect delay
+    state: SttState
+    config: SupervisorConfig
 
-    # State (managed internally)
+    # Internal state (managed internally)
     link_healthy: bool = field(default=True, init=False)
     last_msg_time: float = field(default_factory=time.monotonic, init=False)
     last_ping_time: float = field(default_factory=time.monotonic, init=False)
     reconnect_attempts: int = field(default=0, init=False)
+
+    # Detection methods (called in main loop)
+    def check_prerequisites(self) -> bool:
+        """Detect if whisper binary and model exist."""
+        return (
+            self.config.whisper_binary.exists()
+            and self.config.whisper_model.exists()
+        )
+
+    def check_link_available(self) -> bool:
+        """Detect if UART device exists."""
+        return Path(self.config.uart_device).exists()
 
     def check_health(self) -> bool:
         """
@@ -58,10 +83,10 @@ class LinkSupervisor:
         """
         elapsed = time.monotonic() - self.last_msg_time
 
-        if elapsed > self.timeout:
+        if elapsed > self.config.timeout:
             if self.link_healthy:
                 logger.warning(
-                    f"Link timeout: no activity for {elapsed:.1f}s (threshold: {self.timeout}s)"
+                    f"Link timeout: no activity for {elapsed:.1f}s (threshold: {self.config.timeout}s)"
                 )
                 self._mark_unhealthy()
             return False
@@ -87,7 +112,7 @@ class LinkSupervisor:
         Returns:
             Delay in seconds: 1s → 2s → 4s → 8s → 16s → 30s (max)
         """
-        delay = min(2 ** self.reconnect_attempts, self.max_backoff)
+        delay = min(2 ** self.reconnect_attempts, self.config.max_backoff)
         return delay
 
     def should_send_ping(self) -> bool:
@@ -97,11 +122,37 @@ class LinkSupervisor:
         Returns:
             True if ping_interval has elapsed since last ping
         """
-        return time.monotonic() - self.last_ping_time > self.ping_interval
+        return time.monotonic() - self.last_ping_time > self.config.ping_interval
 
     def mark_ping_sent(self) -> None:
         """Record that a ping was sent."""
         self.last_ping_time = time.monotonic()
+
+    # State transition signals
+    def signal_prerequisites_ready(self) -> None:
+        """Signal state: prerequisites are now available."""
+        if self.state.state == SolutionState.UNCONFIGURED:
+            self.state.transition_to(SolutionState.LINK_PENDING)
+
+    def signal_link_available(self) -> None:
+        """Signal state: UART is now available."""
+        if self.state.state == SolutionState.LINK_PENDING:
+            self.state.transition_to(SolutionState.HANDSHAKE_INIT)
+
+    def signal_handshake_complete(self) -> None:
+        """Signal state: peer responded to probe."""
+        if self.state.state == SolutionState.HANDSHAKE_INIT:
+            self.state.transition_to(SolutionState.LISTENING)
+
+    def signal_link_degraded(self) -> None:
+        """Signal state: link has issues but recoverable."""
+        if self.state.state == SolutionState.LISTENING:
+            self.state.transition_to(SolutionState.DEGRADED)
+
+    def signal_link_lost(self) -> None:
+        """Signal state: link is dead, need reconnect."""
+        if self.state.is_operational():
+            self.state.transition_to(SolutionState.LINK_PENDING)
 
     def on_reconnect_attempt(self) -> None:
         """Called before each reconnection attempt. Increments attempt counter."""
@@ -157,6 +208,7 @@ class LinkSupervisor:
             "link_healthy": self.link_healthy,
             "last_activity_ago": time.monotonic() - self.last_msg_time,
             "reconnect_attempts": self.reconnect_attempts,
-            "timeout": self.timeout,
-            "ping_interval": self.ping_interval,
+            "timeout": self.config.timeout,
+            "ping_interval": self.config.ping_interval,
+            "state": self.state.state.value,
         }
