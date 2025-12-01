@@ -40,9 +40,9 @@
 - [ ] Release artifact uploads
 
 ### Phase 7: Development Environment Setup
-- [ ] Create `tools/dev-setup.sh` for venv initialization
-- [ ] Enable system-site-packages for systemd-python access
-- [ ] Install development dependencies (pytest, ruff, etc.)
+- [x] Create `tools/dev-setup.sh` for venv initialization
+- [x] Enable system-site-packages for systemd-python access
+- [x] Install development dependencies (pytest, ruff, etc.)
 - [ ] Configure pre-commit hooks
 - [ ] Document manual setup steps in CONTRIBUTING.md
 
