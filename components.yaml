@@ -1,0 +1,50 @@
+# dictacode Component Manifest
+# Defines releasable components and their artifacts
+
+components:
+  stt:
+    name: dictacode-stt
+    description: Speech-to-Text Engine
+    path: apps/stt
+    version_file: apps/stt/pyproject.toml
+    artifacts:
+      - type: pypi
+        name: dictacode-stt
+      - type: deb
+        name: dictacode-stt
+        arch: [arm64]
+        target: dictacode-stt
+    dependencies: []
+
+  hid:
+    name: dictacode-hid
+    description: HID Gadget Controller
+    path: apps/hid
+    version_file: apps/hid/pyproject.toml
+    artifacts:
+      - type: pypi
+        name: dictacode-hid
+      - type: deb
+        name: dictacode-hid
+        arch: [armhf]
+        target: dictacode-hid
+    dependencies: []
+
+  core:
+    name: dictacode-core
+    description: Shared configuration and compatibility matrix
+    path: ops/packaging/debian/dictacode-core
+    version_file: ops/packaging/debian/dictacode-core/DEBIAN/control
+    artifacts:
+      - type: deb
+        name: dictacode-core
+        arch: [all]
+        target: both
+    dependencies: []
+
+# Global settings
+settings:
+  pypi_repository: https://upload.pypi.org/legacy/
+  pypi_test_repository: https://test.pypi.org/legacy/
+  deb_output_dir: dist/deb
+  changelog_file: CHANGELOG.md

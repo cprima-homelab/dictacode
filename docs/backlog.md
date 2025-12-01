@@ -170,6 +170,105 @@ Items discovered during development that could improve the project but are not c
 - Central log collection (syslog forwarding?)
 - `tools/tail-all-logs.sh` - Tail logs from multiple devices simultaneously
 
+## Release Process (v0.2.12 Learnings)
+
+### GitHub Secrets Configuration
+**Gap**: GitHub Actions workflow requires `PYPI_TOKEN` and `TEST_PYPI_TOKEN` secrets
+**Action needed**: Document how to configure GitHub repository secrets for automated releases
+**Related**: v0.2.12 Phase 6 - workflow created but secrets not configured
+**Impact**: Blocks automated releases via GitHub Actions
+
+### Changelog Generation Automation
+**Gap**: CHANGELOG.md must be manually updated before releases
+**Nice-to-have**: Auto-generate changelog from git commits or conventional commits
+**Consideration**: Could use tools like `git-cliff`, `conventional-changelog`, or GitHub Releases
+**Related**: v0.2.12 Phase 4 - marked as "out of scope" but creates manual work
+**Workaround**: Currently developers must manually update CHANGELOG.md
+
+### Release Verification Testing
+**Gap**: No post-release verification that packages actually work
+**Nice-to-have**: Automated verification script that:
+- Installs package from PyPI in clean environment
+- Runs basic smoke tests
+- Verifies version numbers match
+- Checks .deb package installs without errors
+**Use case**: Catch broken releases before users do
+**Related**: v0.2.12 Phase 5 - post-release verification mentioned but not implemented
+
+### Version Consistency Validation
+**Gap**: No automated check that component versions are compatible
+**Nice-to-have**: Pre-release validation that checks:
+- STT and HID versions are compatible per compatibility matrix
+- Version numbers follow semantic versioning
+- New version is higher than last release
+- No duplicate version tags exist
+**Use case**: Prevent releasing incompatible component combinations
+**Related**: v0.2.12 - version bumping works but no cross-component validation
+
+### Multi-Component Coordinated Releases
+**Gap**: Releasing multiple components together requires running scripts multiple times
+**Nice-to-have**: `./tools/release.sh --all --version 0.2.13 --full` to:
+- Bump all component versions to same number
+- Release all components in dependency order
+- Create coordinated tag (e.g., `v0.2.13` for monorepo-wide release)
+**Use case**: Major releases that update all components together
+**Related**: v0.2.12 - individual releases work well, coordinated releases cumbersome
+
+### Release Rollback Capability
+**Gap**: No rollback scripts if release goes wrong
+**Nice-to-have**: `tools/rollback-release.sh` that:
+- Deletes git tag (local and remote)
+- Yanks PyPI package release
+- Documents rollback in CHANGELOG
+**Use case**: Quick recovery from broken releases
+**Impact**: Without rollback, broken releases stay published
+
+### Package Signing
+**Scope**: Marked out-of-scope for v0.2.12
+**Gap**: Debian packages and PyPI uploads not cryptographically signed
+**Nice-to-have**:
+- GPG signing for .deb packages
+- Signed PyPI uploads (Twine supports GPG)
+- Document signing key setup for maintainers
+**Security**: Prevents package tampering
+**Related**: v0.2.12 success criteria - signing explicitly excluded
+
+### Debian Package Repository
+**Gap**: Users must manually download and install .deb files
+**Nice-to-have**: Host apt repository so users can:
+```bash
+echo "deb https://dictacode.example.com/apt stable main" | sudo tee /etc/apt/sources.list.d/dictacode.list
+sudo apt update && sudo apt install dictacode-stt
+```
+**Consideration**: Requires hosting infrastructure and package signing
+**Benefit**: Professional distribution, automatic updates via apt
+
+### Build Reproducibility
+**Gap**: No guarantees that builds are reproducible (same source → same binary)
+**Nice-to-have**:
+- Pin all build dependencies (Python, uv, dpkg-deb versions)
+- Use reproducible build flags
+- Verify checksums match across builds
+**Use case**: Security auditing, supply chain verification
+**Related**: v0.2.12 - builds work but reproducibility not tested
+
+### GitHub Actions Workflow Testing
+**Gap**: Release workflow hasn't been tested end-to-end (can't push tags from dev environment)
+**Action needed**: Test actual tag-triggered release in GitHub:
+- Push test tag to trigger workflow
+- Verify PyPI upload works
+- Verify .deb artifact is created
+- Verify GitHub Release is created correctly
+**Related**: v0.2.12 Phase 6 - workflow created but untested in practice
+
+### TestPyPI Release Testing
+**Gap**: TestPyPI releases haven't been tested in practice
+**Nice-to-have**: Before first production release to PyPI:
+- Test full release to TestPyPI
+- Verify package installs from TestPyPI
+- Document any differences between Test and production PyPI
+**Use case**: Practice release process safely before production
+
 ## Documentation
 
 ### Hardware Setup Documentation

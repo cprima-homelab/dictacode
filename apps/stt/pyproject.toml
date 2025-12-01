@@ -1,6 +1,6 @@
 [project]
 name = "dictacode-stt"
-version = "0.2.12"
+version = "0.3.0"
 description = "dictacode Pi5 STT sidecar"
 requires-python = ">=3.9"
 dependencies = [
@@ -41,3 +41,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/dictacode_stt"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"src/dictacode_stt/compatibility.json" = "share/dictacode_stt/compatibility.json"

@@ -1,4 +1,4 @@
-# Architecture Plan v0.2.15: Multi-Key Support Evaluation
+# Architecture Plan v0.3.3: Multi-Key Support Evaluation
 
 **Goal**: Extend protocol to support keyboard shortcuts and special key combinations.
 

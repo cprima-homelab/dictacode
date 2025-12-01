@@ -1,0 +1,50 @@
+[Unit]
+Description=dictacode STT REST API Server
+Documentation=https://github.com/cprima-homelab/dictacode
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+
+# Run as non-root service user
+User=dictacode
+Group=dictacode
+
+# systemd-managed state/log dirs
+StateDirectory=dictacode
+RuntimeDirectory=dictacode-stt-api
+LogsDirectory=dictacode
+
+# v0.2.15 DEV: Use development paths (matches dictacode-stt.service)
+WorkingDirectory=/home/dictacode/dictacode/apps/stt
+
+# API server executable
+ExecStart=/home/dictacode/dictacode/apps/stt/.venv/bin/dictacode-stt-api
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+
+# Environment variables
+EnvironmentFile=-/etc/dictacode/stt.env
+Environment=PYTHONUNBUFFERED=1
+Environment=DICTACODE_API_HOST=127.0.0.1
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/var/lib/dictacode
+
+# Resource management (lower priority than audio-critical main service)
+Nice=10
+LimitNOFILE=1024
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dictacode-stt-api
+
+[Install]
+WantedBy=multi-user.target

@@ -3,50 +3,50 @@
 ## Status
 
 ### Phase 1: Component Inventory
-- [ ] Document all releasable components
-- [ ] Define versioning scheme per component
-- [ ] Create component manifest file
-- [ ] Document dependencies between components
+- [x] Document all releasable components
+- [x] Define versioning scheme per component
+- [x] Create component manifest file
+- [x] Document dependencies between components
 
 ### Phase 2: Python Package Scripts
-- [ ] Create `tools/release-pypi.sh` for PyPI releases
-- [ ] Support individual package selection
-- [ ] Version bump automation
-- [ ] Build and upload to PyPI (or TestPyPI)
-- [ ] Dry-run mode
+- [x] Create `tools/release-pypi.sh` for PyPI releases
+- [x] Support individual package selection
+- [x] Version bump automation
+- [x] Build and upload to PyPI (or TestPyPI)
+- [x] Dry-run mode
 
 ### Phase 3: Debian Package Scripts
-- [ ] Create `tools/release-deb.sh` for .deb releases
-- [ ] Support individual package selection
-- [ ] Version extraction from pyproject.toml
-- [ ] Architecture-specific builds (arm64, armhf)
-- [ ] Local build and remote device build
+- [x] Create `tools/release-deb.sh` for .deb releases
+- [x] Support individual package selection
+- [x] Version extraction from pyproject.toml
+- [x] Architecture-specific builds (arm64, armhf)
+- [x] Local build and remote device build
 
 ### Phase 4: Git Tagging Strategy
-- [ ] Define tag naming convention per component
-- [ ] Create `tools/release-tag.sh` for git tagging
-- [ ] Support component-specific tags
-- [ ] Changelog generation from commits
+- [x] Define tag naming convention per component
+- [x] Create `tools/release-tag.sh` for git tagging
+- [x] Support component-specific tags
+- [ ] Changelog generation from commits (deferred - out of scope)
 
 ### Phase 5: Release Orchestration
-- [ ] Create `tools/release.sh` master script
-- [ ] Interactive component selection
-- [ ] Pre-release checks (tests, lint)
-- [ ] Post-release verification
+- [x] Create `tools/release.sh` master script
+- [x] Interactive component selection
+- [x] Pre-release checks (tests, lint)
+- [x] Post-release verification
 
 ### Phase 6: CI/CD Integration
-- [ ] GitHub Actions for package publishing
-- [ ] Tag-triggered releases
-- [ ] Release artifact uploads
+- [x] GitHub Actions for package publishing
+- [x] Tag-triggered releases
+- [x] Release artifact uploads
 
 ### Phase 7: Development Environment Setup
 - [x] Create `tools/dev-setup.sh` for venv initialization
 - [x] Enable system-site-packages for systemd-python access
 - [x] Install development dependencies (pytest, ruff, etc.)
-- [ ] Configure pre-commit hooks
-- [ ] Document manual setup steps in CONTRIBUTING.md
+- [ ] Configure pre-commit hooks (deferred)
+- [ ] Document manual setup steps in CONTRIBUTING.md (deferred)
 
-**v0.2.12 NOT STARTED**
+**v0.2.12 COMPLETED**
 
 ---
 

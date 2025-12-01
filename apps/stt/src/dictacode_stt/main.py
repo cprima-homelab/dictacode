@@ -240,12 +240,36 @@ Examples:
     )
     logger = logging.getLogger("dictacode_stt")
 
-    # Initialize metrics (v0.2.13 Phase 4)
-    if args.metrics:
+    # Load configuration file (v0.2.15)
+    from dictacode_stt.stt_config import load_stt_config
+
+    try:
+        config = load_stt_config()
+    except Exception as e:
+        logger.error(f"Config load failed: {e}, using CLI args only")
+        config = None
+
+    # Initialize metrics (v0.2.15: config file support)
+    # Precedence: CLI > env > config > default
+    metrics_enabled = args.metrics
+    metrics_port = args.metrics_port
+
+    # Apply config file values if CLI args are defaults
+    if config and not args.metrics:
+        metrics_enabled = os.getenv(
+            "DICTACODE_METRICS_ENABLED", str(config.metrics_enabled)
+        ).lower() in ("true", "1", "yes")
+
+        if args.metrics_port == 9100:  # Default value
+            metrics_port = int(
+                os.getenv("DICTACODE_METRICS_PORT", str(config.metrics_port))
+            )
+
+    if metrics_enabled:
         from dictacode_stt.metrics import init_metrics
 
-        init_metrics(enabled=True, port=args.metrics_port)
-        logger.info(f"Prometheus metrics enabled on port {args.metrics_port}")
+        init_metrics(enabled=True, port=metrics_port)
+        logger.info(f"Prometheus metrics enabled on port {metrics_port}")
 
     # Install signal handlers
     signal.signal(signal.SIGTERM, request_shutdown)

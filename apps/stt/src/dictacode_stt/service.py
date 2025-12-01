@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 import wave
+import asyncio
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -101,6 +102,7 @@ class SttService:
         hid_device_id: Optional[str] = None,
         hid_registry: Optional[HidDeviceRegistry] = None,
         audio_source: Optional[AudioSource] = None,
+        websocket_manager: Optional[any] = None,
     ):
         """
         Initialize STT service.
@@ -131,6 +133,7 @@ class SttService:
             hid_device_id: HID device ID to use (v0.2.8, default: None = auto-select)
             hid_registry: HID device registry (v0.2.8, default: None = create new)
             audio_source: Audio source for testing (v0.2.11, default: None = use microphone)
+            websocket_manager: WebSocket manager for broadcasting updates (v0.3.0, default: None = no broadcast)
         """
         # v0.2.8: HID device registry and selection
         self.hid_registry = hid_registry or HidDeviceRegistry()
@@ -217,6 +220,9 @@ class SttService:
         # v0.2.11: Audio source injection (for testing)
         self.audio_source: Optional[AudioSource] = audio_source
         self._source_mode = audio_source is not None
+
+        # v0.3.0: WebSocket manager for broadcasting updates
+        self.websocket_manager = websocket_manager
 
         # v0.2.4: Audio Port Abstraction (only used when audio_source=None)
         self.audio_manager = AudioPortManager()
@@ -439,7 +445,11 @@ class SttService:
             result: Partial transcription result
         """
         logger.debug(f"Partial: {result.text}")
-        # Could update a status display here in future
+        # v0.3.0: Broadcast partial results to WebSocket clients
+        self._broadcast_websocket({
+            "type": "transcription",
+            "data": {"text": result.text, "final": False}
+        })
 
     def _on_final_result(self, result: FinalResult) -> None:
         """
@@ -659,7 +669,17 @@ class SttService:
                             f"(protocol v{msg.protocol_version})"
                         )
 
-                        # Validate version compatibility
+                        # Validate protocol version first (REQUIRED)
+                        if msg.protocol_version != checker.matrix.protocol_version:
+                            error_msg = (
+                                f"PROTOCOL MISMATCH: Expected protocol {checker.matrix.protocol_version}, "
+                                f"peer reported {msg.protocol_version}. "
+                                "Both sides must use the same protocol version."
+                            )
+                            logger.error(error_msg)
+                            return False
+
+                        # Validate component version compatibility
                         is_compatible, error_msg = checker.validate_compatibility(
                             __version__, msg.component_version
                         )
@@ -668,7 +688,7 @@ class SttService:
                             logger.error(f"Version incompatibility: {error_msg}")
                             return False
 
-                        logger.info(f"Handshake complete - versions compatible")
+                        logger.info(f"Handshake complete - protocol and versions compatible")
                         return True
                     else:
                         logger.info(f"Received unexpected message type: {type(msg).__name__}")
@@ -909,6 +929,28 @@ class SttService:
 
         return result.text
 
+    def _broadcast_websocket(self, message: dict) -> None:
+        """
+        Broadcast message to WebSocket clients (v0.3.0).
+
+        Args:
+            message: Message dict to broadcast
+        """
+        if not self.websocket_manager:
+            return
+
+        try:
+            # Run broadcast in asyncio event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If event loop is running, create task
+                asyncio.create_task(self.websocket_manager.broadcast(message))
+            else:
+                # If no event loop, run synchronously
+                loop.run_until_complete(self.websocket_manager.broadcast(message))
+        except Exception as e:
+            logger.error(f"WebSocket broadcast failed: {e}")
+
     def send_text(self, text: str) -> bool:
         """
         Send text over transport.
@@ -930,6 +972,11 @@ class SttService:
             logger.info(f"Would send {len(encoded)} bytes: {text}")
             if self.supervisor_enabled:
                 self.supervisor.mark_activity()
+            # v0.3.0: Broadcast transcription to WebSocket clients
+            self._broadcast_websocket({
+                "type": "transcription",
+                "data": {"text": text, "final": True}
+            })
             return True
 
         try:
@@ -938,6 +985,11 @@ class SttService:
             # Supervisor: mark activity on successful send
             if self.supervisor_enabled:
                 self.supervisor.mark_activity()
+            # v0.3.0: Broadcast transcription to WebSocket clients
+            self._broadcast_websocket({
+                "type": "transcription",
+                "data": {"text": text, "final": True}
+            })
             return True
         except TransportError as e:
             logger.error(f"Transport send failed: {e}")

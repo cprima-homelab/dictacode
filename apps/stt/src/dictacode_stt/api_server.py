@@ -81,12 +81,56 @@ Examples:
         format="[%(name)s] %(message)s",
     )
 
-    # Initialize metrics (v0.2.13 Phase 4)
-    if args.metrics:
+    # Load configuration file (v0.2.15)
+    from dictacode_stt.stt_config import load_stt_config
+    import os
+
+    try:
+        config = load_stt_config()
+    except Exception as e:
+        logger.error(f"Config load failed: {e}, using CLI defaults")
+        config = None
+
+    # Apply config file values if CLI args are defaults
+    if config:
+        if args.host == "127.0.0.1":  # Default
+            args.host = os.getenv("DICTACODE_API_HOST", config.api_host)
+
+        if args.port == 8000:  # Default
+            args.port = int(os.getenv("DICTACODE_API_PORT", str(config.api_port)))
+
+        if args.config_dir == "/etc/dictacode/audio":  # Default
+            args.config_dir = os.getenv("DICTACODE_API_CONFIG_DIR", config.api_config_dir)
+
+    # Security warning if binding to non-localhost
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        logger.warning("=" * 70)
+        logger.warning("SECURITY WARNING: API server binding to %s", args.host)
+        logger.warning("This exposes the API to ALL network interfaces")
+        logger.warning("The API has NO AUTHENTICATION configured")
+        logger.warning("Only use this in trusted networks or behind auth proxy")
+        logger.warning("=" * 70)
+
+    # Initialize metrics (v0.2.15: config file support, separate from main service)
+    # Precedence: CLI > env > config > default
+    api_metrics_enabled = args.metrics
+    api_metrics_port = args.metrics_port
+
+    if config and not args.metrics:
+        api_metrics_enabled = os.getenv(
+            "DICTACODE_API_METRICS_ENABLED", str(config.api_metrics_enabled)
+        ).lower() in ("true", "1", "yes")
+
+        if args.metrics_port == 9100:  # Default value
+            api_metrics_port = int(
+                os.getenv("DICTACODE_API_METRICS_PORT", str(config.api_metrics_port))
+            )
+
+    if api_metrics_enabled:
         from dictacode_stt.metrics import init_metrics
 
-        init_metrics(enabled=True, port=args.metrics_port)
-        logger.info(f"Prometheus metrics enabled on port {args.metrics_port}")
+        init_metrics(enabled=True, port=api_metrics_port)
+        logger.info(f"API Prometheus metrics enabled on port {api_metrics_port}")
 
     # Initialize app with config
     from dictacode_stt.api import create_app
@@ -96,8 +140,8 @@ Examples:
     logger.info(f"Starting dictacode STT API server on {args.host}:{args.port}")
     logger.info(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
     logger.info(f"Audio config: {args.config_dir}")
-    if args.metrics:
-        logger.info(f"Metrics endpoint: http://{args.host}:{args.port}/metrics")
+    if api_metrics_enabled:
+        logger.info(f"Metrics endpoint: http://{args.host}:{api_metrics_port}/metrics")
 
     # Run server
     uvicorn.run(

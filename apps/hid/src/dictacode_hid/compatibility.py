@@ -13,20 +13,24 @@ MATRIX_SEARCH_PATHS = [
     Path("/etc/dictacode/compatibility.json"),  # Alternative system location
 ]
 
-# Try to add PyPI installation path if importlib.resources available
+# Add package-internal path (for PyPI installs) - HIGHEST PRIORITY
 try:
     from importlib import resources
     import sys
 
-    # For Python 3.9+
     if sys.version_info >= (3, 9):
-        # shared-data installs to sys.prefix / share/dictacode/compatibility.json
-        # importlib.resources can access it via package name
+        # Python 3.9+: Use files() API
         pkg_files = resources.files("dictacode_hid")
-        # Path depends on shared-data configuration
-        pkg_matrix = pkg_files.parent.parent / "share" / "dictacode" / "compatibility.json"
-        if pkg_matrix.exists():
-            MATRIX_SEARCH_PATHS.insert(1, Path(str(pkg_matrix)))
+        pkg_matrix = pkg_files / "compatibility.json"
+
+        # For shared-data installs, also check sys.prefix location
+        shared_data_path = Path(sys.prefix) / "share" / "dictacode_hid" / "compatibility.json"
+
+        # Try package-internal first (most reliable)
+        if pkg_matrix.is_file():
+            MATRIX_SEARCH_PATHS.insert(0, Path(str(pkg_matrix)))
+        elif shared_data_path.exists():
+            MATRIX_SEARCH_PATHS.insert(0, shared_data_path)
 except (ImportError, AttributeError, TypeError):
     pass  # Fall back to other paths
 
@@ -48,6 +52,7 @@ class CompatibilityMatrix:
         self.protocol_version: str = ""
         self.protocol_history: List[Dict] = []
         self.entries: Dict[str, CompatibilityEntry] = {}
+        self.fail_entries: Dict[str, List[CompatibilityEntry]] = {}
         self._load_matrix()
 
     def _find_matrix_file(self) -> Path:
@@ -78,20 +83,28 @@ class CompatibilityMatrix:
             self.protocol_version = protocol_data.get("current", "1.0.0")
             self.protocol_history = protocol_data.get("history", [])
 
-            # Load compatibility entries (only "pass" status entries)
+            # Load compatibility entries (both "pass" and "fail" status entries)
             for entry in data.get("compatibility", []):
+                stt_ver = entry["stt"]
+                entry_obj = CompatibilityEntry(
+                    stt_version=stt_ver,
+                    hid_versions=entry["hid"],
+                    protocol=entry["protocol"],
+                    status=entry["status"],
+                    notes=entry.get("notes", "")
+                )
+
                 if entry.get("status") == "pass":
-                    stt_ver = entry["stt"]
-                    self.entries[stt_ver] = CompatibilityEntry(
-                        stt_version=stt_ver,
-                        hid_versions=entry["hid"],
-                        protocol=entry["protocol"],
-                        status=entry["status"],
-                        notes=entry.get("notes", "")
-                    )
+                    self.entries[stt_ver] = entry_obj
+                elif entry.get("status") == "fail":
+                    # Store fail entries by STT version (multiple fail entries possible)
+                    if stt_ver not in self.fail_entries:
+                        self.fail_entries[stt_ver] = []
+                    self.fail_entries[stt_ver].append(entry_obj)
 
             self.logger.info(
-                f"Loaded compatibility matrix: {len(self.entries)} passing STT versions"
+                f"Loaded compatibility matrix: {len(self.entries)} passing STT versions, "
+                f"{sum(len(v) for v in self.fail_entries.values())} known failures"
             )
         except Exception as e:
             self.logger.error(f"Failed to load compatibility matrix: {e}")
@@ -143,13 +156,27 @@ class CompatibilityChecker:
             self.logger.warning(error)
             return False, error
 
+        # Check for explicit fail entries first (highest priority)
+        if stt_version in self.matrix.fail_entries:
+            for fail_entry in self.matrix.fail_entries[stt_version]:
+                if hid_version in fail_entry.hid_versions:
+                    error = (
+                        f"KNOWN INCOMPATIBLE PAIR: STT {stt_version} + HID {hid_version} "
+                        f"(protocol {fail_entry.protocol}). "
+                        f"Reason: {fail_entry.notes}. "
+                        "This combination is explicitly blocked."
+                    )
+                    self.logger.error(error)
+                    return False, error
+
+        # Check pass entries
         if self.matrix.is_compatible(stt_version, hid_version):
             self.logger.info(
                 f"Version compatibility OK: STT {stt_version} ↔ HID {hid_version}"
             )
             return True, ""
 
-        # Get compatible versions for error message
+        # Not in pass or fail entries - unknown combination
         compatible = self.matrix.get_compatible_hid_versions(stt_version)
         compatible_str = ", ".join(sorted(compatible)) if compatible else "none"
 

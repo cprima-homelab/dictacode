@@ -1,0 +1,216 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'stt/v*'
+      - 'hid/v*'
+      - 'core/v*'
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to release'
+        required: true
+        type: choice
+        options:
+          - stt
+          - hid
+          - core
+      bump:
+        description: 'Version bump level'
+        required: false
+        type: choice
+        options:
+          - ''
+          - patch
+          - minor
+          - major
+      test_pypi:
+        description: 'Use TestPyPI'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  detect-component:
+    name: Detect Component
+    runs-on: ubuntu-latest
+    outputs:
+      component: ${{ steps.detect.outputs.component }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+      - name: Detect from tag
+        id: detect
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "component=${{ github.event.inputs.component }}" >> $GITHUB_OUTPUT
+            echo "version=manual" >> $GITHUB_OUTPUT
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+            COMPONENT="${TAG%%/*}"
+            VERSION="${TAG#*/v}"
+            echo "component=$COMPONENT" >> $GITHUB_OUTPUT
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+  test:
+    name: Test ${{ needs.detect-component.outputs.component }}
+    needs: detect-component
+    runs-on: ubuntu-latest
+    if: needs.detect-component.outputs.component != 'core'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Run tests
+        run: |
+          cd apps/${{ needs.detect-component.outputs.component }}
+          uv run pytest
+
+  release-pypi:
+    name: Release to PyPI
+    needs: [detect-component, test]
+    if: |
+      always() &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      needs.detect-component.outputs.component != 'core'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Build package
+        run: |
+          cd apps/${{ needs.detect-component.outputs.component }}
+          uv build
+
+      - name: Publish to PyPI
+        if: github.event.inputs.test_pypi != 'true'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd apps/${{ needs.detect-component.outputs.component }}
+          uv publish
+
+      - name: Publish to TestPyPI
+        if: github.event.inputs.test_pypi == 'true'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
+        run: |
+          cd apps/${{ needs.detect-component.outputs.component }}
+          uv publish --repository testpypi
+
+  build-deb:
+    name: Build Debian Package
+    needs: detect-component
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build package info
+        id: info
+        run: |
+          COMPONENT="${{ needs.detect-component.outputs.component }}"
+
+          # Get version
+          if [[ "$COMPONENT" == "core" ]]; then
+            VERSION=$(grep -Po '(?<=^Version: )[^\s]+' ops/packaging/debian/dictacode-core/DEBIAN/control)
+          else
+            VERSION=$(grep -Po '(?<=version = ")[^"]+' apps/$COMPONENT/pyproject.toml)
+          fi
+
+          # Get architecture
+          case $COMPONENT in
+            stt) ARCH="arm64" ;;
+            hid) ARCH="armhf" ;;
+            core) ARCH="all" ;;
+          esac
+
+          PKG_NAME="dictacode-${COMPONENT}_${VERSION}_${ARCH}.deb"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "arch=$ARCH" >> $GITHUB_OUTPUT
+          echo "pkg_name=$PKG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Build Debian package
+        run: |
+          cd ops/packaging
+          ./build-deb.sh ${{ needs.detect-component.outputs.component }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.info.outputs.pkg_name }}
+          path: ops/packaging/dist/${{ steps.info.outputs.pkg_name }}
+          retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    needs: [detect-component, release-pypi, build-deb]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      (needs.release-pypi.result == 'success' || needs.release-pypi.result == 'skipped') &&
+      needs.build-deb.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Get package info
+        id: info
+        run: |
+          COMPONENT="${{ needs.detect-component.outputs.component }}"
+          VERSION="${{ needs.detect-component.outputs.version }}"
+
+          # Generate release notes
+          cat > release_notes.md <<EOF
+          # dictacode-${COMPONENT} v${VERSION}
+
+          ## Installation
+
+          ### PyPI (Python Package)
+          \`\`\`bash
+          pip install dictacode-${COMPONENT}==${VERSION}
+          \`\`\`
+
+          ### Debian Package
+          Download the .deb file from the assets below and install:
+          \`\`\`bash
+          sudo dpkg -i dictacode-${COMPONENT}_${VERSION}_*.deb
+          \`\`\`
+
+          ## Changes
+
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          EOF
+
+          echo "release_name=dictacode-${COMPONENT} v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.info.outputs.release_name }}
+          body_path: release_notes.md
+          files: |
+            **/*.deb
+          draft: false
+          prerelease: false

@@ -23,6 +23,13 @@
   },
   "compatibility": [
     {
+      "stt": "0.3.0",
+      "hid": ["0.2.12"],
+      "protocol": "1.0.0",
+      "status": "pass",
+      "notes": "v0.3.0 STT (WebSocket support) compatible with v0.2.12 HID"
+    },
+    {
       "stt": "0.2.12",
       "hid": ["0.2.12"],
       "protocol": "1.0.0",

@@ -279,7 +279,18 @@ class HidService:
             logger.error("Cannot perform version validation - rejecting handshake")
             return
 
-        # Validate version compatibility
+        # Validate protocol version first (REQUIRED)
+        if msg.protocol_version != checker.matrix.protocol_version:
+            error_msg = (
+                f"PROTOCOL MISMATCH: Expected protocol {checker.matrix.protocol_version}, "
+                f"peer reported {msg.protocol_version}. "
+                "Both sides must use the same protocol version."
+            )
+            logger.error(error_msg)
+            logger.error("Rejecting handshake - not sending probe_ack")
+            return
+
+        # Validate component version compatibility
         # Note: STT initiates, so we check if their STT version is compatible with our HID version
         is_compatible, error_msg = checker.validate_compatibility(
             msg.component_version, __version__

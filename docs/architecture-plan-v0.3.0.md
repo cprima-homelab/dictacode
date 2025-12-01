@@ -2,13 +2,15 @@
 
 ## Status
 
-### Phase 1: HTTP API
-- [ ] Create `api.py` in dictacode_stt
-- [ ] Implement REST endpoints for status/control
-- [ ] Wire API to service layer
-- [ ] Tests for API
+### Phase 1: HTTP API ✅ COMPLETE
+- [x] Create `api.py` in dictacode_stt
+- [x] Implement REST endpoints for status/control
+- [x] Wire API to service layer
+- [x] Tests for API
+- [x] systemd unit `dictacode-stt-api.service` (v0.2.15)
+- [x] Config file support for API settings (v0.2.15)
 
-### Phase 2: WebSocket
+### Phase 2: WebSocket 🚧 IN PROGRESS
 - [ ] Add WebSocket endpoint for live updates
 - [ ] Broadcast transcription results
 - [ ] Client-side reconnection logic
@@ -31,7 +33,7 @@
 - [ ] Implement partial result handling
 - [ ] Update web panel for partial display
 
-**v0.3.0 NOT STARTED** - Web panel and bidirectional protocol pending.
+**v0.3.0 PHASE 1 COMPLETE** - HTTP API functional, WebSocket in progress.
 
 ---
 

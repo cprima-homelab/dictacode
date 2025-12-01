@@ -1,8 +1,9 @@
 """FastAPI server for audio port management (v0.2.4 Phase 6)."""
 
 import logging
-from typing import List, Optional
-from fastapi import FastAPI, HTTPException
+import asyncio
+from typing import List, Optional, Set
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -51,6 +52,24 @@ class SelectPortResponse(BaseModel):
 
 # Global port manager (initialized by create_app)
 _port_manager: Optional[AudioPortManager] = None
+
+# Global service reference (v0.3.0: for WebSocket integration)
+_stt_service: Optional[any] = None
+
+
+def register_service(service: any) -> None:
+    """Register STT service for WebSocket integration (v0.3.0).
+
+    Args:
+        service: SttService instance to register
+    """
+    global _stt_service
+    _stt_service = service
+
+    # Wire WebSocket manager to service
+    if service and hasattr(service, 'websocket_manager'):
+        service.websocket_manager = ws_manager
+        logger.info("WebSocket manager wired to STT service")
 
 
 def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
@@ -251,3 +270,108 @@ async def prometheus_metrics():
         content=metrics.get_metrics(),
         media_type="text/plain",
     )
+
+
+# v0.3.0 Phase 2: WebSocket support
+class WebSocketConnectionManager:
+    """Manages active WebSocket connections for live updates."""
+
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        """Accept and register a new WebSocket connection."""
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.add(websocket)
+        logger.info(f"WebSocket connected, total: {len(self.active_connections)}")
+
+    async def disconnect(self, websocket: WebSocket):
+        """Unregister a WebSocket connection."""
+        async with self._lock:
+            self.active_connections.discard(websocket)
+        logger.info(f"WebSocket disconnected, total: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        """Broadcast a message to all connected clients."""
+        if not self.active_connections:
+            return
+
+        async with self._lock:
+            disconnected = set()
+            for connection in self.active_connections:
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    logger.error(f"Error sending to WebSocket: {e}")
+                    disconnected.add(connection)
+
+            # Remove disconnected clients
+            self.active_connections -= disconnected
+
+    async def send_to(self, websocket: WebSocket, message: dict):
+        """Send a message to a specific WebSocket client."""
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            logger.error(f"Error sending to WebSocket: {e}")
+            await self.disconnect(websocket)
+
+
+# Global WebSocket manager
+ws_manager = WebSocketConnectionManager()
+
+
+@app.websocket("/api/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for live updates (v0.3.0).
+
+    Provides real-time updates for:
+    - Transcription results
+    - Service status changes
+    - Audio port events
+    - Errors and warnings
+
+    Message format:
+        {
+            "type": "transcription" | "status" | "error" | "ping",
+            "data": {...}
+        }
+    """
+    await ws_manager.connect(websocket)
+
+    try:
+        # Send initial status
+        await ws_manager.send_to(
+            websocket,
+            {
+                "type": "status",
+                "data": {
+                    "connected": True,
+                    "api_version": "0.3.0",
+                    "message": "WebSocket connected",
+                },
+            },
+        )
+
+        # Keep connection alive and handle client messages
+        while True:
+            try:
+                data = await websocket.receive_json()
+
+                # Handle ping/pong
+                if data.get("type") == "ping":
+                    await ws_manager.send_to(
+                        websocket, {"type": "pong", "data": {"timestamp": data.get("timestamp")}}
+                    )
+
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected")
+                break
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+                break
+
+    finally:
+        await ws_manager.disconnect(websocket)

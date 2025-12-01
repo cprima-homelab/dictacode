@@ -53,6 +53,17 @@ build_package() {
     rm -rf "$TEMP_DIR"
 
     echo "Built: $OUT_DIR/$pkg_name.deb"
+
+    # Validate checksum for packages containing compatibility.json
+    if [ -f "$SCRIPT_DIR/validate-artifacts.sh" ]; then
+        if dpkg-deb -c "$OUT_DIR/$pkg_name.deb" 2>/dev/null | grep -q "compatibility.json"; then
+            echo "Validating compatibility.json checksum..."
+            "$SCRIPT_DIR/validate-artifacts.sh" "$pkg_name.deb" || {
+                echo "ERROR: Checksum validation failed for $pkg_name.deb"
+                exit 1
+            }
+        fi
+    fi
 }
 
 # Main
