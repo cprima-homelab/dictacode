@@ -256,7 +256,7 @@ class HidService:
         ack = ProbeAckMessage(timestamp=msg.timestamp)
         try:
             data = self.protocol.encode(ack)
-            self.uart.send(data)
+            self.uart.write(data)
             logger.info("Sent probe_ack - handshake complete")
         except Exception as e:
             logger.error(f"Failed to send probe_ack: {e}")
