@@ -152,6 +152,7 @@ class SttService:
         self.audio_buffer: Optional[AudioRingBuffer] = None
         self.resampler: Optional[Resampler] = None
         self._audio_stream_active = False
+        self._last_transcription: str = ""  # For overlap deduplication
 
         # Initialize audio port from device index
         try:
@@ -201,6 +202,94 @@ class SttService:
                 f"ping_interval={supervisor_ping_interval}s"
             )
 
+    def _on_audio_data(self, audio_data: bytes, frames: int, time_info: dict, status: int) -> None:
+        """
+        Audio streaming callback - called when new audio data is available.
+
+        Args:
+            audio_data: Raw audio bytes from device
+            frames: Number of frames
+            time_info: Timing information
+            status: Stream status flags
+        """
+        if not self.audio_buffer or not self.resampler or not self.audio_port:
+            logger.warning("Audio buffer/resampler not initialized, dropping audio data")
+            return
+
+        try:
+            # Resample from native rate to target rate (16kHz)
+            resampled = self.resampler.process(
+                audio_data,
+                source_rate=self.audio_port.capabilities.native_rate
+            )
+
+            # Write to ring buffer
+            self.audio_buffer.write(resampled)
+
+            # Log buffer status occasionally
+            duration = self.audio_buffer.get_duration_seconds()
+            if int(duration) % 5 == 0 and duration > 0:
+                unread = self.audio_buffer.get_unread_duration_seconds()
+                logger.debug(f"Audio buffer: {duration:.1f}s total, {unread:.1f}s unread")
+
+        except Exception as e:
+            logger.error(f"Error processing audio data: {e}", exc_info=True)
+
+    def _on_audio_error(self, error: Exception) -> None:
+        """
+        Audio streaming error callback.
+
+        Args:
+            error: The error that occurred
+        """
+        logger.error(f"Audio stream error: {error}")
+        self._audio_stream_active = False
+
+    def start_audio_stream(self) -> bool:
+        """
+        Start continuous audio streaming (v0.2.4 streaming mode).
+
+        Returns:
+            True if stream started successfully, False otherwise
+        """
+        if not self.audio_port or not self.audio_buffer or not self.resampler:
+            logger.warning("Audio port abstraction not available, cannot start streaming")
+            return False
+
+        if self._audio_stream_active:
+            logger.warning("Audio stream already active")
+            return True
+
+        try:
+            self.audio_port.start_stream(
+                on_data=self._on_audio_data,
+                on_error=self._on_audio_error,
+                sample_rate=self.audio_port.capabilities.native_rate,
+                channels=1,  # Mono
+                chunk_size=1024,
+            )
+            self._audio_stream_active = True
+            logger.info(
+                f"Audio stream started: {self.audio_port.port_id} "
+                f"@ {self.audio_port.capabilities.native_rate}Hz"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to start audio stream: {e}", exc_info=True)
+            return False
+
+    def stop_audio_stream(self) -> None:
+        """Stop continuous audio streaming."""
+        if not self.audio_port or not self._audio_stream_active:
+            return
+
+        try:
+            self.audio_port.stop_stream()
+            self._audio_stream_active = False
+            logger.info("Audio stream stopped")
+        except Exception as e:
+            logger.error(f"Error stopping audio stream: {e}", exc_info=True)
+
     def start(self) -> None:
         """Open UART transport."""
         if not self.dry_run:
@@ -211,7 +300,11 @@ class SttService:
             logger.info("DRY RUN mode - UART not opened")
 
     def stop(self) -> None:
-        """Close UART transport."""
+        """Close UART transport and stop audio stream."""
+        # Stop audio stream first
+        self.stop_audio_stream()
+
+        # Close UART
         if self.uart:
             self.uart.close()
             logger.info("UART closed")
@@ -322,6 +415,96 @@ class SttService:
         )
 
         return resampled.tobytes()
+
+    def read_audio_from_buffer(self, min_duration: float = 3.0) -> Optional[bytes]:
+        """
+        Read audio from ring buffer (v0.2.4 streaming mode).
+
+        Waits for at least min_duration seconds of unread audio, then reads
+        with overlap to prevent word cutoff.
+
+        Args:
+            min_duration: Minimum duration in seconds to wait for
+
+        Returns:
+            16kHz mono audio bytes with overlap, or None if buffer not available
+        """
+        if not self.audio_buffer:
+            logger.warning("Audio buffer not available, falling back to record_audio()")
+            return None
+
+        # Wait for enough unread audio
+        logger.info(f"Waiting for {min_duration}s of audio in buffer...")
+        start_wait = time.perf_counter()
+        timeout = min_duration + 10.0  # Add timeout buffer
+
+        while time.perf_counter() - start_wait < timeout:
+            unread = self.audio_buffer.get_unread_duration_seconds()
+            if unread >= min_duration:
+                # Read audio with overlap
+                audio_bytes = self.audio_buffer.read_for_transcription()
+                if audio_bytes:
+                    duration = len(audio_bytes) // 2 // self.whisper_sample_rate
+                    logger.info(f"Read {duration:.1f}s from buffer ({len(audio_bytes)} bytes)")
+                    return audio_bytes
+                else:
+                    logger.warning("Buffer returned None despite having unread data")
+                    return None
+
+            # Brief sleep to avoid busy waiting
+            time.sleep(0.1)
+
+        # Timeout - return what we have
+        unread = self.audio_buffer.get_unread_duration_seconds()
+        logger.warning(
+            f"Buffer timeout after {timeout:.1f}s, only {unread:.1f}s available. "
+            f"Reading anyway..."
+        )
+        return self.audio_buffer.read_for_transcription()
+
+    def _deduplicate_transcription(self, new_text: str) -> str:
+        """
+        Remove overlapping text from new transcription (v0.2.4 deduplication).
+
+        With overlapping audio segments, transcriptions may contain duplicate text.
+        This method detects and removes the overlap.
+
+        Args:
+            new_text: New transcription text
+
+        Returns:
+            Deduplicated text (overlap removed)
+        """
+        if not self._last_transcription or not new_text:
+            return new_text
+
+        # Normalize whitespace for comparison
+        last_words = self._last_transcription.strip().split()
+        new_words = new_text.strip().split()
+
+        if not last_words or not new_words:
+            return new_text
+
+        # Find longest overlap at end of last_words and start of new_words
+        # Try matching from 5 words down to 2 words
+        max_overlap = min(len(last_words), len(new_words), 10)  # Cap at 10 words
+
+        for overlap_len in range(max_overlap, 1, -1):
+            last_suffix = " ".join(last_words[-overlap_len:])
+            new_prefix = " ".join(new_words[:overlap_len])
+
+            if last_suffix.lower() == new_prefix.lower():
+                # Found overlap - remove it from new text
+                deduplicated_words = new_words[overlap_len:]
+                deduplicated = " ".join(deduplicated_words)
+                logger.info(
+                    f"Deduplication: removed {overlap_len} overlapping words "
+                    f"('{new_prefix}')"
+                )
+                return deduplicated
+
+        # No overlap found
+        return new_text
 
     def save_wav(self, audio_bytes: bytes, path: str) -> None:
         """Save 16kHz mono audio bytes to WAV file."""
@@ -498,16 +681,31 @@ class SttService:
         """
         Run single pipeline iteration.
 
+        v0.2.4: Uses streaming + ring buffer when available, falls back to blocking record.
+
         Returns:
             Dictionary with timing stats and results
         """
         stats = {}
         total_start = time.perf_counter()
 
-        # Record
+        # Record audio - prefer streaming buffer, fallback to blocking
         try:
             record_start = time.perf_counter()
-            audio_bytes = self.record_audio()
+
+            if self._audio_stream_active and self.audio_buffer:
+                # v0.2.4: Read from ring buffer (streaming mode)
+                audio_bytes = self.read_audio_from_buffer(min_duration=self.recording_duration)
+                stats["mode"] = "streaming"
+            else:
+                # Legacy: Blocking record
+                audio_bytes = self.record_audio()
+                stats["mode"] = "blocking"
+
+            if not audio_bytes:
+                logger.warning("No audio data received")
+                return {"error": "No audio data"}
+
             stats["record_sec"] = time.perf_counter() - record_start
         except Exception as e:
             logger.error(f"Recording failed: {e}")
@@ -526,6 +724,14 @@ class SttService:
         finally:
             # Clean up temp file
             Path(wav_path).unlink(missing_ok=True)
+
+        # v0.2.4: Deduplicate overlapping transcriptions
+        if self._audio_stream_active and text:
+            text_before_dedup = text
+            text = self._deduplicate_transcription(text)
+            if text != text_before_dedup:
+                stats["deduplicated"] = True
+            self._last_transcription = text_before_dedup  # Store original for next comparison
 
         stats["text"] = text
         stats["text_len"] = len(text)
@@ -600,6 +806,13 @@ class SttService:
                     if self._perform_handshake():
                         logger.info("Handshake successful")
                         self.supervisor.signal_handshake_complete()
+
+                        # v0.2.4: Start audio streaming
+                        if self.audio_port and self.audio_buffer:
+                            if self.start_audio_stream():
+                                logger.info("Audio streaming started")
+                            else:
+                                logger.warning("Failed to start audio stream, will use blocking mode")
 
                         # Notify systemd that we're ready
                         if HAS_SYSTEMD:
