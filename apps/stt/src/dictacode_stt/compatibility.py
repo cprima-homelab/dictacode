@@ -95,7 +95,12 @@ class CompatibilityMatrix:
                 )
 
                 if entry.get("status") == "pass":
-                    self.entries[stt_ver] = entry_obj
+                    # Merge HID versions if STT version already exists
+                    if stt_ver in self.entries:
+                        existing = self.entries[stt_ver]
+                        existing.hid_versions = list(set(existing.hid_versions) | set(entry_obj.hid_versions))
+                    else:
+                        self.entries[stt_ver] = entry_obj
                 elif entry.get("status") == "fail":
                     # Store fail entries by STT version (multiple fail entries possible)
                     if stt_ver not in self.fail_entries:
