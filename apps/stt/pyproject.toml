@@ -9,6 +9,8 @@ dependencies = [
     "numpy>=1.20",
     "msgpack>=1.0",
     "systemd-python>=235",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
 ]
 
 [project.scripts]
@@ -18,6 +20,7 @@ dictacode-stt-diagnose = "dictacode_stt.diagnostics:diagnose_main"
 dictacode-stt-audio = "dictacode_stt.cli:audio_main"
 dictacode-stt-whisper = "dictacode_stt.cli:whisper_main"
 dictacode-stt-send = "dictacode_stt.cli:send_main"
+dictacode-stt-api = "dictacode_stt.api_server:api_main"
 
 [dependency-groups]
 dev = [
