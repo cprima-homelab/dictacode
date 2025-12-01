@@ -192,7 +192,6 @@ Examples:
             device_index=args.device,
             recording_duration=args.duration,
             language=args.language,
-            initial_mode=initial_mode,
             dry_run=args.dry_run,
             supervisor_timeout=supervisor_timeout,
             supervisor_ping_interval=supervisor_ping_interval,
