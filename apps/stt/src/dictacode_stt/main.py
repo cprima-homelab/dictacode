@@ -201,26 +201,7 @@ Examples:
         logger.error(f"Failed to initialize service: {e}", exc_info=True)
         return 1
 
-    # Check prerequisites
-    if not service.check_prerequisites():
-        logger.error("Prerequisites check failed")
-        return 1
-
-    # Start transport
-    try:
-        service.start()
-    except Exception as e:
-        logger.error(f"Failed to start service: {e}", exc_info=True)
-        return 1
-
-    # Notify systemd if running under it
-    try:
-        from systemd.daemon import notify
-        notify("READY=1")
-        logger.info("Notified systemd: READY")
-    except ImportError:
-        pass  # Not running under systemd
-
+    # v0.2.3: Service handles prerequisites, startup, and sd_notify internally via state machine
     # Run pipeline
     try:
         if args.once:
