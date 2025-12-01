@@ -10,10 +10,11 @@
 - [x] systemd unit `dictacode-stt-api.service` (v0.2.15)
 - [x] Config file support for API settings (v0.2.15)
 
-### Phase 2: WebSocket 🚧 IN PROGRESS
-- [ ] Add WebSocket endpoint for live updates
-- [ ] Broadcast transcription results
-- [ ] Client-side reconnection logic
+### Phase 2: WebSocket ✅ COMPLETE
+- [x] Add WebSocket endpoint for live updates
+- [x] Broadcast transcription results
+- [x] Client-side reconnection logic
+- [x] Test client with exponential backoff reconnection
 
 ### Phase 3: Web Panel
 - [ ] Create `web/` directory with static files
@@ -33,7 +34,7 @@
 - [ ] Implement partial result handling
 - [ ] Update web panel for partial display
 
-**v0.3.0 PHASE 1 COMPLETE** - HTTP API functional, WebSocket in progress.
+**v0.3.0 PHASE 2 COMPLETE** - HTTP API functional, WebSocket implemented with test client.
 
 ---
 
