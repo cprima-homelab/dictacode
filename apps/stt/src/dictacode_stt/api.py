@@ -255,9 +255,9 @@ async def get_audio_port(port_id: str):
 
 
 # v0.3.0 Phase 3: Web Panel Routes
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    """Dashboard page (v0.3.0 Phase 3)."""
+@app.get("/cp", response_class=HTMLResponse)
+async def control_panel(request: Request):
+    """Control panel page (v0.3.0 Phase 3)."""
     if not templates:
         raise HTTPException(status_code=500, detail="Templates not initialized")
 
@@ -266,7 +266,7 @@ async def dashboard(request: Request):
     except ImportError:
         __version__ = "unknown"
 
-    return templates.TemplateResponse("dashboard.html", {
+    return templates.TemplateResponse("control-panel.html", {
         "request": request,
         "version": __version__,
     })

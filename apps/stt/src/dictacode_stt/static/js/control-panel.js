@@ -1,5 +1,5 @@
 /**
- * Dashboard WebSocket integration and live updates (v0.3.0 Phase 3)
+ * Control Panel WebSocket integration and live updates (v0.3.0 Phase 3)
  */
 
 (function() {
@@ -243,10 +243,10 @@
     }
 
     /**
-     * Initialize dashboard
+     * Initialize control panel
      */
     function init() {
-        console.log('Dashboard initializing...');
+        console.log('Control panel initializing...');
 
         // Connect to WebSocket
         connect();
@@ -257,7 +257,7 @@
             button.addEventListener('click', handleTabClick);
         });
 
-        console.log('Dashboard initialized');
+        console.log('Control panel initialized');
     }
 
     // Initialize when DOM is ready

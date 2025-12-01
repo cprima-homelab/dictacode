@@ -13,9 +13,9 @@
 <body class="layout">
     <aside class="nav">
         <nav>
-            <a href="/" class="nav-item {% block nav_dashboard %}{% endblock %}">
+            <a href="/cp" class="nav-item {% block nav_control_panel %}{% endblock %}">
                 <span class="icon">&#128202;</span>
-                <span class="label">Dashboard</span>
+                <span class="label">Control Panel</span>
             </a>
             <a href="/config" class="nav-item {% block nav_config %}{% endblock %}">
                 <span class="icon">&#9881;</span>
@@ -42,7 +42,7 @@
         <header class="toolbar">
             <span class="brand">dictacode</span>
             <nav class="breadcrumbs">
-                <span>{% block breadcrumb %}Dashboard{% endblock %}</span>
+                <span>{% block breadcrumb %}Control Panel{% endblock %}</span>
             </nav>
             <div class="status-cluster">
                 <span class="badge badge-ok" id="service-status">&#9679; Listening</span>
