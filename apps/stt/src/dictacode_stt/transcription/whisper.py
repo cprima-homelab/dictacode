@@ -1,12 +1,29 @@
-"""Whisper.cpp transcription adapter (v0.2.6 Phase 2)."""
+"""Whisper.cpp transcription adapter (v0.2.6 Phase 2, v0.2.7 Phase 3).
+
+v0.2.6: Batch transcription via whisper-cli subprocess
+v0.2.7: Pseudo-streaming via chunked batch transcription
+
+Note: Whisper.cpp doesn't support true streaming. This implementation
+accumulates audio chunks and transcribes them in batches, providing
+delayed "final" results to maintain API compatibility with streaming.
+"""
 
 import logging
+import struct
 import subprocess
+import tempfile
 import time
+import wave
 from pathlib import Path
 from typing import Optional
 
 from .adapter import TranscriptionAdapter, TranscriptionResult, AudioRequirements
+from .streaming import (
+    FinalResult,
+    PartialCallback,
+    FinalCallback,
+    ErrorCallback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +50,13 @@ class WhisperAdapter(TranscriptionAdapter):
         self.binary = binary_path or self._find_binary()
         self.model = model_path or self._find_model()
         self.timeout = timeout
+
+        # Streaming state (v0.2.7 - pseudo-streaming via chunked batch)
+        self._chunk_buffer = bytearray()
+        self._chunk_threshold = 16000 * 2 * 3  # 3 seconds of audio (16kHz, 16-bit)
+        self._streaming = False
+        self._language = "en"
+        self._callbacks: dict = {}
 
     def _find_binary(self) -> Path:
         """Find whisper-cli binary in common locations."""
@@ -164,5 +188,157 @@ class WhisperAdapter(TranscriptionAdapter):
         return self.binary.exists() and self.model.exists()
 
     def supports_streaming(self) -> bool:
-        """Whisper.cpp doesn't support streaming in batch mode."""
+        """Whisper.cpp doesn't support true streaming.
+
+        Returns False to indicate no native streaming support.
+        However, pseudo-streaming is available via chunked batch.
+        """
         return False
+
+    # Streaming methods (v0.2.7 - pseudo-streaming via chunked batch)
+
+    def start_streaming(
+        self,
+        language: str = "en",
+        on_partial: Optional[PartialCallback] = None,
+        on_final: Optional[FinalCallback] = None,
+        on_error: Optional[ErrorCallback] = None,
+    ) -> None:
+        """Start pseudo-streaming via chunked batch.
+
+        Note: Whisper doesn't support true streaming. This accumulates
+        audio and transcribes in chunks, providing delayed "final" results.
+
+        Args:
+            language: Language code (e.g., "en", "de", "fr")
+            on_partial: Callback for intermediate results (unused - no partials)
+            on_final: Callback when chunk is transcribed
+            on_error: Callback for transcription errors
+
+        Raises:
+            RuntimeError: If streaming is already active
+        """
+        if self._streaming:
+            raise RuntimeError("Streaming already active")
+
+        self._language = language
+        self._callbacks = {
+            "on_partial": on_partial,
+            "on_final": on_final,
+            "on_error": on_error,
+        }
+        self._chunk_buffer = bytearray()
+        self._streaming = True
+
+        logger.info(
+            "Whisper pseudo-streaming started (chunked batch mode, "
+            f"chunk threshold: {self._chunk_threshold / (16000 * 2):.1f}s)"
+        )
+
+    def feed_audio(self, chunk: bytes) -> None:
+        """Accumulate audio and transcribe when threshold reached.
+
+        Args:
+            chunk: Raw audio bytes (16kHz, 16-bit, mono)
+
+        Note:
+            Unlike true streaming (Vosk), this accumulates audio and
+            transcribes in batches. No partial results are emitted.
+        """
+        if not self._streaming:
+            return
+
+        self._chunk_buffer.extend(chunk)
+
+        # Transcribe when we have enough audio
+        if len(self._chunk_buffer) >= self._chunk_threshold:
+            self._transcribe_buffer()
+
+    def _transcribe_buffer(self) -> None:
+        """Transcribe accumulated buffer via batch method."""
+        if not self._chunk_buffer:
+            return
+
+        logger.debug(
+            f"Transcribing buffer ({len(self._chunk_buffer)} bytes, "
+            f"{len(self._chunk_buffer) / (16000 * 2):.1f}s)"
+        )
+
+        temp_path = None
+        try:
+            # Write buffer to temp WAV file
+            with tempfile.NamedTemporaryFile(
+                suffix=".wav", delete=False
+            ) as f:
+                self._write_wav(f, bytes(self._chunk_buffer))
+                temp_path = Path(f.name)
+
+            # Use batch transcription
+            result = self.transcribe(temp_path, self._language)
+
+            if result.success and self._callbacks.get("on_final"):
+                self._callbacks["on_final"](
+                    FinalResult(
+                        text=result.text,
+                        confidence=result.confidence,
+                        duration_ms=result.duration_ms,
+                    )
+                )
+            elif not result.success:
+                logger.error(f"Chunk transcription failed: {result.error}")
+                if self._callbacks.get("on_error"):
+                    self._callbacks["on_error"](
+                        RuntimeError(result.error)
+                    )
+
+            # Clear buffer
+            self._chunk_buffer = bytearray()
+
+        except Exception as e:
+            logger.error(f"Error transcribing buffer: {e}")
+            if self._callbacks.get("on_error"):
+                self._callbacks["on_error"](e)
+
+        finally:
+            # Clean up temp file
+            if temp_path and temp_path.exists():
+                temp_path.unlink()
+
+    def _write_wav(self, file_obj, audio_data: bytes) -> None:
+        """Write raw audio bytes to WAV file.
+
+        Args:
+            file_obj: File object to write to
+            audio_data: Raw audio bytes (16kHz, 16-bit, mono)
+        """
+        with wave.open(file_obj.name, "wb") as wf:
+            wf.setnchannels(1)  # Mono
+            wf.setsampwidth(2)  # 16-bit
+            wf.setframerate(16000)  # 16kHz
+            wf.writeframes(audio_data)
+
+    def stop_streaming(self) -> Optional[FinalResult]:
+        """Transcribe remaining buffer.
+
+        Returns:
+            Final result for remaining audio, or None
+
+        Raises:
+            RuntimeError: If streaming is not active
+        """
+        if not self._streaming:
+            raise RuntimeError("Streaming not active")
+
+        logger.info("Whisper pseudo-streaming stopped")
+
+        # Transcribe any remaining audio
+        if self._chunk_buffer:
+            self._transcribe_buffer()
+
+        self._streaming = False
+        self._callbacks = {}
+        return None
+
+    def is_streaming(self) -> bool:
+        """Return True if currently in streaming session."""
+        return self._streaming

@@ -143,6 +143,11 @@ Examples:
         action="store_true",
         help="Disable supervisor (for debugging)",
     )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="Enable streaming transcription (v0.2.7, real-time partial results)",
+    )
 
     args = parser.parse_args()
 
@@ -203,6 +208,8 @@ Examples:
     logger.info(f"Audio port: {port_name}")
     logger.info(f"Recording duration: {args.duration}s")
     logger.info(f"Language: {args.language}")
+    if args.streaming:
+        logger.info("Streaming mode: ENABLED (real-time transcription)")
     if args.dry_run:
         logger.info("DRY RUN - UART output disabled")
     if args.once:
@@ -233,6 +240,7 @@ Examples:
             device_index=device_index,
             recording_duration=args.duration,
             language=args.language,
+            streaming=args.streaming,
             dry_run=args.dry_run,
             supervisor_timeout=supervisor_timeout,
             supervisor_ping_interval=supervisor_ping_interval,

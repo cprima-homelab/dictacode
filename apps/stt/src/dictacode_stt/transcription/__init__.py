@@ -1,15 +1,37 @@
-"""Transcription adapters for STT engines (v0.2.6)."""
+"""Transcription adapters for STT engines (v0.2.6+).
+
+v0.2.6: Batch transcription with adapter pattern
+v0.2.7: Streaming transcription support
+"""
 
 from .adapter import TranscriptionAdapter, TranscriptionResult, AudioRequirements
 from .whisper import WhisperAdapter
+from .vosk import VoskAdapter
+from .streaming import (
+    StreamingTranscriptionAdapter,
+    PartialResult,
+    FinalResult,
+    PartialCallback,
+    FinalCallback,
+    ErrorCallback,
+)
 
 # Export main types
 __all__ = [
+    # Base adapter (v0.2.6)
     "TranscriptionAdapter",
     "TranscriptionResult",
     "AudioRequirements",
     "WhisperAdapter",
+    "VoskAdapter",
     "get_transcriber",
+    # Streaming support (v0.2.7)
+    "StreamingTranscriptionAdapter",
+    "PartialResult",
+    "FinalResult",
+    "PartialCallback",
+    "FinalCallback",
+    "ErrorCallback",
 ]
 
 
@@ -42,8 +64,8 @@ def get_transcriber(name: str, **kwargs) -> TranscriptionAdapter:
     """
     adapters = {
         "whisper": WhisperAdapter,
+        "vosk": VoskAdapter,
         # Future adapters:
-        # "vosk": VoskAdapter,
         # "google": lambda **kw: OnlineAdapter(provider="google", **kw),
         # "azure": lambda **kw: OnlineAdapter(provider="azure", **kw),
         # "deepgram": lambda **kw: OnlineAdapter(provider="deepgram", **kw),

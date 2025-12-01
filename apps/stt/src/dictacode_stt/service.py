@@ -46,6 +46,8 @@ from dictacode_stt.audio import (
 from dictacode_stt.transcription import (
     TranscriptionAdapter,
     get_transcriber,
+    PartialResult,
+    FinalResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,7 @@ class SttService:
         whisper_sample_rate: int = 16000,
         recording_duration: float = 5.0,
         language: str = "en",
+        streaming: bool = False,
         dry_run: bool = False,
         supervisor_timeout: float = 30.0,
         supervisor_ping_interval: float = 5.0,
@@ -103,6 +106,7 @@ class SttService:
             whisper_sample_rate: Whisper required sample rate (16000)
             recording_duration: Recording duration in seconds
             language: Transcription language
+            streaming: Enable streaming transcription (v0.2.7, default: False)
             dry_run: If True, don't send to UART (for testing)
             supervisor_timeout: Link timeout in seconds (default: 30)
             supervisor_ping_interval: Ping interval in seconds (default: 5)
@@ -154,6 +158,17 @@ class SttService:
             f"Using transcriber: {self.transcriber.get_name()} "
             f"(requires {audio_reqs.sample_rate}Hz, {audio_reqs.channels}ch)"
         )
+
+        # v0.2.7: Streaming transcription mode
+        # Only enable if both requested AND adapter supports it
+        self.streaming_mode = streaming and self.transcriber.supports_streaming()
+        if streaming and not self.transcriber.supports_streaming():
+            logger.warning(
+                f"{self.transcriber.get_name()} doesn't support streaming, "
+                f"falling back to batch mode"
+            )
+        if self.streaming_mode:
+            logger.info("Streaming transcription mode enabled")
 
         # Initialize layers
         self.protocol: ProtocolAdapter = get_protocol(protocol_name)
@@ -247,14 +262,18 @@ class SttService:
                 source_rate=self.audio_port.capabilities.native_rate
             )
 
-            # Write to ring buffer
-            self.audio_buffer.write(resampled)
+            # v0.2.7: Feed directly to streaming transcriber if enabled
+            if self.streaming_mode:
+                self.transcriber.feed_audio(resampled)
+            else:
+                # Batch mode: Write to ring buffer for later transcription
+                self.audio_buffer.write(resampled)
 
-            # Log buffer status occasionally
-            duration = self.audio_buffer.get_duration_seconds()
-            if int(duration) % 5 == 0 and duration > 0:
-                unread = self.audio_buffer.get_unread_duration_seconds()
-                logger.debug(f"Audio buffer: {duration:.1f}s total, {unread:.1f}s unread")
+                # Log buffer status occasionally
+                duration = self.audio_buffer.get_duration_seconds()
+                if int(duration) % 5 == 0 and duration > 0:
+                    unread = self.audio_buffer.get_unread_duration_seconds()
+                    logger.debug(f"Audio buffer: {duration:.1f}s total, {unread:.1f}s unread")
 
         except Exception as e:
             logger.error(f"Error processing audio data: {e}", exc_info=True)
@@ -268,6 +287,40 @@ class SttService:
         """
         logger.error(f"Audio stream error: {error}")
         self._audio_stream_active = False
+
+    def _on_partial_result(self, result: PartialResult) -> None:
+        """
+        Handle partial transcription result (v0.2.7 streaming).
+
+        Partial results are displayed but not sent to HID.
+
+        Args:
+            result: Partial transcription result
+        """
+        logger.debug(f"Partial: {result.text}")
+        # Could update a status display here in future
+
+    def _on_final_result(self, result: FinalResult) -> None:
+        """
+        Handle final transcription result (v0.2.7 streaming).
+
+        Final results are sent to HID immediately.
+
+        Args:
+            result: Final transcription result
+        """
+        if result.text:
+            logger.info(f"Final: {result.text}")
+            self.send_text(result.text)
+
+    def _on_transcription_error(self, error: Exception) -> None:
+        """
+        Handle transcription error (v0.2.7 streaming).
+
+        Args:
+            error: The error that occurred
+        """
+        logger.error(f"Transcription error: {error}")
 
     def start_audio_stream(self) -> bool:
         """
@@ -315,7 +368,7 @@ class SttService:
             logger.error(f"Error stopping audio stream: {e}", exc_info=True)
 
     def start(self) -> None:
-        """Open UART transport."""
+        """Open UART transport and start streaming transcription if enabled."""
         if not self.dry_run:
             self.uart = UartTransport(self.uart_device, self.baud_rate)
             self.uart.open()
@@ -323,10 +376,31 @@ class SttService:
         else:
             logger.info("DRY RUN mode - UART not opened")
 
+        # v0.2.7: Start streaming transcription if enabled
+        if self.streaming_mode:
+            self.transcriber.start_streaming(
+                language=self.language,
+                on_partial=self._on_partial_result,
+                on_final=self._on_final_result,
+                on_error=self._on_transcription_error,
+            )
+            logger.info("Streaming transcription started")
+
     def stop(self) -> None:
-        """Close UART transport and stop audio stream."""
+        """Close UART transport, stop audio stream, and stop streaming transcription."""
         # Stop audio stream first
         self.stop_audio_stream()
+
+        # v0.2.7: Stop streaming transcription if enabled
+        if self.streaming_mode and self.transcriber.is_streaming():
+            try:
+                final = self.transcriber.stop_streaming()
+                if final and final.text:
+                    logger.info(f"Final transcription on stop: {final.text}")
+                    self.send_text(final.text)
+                logger.info("Streaming transcription stopped")
+            except Exception as e:
+                logger.error(f"Error stopping streaming transcription: {e}")
 
         # Close UART
         if self.uart:
