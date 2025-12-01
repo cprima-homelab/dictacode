@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Config{% endblock %}
+{% block nav_config %}active{% endblock %}
+{% block breadcrumb %}Configuration{% endblock %}
+
+{% block content %}
+<form class="form-row" method="post" action="/api/config" id="config-form">
+    <label>Audio Port
+        <select name="audio_port" id="audio-port-select">
+            <option value="">Loading...</option>
+        </select>
+    </label>
+
+    <label>Language
+        <select name="language" id="language-select">
+            <option value="en">English</option>
+            <option value="de">German</option>
+            <option value="fr">French</option>
+            <option value="es">Spanish</option>
+            <option value="it">Italian</option>
+        </select>
+    </label>
+
+    <label>Whisper Model
+        <select name="model" id="model-select">
+            <option value="tiny">Tiny (fastest)</option>
+            <option value="base">Base</option>
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large (slowest)</option>
+        </select>
+    </label>
+
+    <button type="submit" class="primary">Apply</button>
+</form>
+
+<details class="compact">
+    <summary>Advanced UART Options</summary>
+    <div style="padding: 10px;">
+        <label>Baud Rate
+            <input type="number" id="baud-rate" value="115200" disabled>
+        </label>
+        <label>Device
+            <input type="text" id="uart-device" value="/dev/serial0" disabled>
+        </label>
+        <p style="color: var(--fg-dim); font-size: 11px; margin-top: 8px;">
+            Advanced settings are read-only. Edit /etc/dictacode/stt.conf to change.
+        </p>
+    </div>
+</details>
+
+<footer class="apply-bar" id="apply-bar" hidden>
+    <span>⚠️ Unsaved changes (restart required)</span>
+    <button type="button" onclick="discardChanges()">Discard</button>
+    <button type="button" class="primary" onclick="applyChanges()">Apply & Restart</button>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/config.js"></script>
+{% endblock %}
