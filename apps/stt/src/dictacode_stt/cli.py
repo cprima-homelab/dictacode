@@ -7,6 +7,7 @@ Provides entry points for:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -18,11 +19,98 @@ import numpy as np
 
 from .protocol import TextMessage, CommandMessage, JsonProtocol, MsgpackProtocol, get_protocol
 from .transport import UartTransport, TransportError
+from .audio import AudioPortManager
 
 
 # =============================================================================
 # dictacode-stt-audio
 # =============================================================================
+
+def cmd_audio_ports(as_json: bool = False) -> int:
+    """List audio input ports with stable IDs and capabilities."""
+    try:
+        manager = AudioPortManager()
+        ports = manager.list_ports()
+
+        if as_json:
+            # JSON output for programmatic use / web frontend
+            active_port = manager.get_active_port()
+            default_port = manager.get_default_port()
+
+            output = {
+                "ports": [
+                    {
+                        "port_id": port.port_id,
+                        "port_type": port.port_type,
+                        "name": port.name,
+                        "status": port.status.value,
+                        "capabilities": {
+                            "sample_rates": port.capabilities.sample_rates,
+                            "channels": port.capabilities.channels,
+                            "formats": port.capabilities.formats,
+                            "native_rate": port.capabilities.native_rate,
+                        },
+                        "device_index": port.device_index,
+                    }
+                    for port in ports
+                ],
+                "active_port": active_port.port_id if active_port else None,
+                "default_port": default_port.port_id if default_port else None,
+                "pipeline_target_rate": 16000,  # Whisper target rate
+            }
+            print(json.dumps(output, indent=2))
+            return 0
+
+        # Human-readable output
+        if not ports:
+            print("No audio input ports found.")
+            return 1
+
+        print("AUDIO PORTS")
+        print("─" * 70)
+        print(f"{'PORT_ID':<20} {'TYPE':<6} {'NAME':<30} {'STATUS':<12} {'RATES'}")
+        print("─" * 70)
+
+        for port in ports:
+            # Format sample rates for display
+            if len(port.capabilities.sample_rates) <= 3:
+                rates_str = ",".join(str(r) for r in port.capabilities.sample_rates)
+            else:
+                rates_str = f"{port.capabilities.native_rate} (+{len(port.capabilities.sample_rates)-1} more)"
+
+            # Truncate name if too long
+            name = port.name[:28] + ".." if len(port.name) > 30 else port.name
+
+            print(
+                f"{port.port_id:<20} {port.port_type:<6} {name:<30} "
+                f"{port.status.value:<12} {rates_str}"
+            )
+
+        print()
+
+        # Show active and default ports
+        active_port = manager.get_active_port()
+        default_port = manager.get_default_port()
+
+        if active_port:
+            print(f"Active: {active_port.port_id} (streaming @ {active_port.capabilities.native_rate}Hz)")
+        else:
+            print("Active: None")
+
+        if default_port:
+            print(f"Default: {default_port.port_id}")
+
+        print()
+        print(f"Pipeline target rate: 16000 Hz (Whisper)")
+
+        return 0
+
+    except Exception as e:
+        print(f"ERROR: Failed to enumerate audio ports: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        return 1
+
 
 def cmd_audio_list() -> int:
     """List available audio input devices."""
@@ -163,13 +251,23 @@ def audio_main(args: Optional[List[str]] = None) -> int:
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
-    # list command
-    subparsers.add_parser("list", help="List audio input devices")
+    # ports command (NEW - uses audio port abstraction)
+    ports_parser = subparsers.add_parser("ports", help="List audio ports with stable IDs")
+    ports_parser.add_argument(
+        "--json", action="store_true",
+        help="Output as JSON (for programmatic use)"
+    )
+
+    # list command (legacy - uses sounddevice directly)
+    subparsers.add_parser("list", help="List audio input devices (legacy)")
 
     # test command
     test_parser = subparsers.add_parser("test", help="Test audio recording")
     test_parser.add_argument(
-        "--device", "-d", type=int, help="Audio device index"
+        "--device", "-d", type=int, help="Audio device index (legacy)"
+    )
+    test_parser.add_argument(
+        "--port", "-p", type=str, help="Audio port ID (e.g., rode-videomic-ntg)"
     )
     test_parser.add_argument(
         "--duration", "-t", type=float, default=3.0,
@@ -180,7 +278,10 @@ def audio_main(args: Optional[List[str]] = None) -> int:
     record_parser = subparsers.add_parser("record", help="Record audio to WAV file")
     record_parser.add_argument("file", help="Output WAV file path")
     record_parser.add_argument(
-        "--device", "-d", type=int, help="Audio device index"
+        "--device", "-d", type=int, help="Audio device index (legacy)"
+    )
+    record_parser.add_argument(
+        "--port", "-p", type=str, help="Audio port ID (e.g., rode-videomic-ntg)"
     )
     record_parser.add_argument(
         "--duration", "-t", type=float, default=5.0,
@@ -192,12 +293,38 @@ def audio_main(args: Optional[List[str]] = None) -> int:
     if parsed.command is None:
         parser.print_help()
         return 0
+    elif parsed.command == "ports":
+        return cmd_audio_ports(as_json=parsed.json)
     elif parsed.command == "list":
         return cmd_audio_list()
     elif parsed.command == "test":
-        return cmd_audio_test(parsed.device, parsed.duration)
+        # Support both --device (legacy) and --port (new)
+        device = getattr(parsed, 'device', None)
+        port_id = getattr(parsed, 'port', None)
+        if port_id:
+            # Convert port_id to device index
+            manager = AudioPortManager()
+            port = manager.get_port(port_id)
+            if port:
+                device = port.device_index
+            else:
+                print(f"ERROR: Port not found: {port_id}", file=sys.stderr)
+                return 1
+        return cmd_audio_test(device, parsed.duration)
     elif parsed.command == "record":
-        return cmd_audio_record(parsed.device, parsed.duration, parsed.file)
+        # Support both --device (legacy) and --port (new)
+        device = getattr(parsed, 'device', None)
+        port_id = getattr(parsed, 'port', None)
+        if port_id:
+            # Convert port_id to device index
+            manager = AudioPortManager()
+            port = manager.get_port(port_id)
+            if port:
+                device = port.device_index
+            else:
+                print(f"ERROR: Port not found: {port_id}", file=sys.stderr)
+                return 1
+        return cmd_audio_record(device, parsed.duration, parsed.file)
     else:
         parser.print_help()
         return 1
