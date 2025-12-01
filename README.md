@@ -29,7 +29,7 @@ Speech-to-text dictation system using Raspberry Pi hardware as a USB HID keyboar
 
 ### Bootstrap (Fresh Pi)
 
-Run the bootstrap script on a fresh Raspberry Pi OS installation:
+Run the bootstrap script on a fresh DietPi installation:
 
 ```bash
 # Pi 5 (STT Engine)
@@ -86,6 +86,44 @@ git clone https://github.com/cprima-homelab/dictacode.git
 cd dictacode/apps/stt
 uv sync
 uv run sandbox/pipeline_stream.py
+```
+
+## CLI Utilities
+
+### STT Device (Pi 5)
+
+```bash
+# Audio device management
+dictacode-stt-audio list              # List audio input devices
+dictacode-stt-audio test              # Test recording (report levels)
+dictacode-stt-audio record FILE       # Record to WAV file (16kHz)
+
+# Whisper diagnostics
+dictacode-stt-whisper info            # Show binary/model paths
+dictacode-stt-whisper check           # Verify whisper setup
+dictacode-stt-whisper test FILE       # Transcribe a test file
+
+# UART testing
+dictacode-stt-send "text"             # Send text message via UART
+dictacode-stt-send --cmd pause        # Send command message
+dictacode-stt-send --dry-run "test"   # Preview encoded bytes
+
+# Diagnostics
+dictacode-stt-check                   # Quick hardware check
+dictacode-stt-diagnose                # Full diagnostic suite
+```
+
+### HID Device (Pi Zero)
+
+```bash
+# Keymap management
+dictacode-keymap list                 # List available keymaps
+dictacode-keymap get                  # Get current keymap
+dictacode-keymap set de_de            # Set keymap
+
+# Diagnostics
+dictacode-hid-check                   # Quick hardware check
+dictacode-hid-diagnose                # Full diagnostic suite
 ```
 
 ## Packages
