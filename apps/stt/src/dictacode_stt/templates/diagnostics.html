@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnostics{% endblock %}
+{% block nav_diagnostics %}active{% endblock %}
+{% block breadcrumb %}Diagnostics{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <button onclick="runDiagnostics()" class="primary" id="run-btn">▶ Run All Checks</button>
+</div>
+
+<table class="dense" id="diagnostics-table">
+    <thead>
+        <tr>
+            <th>Check</th>
+            <th>Category</th>
+            <th>Result</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody id="diagnostics-body">
+        <tr>
+            <td colspan="4" style="text-align: center; color: var(--fg-dim); padding: 20px;">
+                Click "Run All Checks" to start diagnostics
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Side drawer for details -->
+<aside class="drawer" id="details-drawer" hidden>
+    <header>
+        <h2 id="drawer-title">Check Details</h2>
+        <button class="close" onclick="closeDrawer()">✕</button>
+    </header>
+    <section>
+        <pre id="details-content" style="white-space: pre-wrap; font-size: 12px; line-height: 1.4;"></pre>
+    </section>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/diagnostics.js"></script>
+{% endblock %}

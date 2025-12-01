@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Metrics{% endblock %}
+{% block nav_metrics %}active{% endblock %}
+{% block breadcrumb %}Metrics{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+    <button onclick="refreshMetrics()" class="primary" id="refresh-btn">🔄 Refresh</button>
+    <a href="/metrics" target="_blank" style="margin-left: 10px;">
+        <button>📊 View Raw Metrics</button>
+    </a>
+</div>
+
+<div class="card">
+    <h3>Prometheus Metrics</h3>
+    <pre id="metrics-content" style="white-space: pre-wrap; font-family: 'Monaco', 'Courier New', monospace; font-size: 11px; line-height: 1.4; max-height: 600px; overflow-y: auto;">
+Loading metrics...
+    </pre>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    'use strict';
+
+    async function loadMetrics() {
+        const content = document.getElementById('metrics-content');
+        const btn = document.getElementById('refresh-btn');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Loading...';
+
+        try {
+            const response = await fetch('/metrics');
+            const text = await response.text();
+
+            if (response.status === 404) {
+                content.textContent = 'Metrics not enabled. Start API with --metrics flag.';
+            } else {
+                content.textContent = text;
+            }
+        } catch (error) {
+            console.error('Failed to load metrics:', error);
+            content.textContent = `Error loading metrics: ${error.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🔄 Refresh';
+        }
+    }
+
+    window.refreshMetrics = loadMetrics;
+
+    // Load on page load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadMetrics);
+    } else {
+        loadMetrics();
+    }
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadMetrics, 30000);
+})();
+</script>
+{% endblock %}

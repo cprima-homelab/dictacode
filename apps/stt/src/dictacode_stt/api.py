@@ -300,6 +300,40 @@ async def config_page(request: Request):
     })
 
 
+@router.get("/cp/diagnostics", response_class=HTMLResponse)
+async def diagnostics_page(request: Request):
+    """Diagnostics page (v0.3.0 Phase 3)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    try:
+        from dictacode_stt import __version__
+    except ImportError:
+        __version__ = "unknown"
+
+    return templates.TemplateResponse("diagnostics.html", {
+        "request": request,
+        "version": __version__,
+    })
+
+
+@router.get("/cp/metrics", response_class=HTMLResponse)
+async def metrics_page(request: Request):
+    """Metrics page (v0.3.0 Phase 3)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    try:
+        from dictacode_stt import __version__
+    except ImportError:
+        __version__ = "unknown"
+
+    return templates.TemplateResponse("metrics.html", {
+        "request": request,
+        "version": __version__,
+    })
+
+
 # v0.2.13: Health endpoints moved to health.py module (routers now included in _register_routes)
 # v0.2.9: Diagnostics API endpoints (routers now included in _register_routes)
 
