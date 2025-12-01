@@ -4,7 +4,8 @@ Section: utils
 Priority: optional
 Architecture: all
 Pre-Depends: dictacode-core
-Depends: python3 (>= 3.9), python3-venv, python3-systemd, alsa-utils, libportaudio2
+Depends: python3 (>= 3.9), python3-venv, python3-systemd, alsa-utils, libportaudio2, libsystemd-dev, pkg-config
+Build-Depends: libsystemd-dev, pkg-config
 Recommends: build-essential, cmake, git, portaudio19-dev
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
 Homepage: https://github.com/cprima-homelab/dictacode

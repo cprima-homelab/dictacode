@@ -11,6 +11,7 @@ dependencies = [
     "systemd-python>=235",
     "fastapi>=0.104",
     "uvicorn[standard]>=0.24",
+    "prometheus_client>=0.19",
 ]
 
 [project.scripts]
@@ -24,11 +25,6 @@ dictacode-stt-hid = "dictacode_stt.cli:hid_main"
 dictacode-stt-log = "dictacode_stt.cli:log_main"
 dictacode-stt-bugreport = "dictacode_stt.cli:bugreport_main"
 dictacode-stt-api = "dictacode_stt.api_server:api_main"
-
-[project.optional-dependencies]
-metrics = [
-    "prometheus_client>=0.19",
-]
 
 [dependency-groups]
 dev = [
