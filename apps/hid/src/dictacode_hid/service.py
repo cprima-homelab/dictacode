@@ -121,9 +121,11 @@ class HidService:
         """
         logger.info("Starting HID service...")
 
-        # Open transports
-        self.uart = UartTransport(self.uart_device, self.baud_rate)
-        self.uart.open()
+        # Open transports (v0.2.8: use UartConfig)
+        from dictacode_hid.transport.uart import UartConfig
+        uart_config = UartConfig(device=self.uart_device, baud_rate=self.baud_rate)
+        self.uart = UartTransport(uart_config)
+        self.uart.connect()
         logger.info(f"UART opened: {self.uart_device}")
 
         if not self.dry_run:
@@ -251,9 +253,11 @@ class HidService:
                 except Exception:
                     pass  # Ignore close errors
 
-            # Reopen transport
-            self.uart = UartTransport(self.uart_device, self.baud_rate)
-            self.uart.open()
+            # Reopen transport (v0.2.8: use UartConfig)
+            from dictacode_hid.transport.uart import UartConfig
+            uart_config = UartConfig(device=self.uart_device, baud_rate=self.baud_rate)
+            self.uart = UartTransport(uart_config)
+            self.uart.connect()
 
             # Success
             self.supervisor.on_reconnect_success()

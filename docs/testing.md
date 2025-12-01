@@ -95,9 +95,9 @@ cd ops/packaging
 scp -O dist/dictacode-stt_*.deb dictacode-stt:/tmp/
 scp -O dist/dictacode-hid_*.deb dictacode-hid:/tmp/
 
-# 5. Install on devices
-ssh dictacode-stt "sudo dpkg -i /tmp/dictacode-stt_*.deb"
-ssh dictacode-hid "sudo dpkg -i /tmp/dictacode-hid_*.deb"
+# 5. Install on devices (use apt install to auto-resolve dependencies)
+ssh dictacode-stt "sudo apt install -y /tmp/dictacode-core.deb /tmp/dictacode-stt.deb"
+ssh dictacode-hid "sudo apt install -y /tmp/dictacode-core.deb /tmp/dictacode-hid.deb"
 
 # 6. Restart services
 ssh dictacode-stt "sudo systemctl daemon-reload && sudo systemctl restart dictacode-stt"
