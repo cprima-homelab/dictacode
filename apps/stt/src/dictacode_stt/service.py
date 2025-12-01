@@ -849,6 +849,10 @@ class SttService:
                             logger.error(f"Reconnection failed, waiting {delay:.1f}s...")
                             time.sleep(delay)
                             self.supervisor.signal_link_lost()
+                        else:
+                            # Reconnection succeeded - transition back to LISTENING
+                            logger.info("Reconnection successful, resuming transcription")
+                            self.state.transition_to(SolutionState.LISTENING)
 
                 time.sleep(0.5)  # Brief pause between iterations
 
