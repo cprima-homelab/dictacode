@@ -24,9 +24,9 @@
 - [x] Add `dictacode-stt-audio ports` command
 - [x] Human-readable and `--json` output
 - [x] Add `--port` flag to `dictacode-stt-audio test` and `record`
-- [ ] Update `dictacode-stt` main service to accept `--port PORT_ID`
+- [x] Update `dictacode-stt` main service to accept `--port PORT_ID`
 
-**Phase 3 MOSTLY COMPLETED** - Commit: 74c70ad (main service --port pending)
+**Phase 3 COMPLETED** - Commit: 54c48fa
 
 ### Phase 4: Service Layer Refactor
 - [ ] Inject `AudioPortManager` into `SttService`
