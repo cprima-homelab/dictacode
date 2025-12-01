@@ -10,7 +10,7 @@ from dictacode_stt.protocol import (
     get_protocol,
 )
 from dictacode_stt.state import (
-    DeviceMode,
+    SolutionState,
     SttState,
 )
 from dictacode_stt.transport import (
@@ -34,7 +34,7 @@ __all__ = [
     "MsgpackProtocol",
     "get_protocol",
     # State
-    "DeviceMode",
+    "SolutionState",
     "SttState",
     # Transport
     "TransportError",

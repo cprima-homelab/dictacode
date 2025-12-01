@@ -40,6 +40,9 @@ class TestSttState:
 
     def test_transition_to(self, caplog):
         """Test state transitions."""
+        import logging
+        caplog.set_level(logging.INFO, logger="dictacode_stt.state")
+
         state = SttState()
 
         state.transition_to(SolutionState.LINK_PENDING)
