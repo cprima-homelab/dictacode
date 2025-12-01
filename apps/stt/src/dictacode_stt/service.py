@@ -194,9 +194,9 @@ class SttService:
         read_attempts = 0
         while time.time() - start < self.handshake_timeout:
             try:
-                # Try to read response
+                # Try to read response (readline blocks for timeout period)
                 read_attempts += 1
-                data = self.uart.read_until(b"\n", timeout=0.5)
+                data = self.uart.readline()
                 if data:
                     logger.info(f"Received {len(data)} bytes, decoding...")
                     msg = self.protocol.decode(data)
