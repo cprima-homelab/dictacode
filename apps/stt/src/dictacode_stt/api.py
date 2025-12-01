@@ -87,6 +87,14 @@ def _register_routes(app_instance: FastAPI) -> None:
     """
     from dictacode_stt import health, diagnostics_api
 
+    # Add API routes
+    app_instance.add_api_route("/api/audio/ports", list_audio_ports, methods=["GET"], response_model=AudioPortsResponse)
+    app_instance.add_api_route("/api/audio/select", select_audio_port, methods=["POST"], response_model=SelectPortResponse)
+    app_instance.add_api_route("/api/audio/ports/{port_id}", get_audio_port, methods=["GET"], response_model=AudioPortModel)
+    app_instance.add_api_route("/cp", control_panel, methods=["GET"], response_class=HTMLResponse)
+    app_instance.add_api_route("/metrics", prometheus_metrics, methods=["GET"])
+    app_instance.add_api_websocket_route("/api/ws", websocket_endpoint)
+
     # Include routers
     app_instance.include_router(health.router)
     app_instance.include_router(diagnostics_api.router)
@@ -162,7 +170,6 @@ def _port_to_model(port: AudioPort) -> AudioPortModel:
     )
 
 
-@app.get("/api/audio/ports", response_model=AudioPortsResponse)
 async def list_audio_ports(refresh: bool = False):
     """List all available audio input ports.
 
@@ -201,7 +208,6 @@ async def list_audio_ports(refresh: bool = False):
         raise HTTPException(status_code=500, detail=f"Failed to list ports: {str(e)}")
 
 
-@app.post("/api/audio/select", response_model=SelectPortResponse)
 async def select_audio_port(request: SelectPortRequest):
     """Select an audio port for recording.
 
@@ -243,7 +249,6 @@ async def select_audio_port(request: SelectPortRequest):
         raise HTTPException(status_code=500, detail=f"Failed to select port: {str(e)}")
 
 
-@app.get("/api/audio/ports/{port_id}", response_model=AudioPortModel)
 async def get_audio_port(port_id: str):
     """Get details for a specific audio port.
 
@@ -272,7 +277,6 @@ async def get_audio_port(port_id: str):
 
 
 # v0.3.0 Phase 3: Web Panel Routes
-@app.get("/cp", response_class=HTMLResponse)
 async def control_panel(request: Request):
     """Control panel page (v0.3.0 Phase 3)."""
     if not templates:
@@ -294,7 +298,6 @@ async def control_panel(request: Request):
 
 
 # v0.2.13 Phase 4: Prometheus metrics endpoint
-@app.get("/metrics")
 async def prometheus_metrics():
     """Prometheus metrics endpoint (v0.2.13).
 
@@ -369,7 +372,6 @@ class WebSocketConnectionManager:
 ws_manager = WebSocketConnectionManager()
 
 
-@app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for live updates (v0.3.0).
 
