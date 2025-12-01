@@ -5,14 +5,20 @@ Provides driver-like interface for audio hardware:
 - Stable port identification
 - Streaming audio capture with callbacks
 - Ring buffer with overlap (fixes word cutoff)
+- Sample rate conversion (resampling)
 """
 
 from .port import AudioPort, AudioPortCapabilities, PortStatus
 from .manager import AudioPortManager
+from .buffer import AudioRingBuffer
+from .resampler import Resampler, ResamplerScipy
 
 __all__ = [
     "AudioPort",
     "AudioPortCapabilities",
     "PortStatus",
     "AudioPortManager",
+    "AudioRingBuffer",
+    "Resampler",
+    "ResamplerScipy",
 ]
