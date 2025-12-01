@@ -56,10 +56,15 @@ def cmd_audio_test(device: Optional[int], duration: float) -> int:
         print("ERROR: sounddevice not installed", file=sys.stderr)
         return 1
 
-    sample_rate = 16000
-    print(f"Recording {duration} seconds from device {device or 'default'}...")
-
     try:
+        # Get device's native sample rate
+        device_info = sd.query_devices(device, 'input')
+        sample_rate = int(device_info['default_samplerate'])
+        device_name = device_info['name']
+
+        print(f"Recording {duration} seconds from '{device_name}'...")
+        print(f"  Native sample rate: {sample_rate} Hz")
+
         recording = sd.rec(
             int(duration * sample_rate),
             samplerate=sample_rate,
@@ -76,6 +81,7 @@ def cmd_audio_test(device: Optional[int], duration: float) -> int:
         print(f"\nRecording complete:")
         print(f"  Duration: {duration} seconds")
         print(f"  Sample rate: {sample_rate} Hz")
+        print(f"  Samples: {len(recording)}")
         print(f"  Max amplitude: {max_amplitude:.4f}")
         print(f"  RMS level: {rms:.4f}")
 
@@ -92,35 +98,56 @@ def cmd_audio_test(device: Optional[int], duration: float) -> int:
 
 
 def cmd_audio_record(device: Optional[int], duration: float, output_file: str) -> int:
-    """Record audio to WAV file."""
+    """Record audio to WAV file (resamples to 16kHz for whisper compatibility)."""
     try:
         import sounddevice as sd
     except ImportError:
         print("ERROR: sounddevice not installed", file=sys.stderr)
         return 1
 
-    sample_rate = 16000
-    print(f"Recording {duration} seconds to {output_file}...")
+    target_rate = 16000  # Whisper expects 16kHz
 
     try:
+        # Get device's native sample rate
+        device_info = sd.query_devices(device, 'input')
+        native_rate = int(device_info['default_samplerate'])
+        device_name = device_info['name']
+
+        print(f"Recording {duration} seconds from '{device_name}'...")
+        print(f"  Native sample rate: {native_rate} Hz")
+
+        # Record at native sample rate
         recording = sd.rec(
-            int(duration * sample_rate),
-            samplerate=sample_rate,
+            int(duration * native_rate),
+            samplerate=native_rate,
             channels=1,
-            dtype=np.int16,
+            dtype=np.float32,
             device=device,
         )
         sd.wait()
+
+        # Resample to 16kHz if needed
+        if native_rate != target_rate:
+            print(f"  Resampling: {native_rate} Hz -> {target_rate} Hz")
+            # Simple linear interpolation resampling
+            ratio = target_rate / native_rate
+            new_length = int(len(recording) * ratio)
+            indices = np.linspace(0, len(recording) - 1, new_length)
+            recording = np.interp(indices, np.arange(len(recording)), recording.flatten())
+            recording = recording.reshape(-1, 1)
+
+        # Convert to int16 for WAV
+        recording_int16 = (recording * 32767).astype(np.int16)
 
         # Write WAV file
         with wave.open(output_file, "wb") as wf:
             wf.setnchannels(1)
             wf.setsampwidth(2)  # 16-bit
-            wf.setframerate(sample_rate)
-            wf.writeframes(recording.tobytes())
+            wf.setframerate(target_rate)
+            wf.writeframes(recording_int16.tobytes())
 
         file_size = os.path.getsize(output_file)
-        print(f"Saved: {output_file} ({file_size} bytes)")
+        print(f"Saved: {output_file} ({file_size} bytes, {target_rate} Hz)")
         return 0
 
     except Exception as e:
