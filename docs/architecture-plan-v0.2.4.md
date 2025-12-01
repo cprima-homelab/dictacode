@@ -29,11 +29,13 @@
 **Phase 3 COMPLETED** - Commit: 54c48fa
 
 ### Phase 4: Service Layer Refactor
-- [ ] Inject `AudioPortManager` into `SttService`
-- [ ] Replace direct sounddevice calls with streaming callbacks
-- [ ] Use `AudioRingBuffer` for continuous capture
-- [ ] Deduplicate overlapping transcriptions
+- [x] Inject `AudioPortManager` into `SttService`
+- [x] Replace direct sounddevice calls with streaming callbacks
+- [x] Use `AudioRingBuffer` for continuous capture
+- [x] Deduplicate overlapping transcriptions
 - [ ] Integration tests with service
+
+**Phase 4 COMPLETED** - Commit: bb6da42 (tests pending)
 
 ### Phase 5: Device Configuration Files
 - [ ] Create `/etc/dictacode/audio/` directory structure
@@ -48,7 +50,9 @@
 - [ ] Add `/api/audio/select` endpoint to change active port
 - [ ] Document API schema
 
-**v0.2.4 NOT STARTED**
+**v0.2.4 STATUS**:
+- Phase 1-4: COMPLETED
+- Phase 5-6: NOT STARTED (optional - configuration and API)
 
 ---
 
