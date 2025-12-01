@@ -3,7 +3,7 @@
 import logging
 import asyncio
 from typing import List, Optional, Set
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -79,25 +79,8 @@ def register_service(service: any) -> None:
         logger.info("WebSocket manager wired to STT service")
 
 
-def _register_routes(app_instance: FastAPI) -> None:
-    """Register all routes and routers to the app instance.
-
-    This is called inside create_app() to ensure routes are registered
-    on the correct FastAPI instance (not the module-level one).
-    """
-    from dictacode_stt import health, diagnostics_api
-
-    # Add API routes
-    app_instance.add_api_route("/api/audio/ports", list_audio_ports, methods=["GET"], response_model=AudioPortsResponse)
-    app_instance.add_api_route("/api/audio/select", select_audio_port, methods=["POST"], response_model=SelectPortResponse)
-    app_instance.add_api_route("/api/audio/ports/{port_id}", get_audio_port, methods=["GET"], response_model=AudioPortModel)
-    app_instance.add_api_route("/cp", control_panel, methods=["GET"], response_class=HTMLResponse)
-    app_instance.add_api_route("/metrics", prometheus_metrics, methods=["GET"])
-    app_instance.add_api_websocket_route("/api/ws", websocket_endpoint)
-
-    # Include routers
-    app_instance.include_router(health.router)
-    app_instance.include_router(diagnostics_api.router)
+# Create APIRouter for all routes (v0.3.0: proper FastAPI pattern)
+router = APIRouter()
 
 
 def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
@@ -143,8 +126,11 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
         templates = Jinja2Templates(directory=str(templates_dir))
         logger.info(f"Jinja2 templates configured from {templates_dir}")
 
-    # Register route handlers and routers (v0.3.0: moved inside create_app)
-    _register_routes(app)
+    # Include routers (v0.3.0: use module-level router)
+    from dictacode_stt import health, diagnostics_api
+    app.include_router(router)
+    app.include_router(health.router)
+    app.include_router(diagnostics_api.router)
 
     return app
 
@@ -170,6 +156,7 @@ def _port_to_model(port: AudioPort) -> AudioPortModel:
     )
 
 
+@router.get("/api/audio/ports", response_model=AudioPortsResponse)
 async def list_audio_ports(refresh: bool = False):
     """List all available audio input ports.
 
@@ -208,6 +195,7 @@ async def list_audio_ports(refresh: bool = False):
         raise HTTPException(status_code=500, detail=f"Failed to list ports: {str(e)}")
 
 
+@router.post("/api/audio/select", response_model=SelectPortResponse)
 async def select_audio_port(request: SelectPortRequest):
     """Select an audio port for recording.
 
@@ -249,6 +237,7 @@ async def select_audio_port(request: SelectPortRequest):
         raise HTTPException(status_code=500, detail=f"Failed to select port: {str(e)}")
 
 
+@router.get("/api/audio/ports/{port_id}", response_model=AudioPortModel)
 async def get_audio_port(port_id: str):
     """Get details for a specific audio port.
 
@@ -277,6 +266,7 @@ async def get_audio_port(port_id: str):
 
 
 # v0.3.0 Phase 3: Web Panel Routes
+@router.get("/cp", response_class=HTMLResponse)
 async def control_panel(request: Request):
     """Control panel page (v0.3.0 Phase 3)."""
     if not templates:
@@ -298,6 +288,7 @@ async def control_panel(request: Request):
 
 
 # v0.2.13 Phase 4: Prometheus metrics endpoint
+@router.get("/metrics")
 async def prometheus_metrics():
     """Prometheus metrics endpoint (v0.2.13).
 
@@ -372,6 +363,7 @@ class WebSocketConnectionManager:
 ws_manager = WebSocketConnectionManager()
 
 
+@router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for live updates (v0.3.0).
 
