@@ -37,6 +37,12 @@ from dictacode_stt.protocol import (
 from dictacode_stt.state import SolutionState, SttState
 from dictacode_stt.transport import UartTransport, TransportError
 from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
+from dictacode_stt.audio import (
+    AudioPortManager,
+    AudioPort,
+    AudioRingBuffer,
+    Resampler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +145,51 @@ class SttService:
             state=self.state,
             config=supervisor_config,
         )
+
+        # v0.2.4: Audio Port Abstraction
+        self.audio_manager = AudioPortManager()
+        self.audio_port: Optional[AudioPort] = None
+        self.audio_buffer: Optional[AudioRingBuffer] = None
+        self.resampler: Optional[Resampler] = None
+        self._audio_stream_active = False
+
+        # Initialize audio port from device index
+        try:
+            ports = self.audio_manager.list_ports()
+            # Find port matching device_index
+            for port in ports:
+                if port.device_index == device_index:
+                    self.audio_port = port
+                    logger.info(
+                        f"Audio port selected: {port.port_id} ({port.name}), "
+                        f"native_rate={port.capabilities.native_rate}Hz"
+                    )
+
+                    # Initialize ring buffer (5 seconds max, 0.5s overlap)
+                    self.audio_buffer = AudioRingBuffer(
+                        max_seconds=5.0,
+                        sample_rate=whisper_sample_rate,
+                        overlap_seconds=0.5,
+                        dtype="int16",
+                    )
+
+                    # Initialize resampler for native → whisper rate
+                    self.resampler = Resampler(
+                        target_rate=whisper_sample_rate,
+                        dtype="int16",
+                    )
+                    break
+
+            if not self.audio_port:
+                logger.warning(
+                    f"Audio port for device {device_index} not found in port manager. "
+                    f"Falling back to direct sounddevice access (legacy mode)."
+                )
+        except Exception as e:
+            logger.warning(
+                f"Failed to initialize audio port abstraction: {e}. "
+                f"Falling back to legacy mode."
+            )
 
         logger.info(
             f"STT service initialized: uart={uart_device}, protocol={protocol_name}, "
