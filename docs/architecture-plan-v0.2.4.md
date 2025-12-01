@@ -12,11 +12,13 @@
 **Phase 1 COMPLETED** - Commit: 8c4d449
 
 ### Phase 2: Streaming + Buffer
-- [ ] Implement `AudioPort.start_stream()`, `stop_stream()` with callbacks
-- [ ] Implement `AudioRingBuffer` with overlap for word cutoff fix
-- [ ] Implement `Resampler` class (native rate → 16kHz)
-- [ ] Handle device errors (underrun, disconnection)
-- [ ] Unit tests for streaming and buffer
+- [x] Implement `AudioPort.start_stream()`, `stop_stream()` with callbacks
+- [x] Implement `AudioRingBuffer` with overlap for word cutoff fix
+- [x] Implement `Resampler` class (native rate → 16kHz)
+- [x] Handle device errors (underrun, disconnection)
+- [x] Unit tests for streaming and buffer
+
+**Phase 2 COMPLETED** - Commit: 0a55fec
 
 ### Phase 3: CLI Integration
 - [ ] Add `dictacode-stt-audio ports` command

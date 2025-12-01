@@ -44,6 +44,17 @@ Items discovered during development that could improve the project but are not c
 **Observation**: Package versions ahead of feature versions causes confusion
 **Nice-to-have**: Clarify versioning strategy in RELEASING.md or architecture docs
 
+### Streaming Pipeline Backpressure & Flow Control
+**Gap**: Streaming pipeline + ring buffer + WebSocket preview lacks backpressure/flow control to HID
+**Concerns**:
+- No plan for chunk coalescing
+- No queue limits defined
+- No slow-client handling
+- Partial transcriptions could pile up or race with final results
+**Action needed**: Define buffering policy, ordering rules, and drop/flush behavior before adding streaming/UI
+**Related**: v0.2.4 Phase 2 (ring buffer), future WebSocket implementation
+**Impact**: High - affects reliability and correctness of transcription output
+
 ## Testing
 
 ### Test Runner Configuration
