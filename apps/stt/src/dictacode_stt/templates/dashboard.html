@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+
+{% block content %}
+<section class="grid">
+    <article class="card compact">
+        <h3>Service State</h3>
+        <dl>
+            <dt>Mode</dt>
+            <dd><span class="badge badge-ok" id="service-mode">LISTENING</span></dd>
+            <dt>Uptime</dt>
+            <dd id="service-uptime">-</dd>
+            <dt>Transcriptions</dt>
+            <dd id="transcription-count">0</dd>
+        </dl>
+    </article>
+
+    <article class="card compact">
+        <h3>Link Health</h3>
+        <dl>
+            <dt>Status</dt>
+            <dd><span class="badge badge-ok" id="link-healthy">Connected</span></dd>
+            <dt>Last Activity</dt>
+            <dd id="link-activity">-</dd>
+            <dt>Reconnects</dt>
+            <dd id="link-reconnects">0</dd>
+        </dl>
+    </article>
+
+    <article class="card compact">
+        <h3>Audio</h3>
+        <dl>
+            <dt>Port</dt>
+            <dd id="audio-port">-</dd>
+            <dt>Rate</dt>
+            <dd id="audio-rate">-</dd>
+            <dt>Buffer</dt>
+            <dd id="audio-buffer">-</dd>
+        </dl>
+    </article>
+</section>
+
+<div class="tabs">
+    <nav class="tablist" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="live">Live</button>
+        <button role="tab" aria-selected="false" data-tab="history">History</button>
+    </nav>
+    <section role="tabpanel" id="live-feed" class="tabpanel active">
+        <div class="transcription-feed" id="transcription-live"></div>
+    </section>
+    <section role="tabpanel" id="history-feed" class="tabpanel" hidden>
+        <div class="transcription-feed" id="transcription-history"></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

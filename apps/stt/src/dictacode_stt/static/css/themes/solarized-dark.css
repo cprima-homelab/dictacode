@@ -1,0 +1,44 @@
+/* Solarized Dark Theme (v0.3.0 Phase 3) */
+
+:root[data-theme="solarized-dark"] {
+    /* Base colors */
+    --base03:  #002b36;
+    --base02:  #073642;
+    --base01:  #586e75;
+    --base00:  #657b83;
+    --base0:   #839496;
+    --base1:   #93a1a1;
+    --base2:   #eee8d5;
+    --base3:   #fdf6e3;
+
+    /* Accent colors */
+    --blue:    #268bd2;
+    --green:   #859900;
+    --yellow:  #b58900;
+    --red:     #dc322f;
+    --orange:  #cb4b16;
+    --magenta: #d33682;
+    --cyan:    #2aa198;
+    --violet:  #6c71c4;
+
+    /* Semantic colors */
+    --bg:      var(--base03);
+    --bg-alt:  var(--base02);
+    --fg:      var(--base0);
+    --fg-dim:  var(--base01);
+
+    --accent:  var(--blue);
+    --success: var(--green);
+    --warning: var(--yellow);
+    --error:   var(--red);
+
+    /* UI colors */
+    --border:     var(--base01);
+    --hover-bg:   #0a3642;
+    --active-bg:  #114152;
+
+    /* Badge backgrounds */
+    --success-bg: #0d3515;
+    --warning-bg: #3d3010;
+    --error-bg:   #3d1210;
+}

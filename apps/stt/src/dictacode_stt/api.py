@@ -3,8 +3,10 @@
 import logging
 import asyncio
 from typing import List, Optional, Set
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from dictacode_stt.audio import AudioPortManager, AudioPort, PortStatus
@@ -58,6 +60,9 @@ _port_manager: Optional[AudioPortManager] = None
 # Global service reference (v0.3.0: for WebSocket integration)
 _stt_service: Optional[any] = None
 
+# Global Jinja2 templates (v0.3.0 Phase 3)
+templates: Optional[Jinja2Templates] = None
+
 
 def register_service(service: any) -> None:
     """Register STT service for WebSocket integration (v0.3.0).
@@ -109,6 +114,13 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
         logger.info(f"Static files mounted from {static_dir}")
+
+    # v0.3.0 Phase 3: Configure Jinja2 templates
+    templates_dir = Path(__file__).parent / "templates"
+    if templates_dir.exists():
+        global templates
+        templates = Jinja2Templates(directory=str(templates_dir))
+        logger.info(f"Jinja2 templates configured from {templates_dir}")
 
     return app
 
@@ -240,6 +252,24 @@ async def get_audio_port(port_id: str):
     except Exception as e:
         logger.error(f"Failed to get port: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get port: {str(e)}")
+
+
+# v0.3.0 Phase 3: Web Panel Routes
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """Dashboard page (v0.3.0 Phase 3)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    try:
+        from dictacode_stt import __version__
+    except ImportError:
+        __version__ = "unknown"
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "version": __version__,
+    })
 
 
 # v0.2.13: Health endpoints moved to health.py module

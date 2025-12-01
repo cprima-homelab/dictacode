@@ -1,0 +1,25 @@
+/* Work Theme (v0.3.0 Phase 3) */
+
+:root[data-theme="work"] {
+    /* Base colors */
+    --bg:      #ffffff;
+    --bg-alt:  #f5f5f5;
+    --fg:      #333333;
+    --fg-dim:  #666666;
+
+    /* Accent colors */
+    --accent:  #0066cc;
+    --success: #28a745;
+    --warning: #ffc107;
+    --error:   #dc3545;
+
+    /* UI colors */
+    --border:     #dddddd;
+    --hover-bg:   #eeeeee;
+    --active-bg:  #e0e0e0;
+
+    /* Badge backgrounds */
+    --success-bg: #e8f5e9;
+    --warning-bg: #fff9e6;
+    --error-bg:   #ffebee;
+}
