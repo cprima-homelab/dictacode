@@ -16,6 +16,12 @@ import logging
 import time
 from typing import Optional
 
+try:
+    from systemd import daemon as sd_daemon
+    HAS_SYSTEMD = True
+except ImportError:
+    HAS_SYSTEMD = False
+
 from dictacode_hid.protocol import (
     ProtocolAdapter,
     get_protocol,
@@ -124,6 +130,12 @@ class HidService:
             logger.info(f"HID opened: {self.hid_device}")
         else:
             logger.info("DRY RUN mode - HID not opened")
+
+        # Notify systemd that we're ready
+        if HAS_SYSTEMD:
+            sd_daemon.notify("READY=1")
+            sd_daemon.notify("STATUS=Ready to receive messages")
+            logger.info("Notified systemd: READY=1")
 
         try:
             self._run_loop()

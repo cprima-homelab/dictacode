@@ -6,6 +6,7 @@ requires-python = ">=3.9"
 dependencies = [
     "pyserial>=3.5",
     "msgpack>=1.0",
+    "systemd-python>=235",
 ]
 
 [project.scripts]

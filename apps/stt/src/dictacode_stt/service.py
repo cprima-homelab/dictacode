@@ -20,6 +20,12 @@ import wave
 from pathlib import Path
 from typing import Optional, Dict
 
+try:
+    from systemd import daemon as sd_daemon
+    HAS_SYSTEMD = True
+except ImportError:
+    HAS_SYSTEMD = False
+
 from dictacode_stt.protocol import (
     ProtocolAdapter,
     get_protocol,
@@ -543,6 +549,12 @@ class SttService:
                     if self._perform_handshake():
                         logger.info("Handshake successful")
                         self.supervisor.signal_handshake_complete()
+
+                        # Notify systemd that we're ready
+                        if HAS_SYSTEMD:
+                            sd_daemon.notify("READY=1")
+                            sd_daemon.notify("STATUS=Listening for audio input")
+                            logger.info("Notified systemd: READY=1")
                     else:
                         # Timeout - back to link pending
                         logger.warning("Handshake failed, back to LINK_PENDING")
