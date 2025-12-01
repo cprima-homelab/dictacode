@@ -6,6 +6,7 @@ import sounddevice as sd
 
 from .port import AudioPort, AudioPortCapabilities, PortStatus
 from .device_id import generate_port_id
+from .config import AudioConfig, AudioProfile
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,22 @@ class AudioPortManager:
     Provides backend data for CLI and web frontend.
     """
 
-    def __init__(self):
-        """Initialize the audio port manager."""
+    def __init__(self, config_dir: str = "/etc/dictacode/audio"):
+        """Initialize the audio port manager.
+
+        Args:
+            config_dir: Directory containing audio configuration files
+        """
         self._ports_cache: Optional[List[AudioPort]] = None
         self._on_port_changed_callback: Optional[Callable] = None
+
+        # v0.2.4: Load configuration profiles
+        try:
+            self._config = AudioConfig(config_dir=config_dir)
+            logger.info(f"Loaded {len(self._config.get_profiles())} audio profile(s)")
+        except Exception as e:
+            logger.warning(f"Failed to load audio config: {e}. Using defaults.")
+            self._config = None
 
     def list_ports(self, force_refresh: bool = False) -> List[AudioPort]:
         """Enumerate all available audio input ports.
@@ -169,3 +182,29 @@ class AudioPortManager:
         """
         logger.info("Refreshing port list...")
         return self.list_ports(force_refresh=True)
+
+    def get_profile_for_port(self, port: AudioPort) -> AudioProfile:
+        """Get the configuration profile for a specific port (v0.2.4).
+
+        Matches device profiles based on:
+        1. Exact port_id match
+        2. Device name match
+        3. Vendor match
+        4. Generic fallback
+
+        Args:
+            port: AudioPort to get profile for
+
+        Returns:
+            AudioProfile with device-specific or generic settings
+        """
+        if self._config:
+            return self._config.get_profile_for_port(
+                port_id=port.port_id,
+                port_name=port.name,
+                port_type=port.port_type,
+            )
+        else:
+            # No config loaded - return default generic profile
+            logger.debug(f"No config loaded, using default profile for {port.port_id}")
+            return AudioProfile()
