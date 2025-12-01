@@ -1,7 +1,7 @@
 """
 transport.py - Layer 2: Raw byte I/O for UART.
 
-Provides clean interface for serial port read/write operations.
+Provides clean interface for serial port read/write operations (with exclusive locking).
 
 Usage:
     uart = UartTransport(device="/dev/serial0", baud_rate=115200)
@@ -15,6 +15,10 @@ Usage:
         uart.write(b"hello")
 """
 
+from typing import Optional
+
+from .lock import SerialLock, LockError
+
 
 class TransportError(Exception):
     """Base exception for transport layer errors."""
@@ -22,9 +26,15 @@ class TransportError(Exception):
 
 
 class UartTransport:
-    """UART transport layer - raw serial I/O."""
+    """UART transport layer - raw serial I/O with exclusive locking."""
 
-    def __init__(self, device: str, baud_rate: int = 115200, timeout: float = 1.0):
+    def __init__(
+        self,
+        device: str,
+        baud_rate: int = 115200,
+        timeout: float = 1.0,
+        lock_dir: Optional[str] = None,
+    ):
         """
         Initialize UART transport.
 
@@ -32,14 +42,17 @@ class UartTransport:
             device: Serial device path (e.g., /dev/serial0)
             baud_rate: Baud rate (default: 115200)
             timeout: Read timeout in seconds (default: 1.0)
+            lock_dir: Optional lock directory override (for testing)
         """
         self.device = device
         self.baud_rate = baud_rate
         self.timeout = timeout
+        self._lock_dir = lock_dir
         self._serial = None
+        self._lock: Optional[SerialLock] = None
 
     def open(self) -> None:
-        """Open serial port."""
+        """Open serial port with exclusive lock."""
         if self._serial is not None:
             raise TransportError("UART already open")
 
@@ -48,6 +61,20 @@ class UartTransport:
         except ImportError:
             raise TransportError("pyserial not installed. Run: pip install pyserial")
 
+        # Acquire exclusive lock before opening serial port
+        self._lock = SerialLock(self.device, lock_dir=self._lock_dir)
+        if not self._lock.acquire():
+            pid = self._lock.get_owner_pid()
+            msg = f"{self.device} is locked by another process."
+            if pid:
+                msg += f"\nCheck {self._lock.lock_path} (PID: {pid})"
+            msg += "\n\nTo investigate:"
+            msg += f"\n  cat {self._lock.lock_path}  # See owning PID"
+            msg += "\n  ps aux | grep <PID>        # Find process"
+            msg += "\n  systemctl status dictacode-*  # Check services"
+            self._lock = None
+            raise TransportError(msg)
+
         try:
             self._serial = serial.Serial(
                 self.device,
@@ -55,13 +82,20 @@ class UartTransport:
                 timeout=self.timeout,
             )
         except Exception as e:
+            # Release lock on failure
+            if self._lock:
+                self._lock.release()
+                self._lock = None
             raise TransportError(f"Failed to open {self.device}: {e}")
 
     def close(self) -> None:
-        """Close serial port."""
+        """Close serial port and release lock."""
         if self._serial is not None:
             self._serial.close()
             self._serial = None
+        if self._lock is not None:
+            self._lock.release()
+            self._lock = None
 
     def is_open(self) -> bool:
         """Check if port is open."""

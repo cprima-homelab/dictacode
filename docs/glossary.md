@@ -349,6 +349,28 @@ HID scancode mapping for different keyboard layouts (US, DE, etc.).
 
 ---
 
+### Serial Port Locking
+
+**SerialLock**
+Advisory file lock preventing multiple processes from accessing the same serial port simultaneously.
+
+**Lock File**
+File at `/run/lock/dictacode-{device}.lock` (systemd) or `/tmp/dictacode-{device}.lock` (fallback) containing the PID of the owning process.
+
+**fcntl.flock()**
+Linux system call for advisory file locking. Uses `LOCK_EX | LOCK_NB` for non-blocking exclusive lock.
+
+**Advisory Lock**
+Lock that relies on processes voluntarily checking before access. Does not prevent rogue processes from accessing the device.
+
+**Stale Lock**
+Lock file that remains after the owning process has terminated. Detected by checking if the PID exists.
+
+**LockError**
+Exception raised when lock acquisition fails due to another process holding the lock.
+
+---
+
 ### Hardware Abstractions
 
 **UDC (USB Device Controller)**
