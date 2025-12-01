@@ -11,6 +11,33 @@
 
 ---
 
+## ⚠️ IMPORTANT: Package Management
+
+**ALWAYS use `uv` for Python package management, never `pip` or `pip3`**
+
+On the Raspberry Pi devices, `uv` must be called with its **absolute path** from the home directory:
+
+```bash
+# ✅ CORRECT - Use absolute path on devices
+ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv pip install -e ."
+ssh dictacode-hid "cd ~/dictacode/apps/hid && ~/.local/bin/uv pip install -e ."
+
+# ❌ WRONG - Don't use pip/pip3
+ssh dictacode-stt "pip3 install -e ."  # NEVER DO THIS
+
+# ❌ WRONG - Don't use bare uv (not in PATH on devices)
+ssh dictacode-stt "uv pip install -e ."  # WILL FAIL
+```
+
+**Local development:**
+```bash
+# On your local machine, uv should be in PATH
+cd apps/stt
+uv run pytest tests/
+```
+
+---
+
 ## Development Testing Workflows
 
 ### Quick Development (Code Changes Only)
@@ -206,10 +233,10 @@ ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager | grep 'Sta
 
 ```bash
 # Verify package installation
-ssh dictacode-stt "cd ~/dictacode/apps/stt && source .venv/bin/activate && python -c 'import dictacode_stt; print(dictacode_stt.__file__)'"
+ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv run python -c 'import dictacode_stt; print(dictacode_stt.__file__)'"
 
-# Reinstall in editable mode
-ssh dictacode-stt "cd ~/dictacode/apps/stt && source .venv/bin/activate && pip install -e ."
+# Reinstall in editable mode (use absolute path for uv)
+ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv pip install -e ."
 ```
 
 ### UART Communication Issues
