@@ -189,22 +189,28 @@ class SttService:
             return False
 
         # Wait for ProbeAck
+        logger.info("Waiting for probe_ack from HID...")
         start = time.time()
+        read_attempts = 0
         while time.time() - start < self.handshake_timeout:
             try:
                 # Try to read response
+                read_attempts += 1
                 data = self.uart.read_until(b"\n", timeout=0.5)
                 if data:
+                    logger.info(f"Received {len(data)} bytes, decoding...")
                     msg = self.protocol.decode(data)
                     if isinstance(msg, ProbeAckMessage):
                         logger.info(f"Received probe_ack ts={msg.timestamp} - handshake complete!")
                         return True
+                    else:
+                        logger.info(f"Received unexpected message type: {type(msg).__name__}")
             except Exception as e:
                 # Continue waiting on decode errors
-                logger.debug(f"Handshake read error (continuing): {e}")
+                logger.info(f"Handshake read attempt {read_attempts} error: {e}")
                 time.sleep(0.1)
 
-        logger.warning(f"Handshake timeout after {self.handshake_timeout}s")
+        logger.warning(f"Handshake timeout after {self.handshake_timeout}s ({read_attempts} read attempts)")
         return False
 
     def record_audio(self) -> bytes:
