@@ -35,13 +35,19 @@ class ProbeMessage:
     """Sent during HANDSHAKE_INIT to verify peer is alive."""
 
     timestamp: float
+    protocol_version: str
+    component: str
+    component_version: str
 
 
 @dataclass(frozen=True)
 class ProbeAckMessage:
-    """Response to probe from HID."""
+    """Response to probe from peer."""
 
     timestamp: float
+    protocol_version: str
+    component: str
+    component_version: str
 
 
 Message = Union[TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage]
@@ -80,9 +86,21 @@ class JsonProtocol(ProtocolAdapter):
             if msg.argument is not None:
                 obj["a"] = msg.argument
         elif isinstance(msg, ProbeMessage):
-            obj = {"t": "probe", "ts": msg.timestamp}
+            obj = {
+                "t": "probe",
+                "ts": msg.timestamp,
+                "pv": msg.protocol_version,
+                "cmp": msg.component,
+                "cv": msg.component_version,
+            }
         elif isinstance(msg, ProbeAckMessage):
-            obj = {"t": "probe_ack", "ts": msg.timestamp}
+            obj = {
+                "t": "probe_ack",
+                "ts": msg.timestamp,
+                "pv": msg.protocol_version,
+                "cmp": msg.component,
+                "cv": msg.component_version,
+            }
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
         return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
@@ -96,9 +114,19 @@ class JsonProtocol(ProtocolAdapter):
         elif msg_type == "cmd":
             return CommandMessage(command=obj["c"], argument=obj.get("a"))
         elif msg_type == "probe":
-            return ProbeMessage(timestamp=obj["ts"])
+            return ProbeMessage(
+                timestamp=obj["ts"],
+                protocol_version=obj.get("pv", "0.0.0"),
+                component=obj.get("cmp", "unknown"),
+                component_version=obj.get("cv", "0.0.0"),
+            )
         elif msg_type == "probe_ack":
-            return ProbeAckMessage(timestamp=obj["ts"])
+            return ProbeAckMessage(
+                timestamp=obj["ts"],
+                protocol_version=obj.get("pv", "0.0.0"),
+                component=obj.get("cmp", "unknown"),
+                component_version=obj.get("cv", "0.0.0"),
+            )
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
 
@@ -120,9 +148,21 @@ class MsgpackProtocol(ProtocolAdapter):
             if msg.argument is not None:
                 obj["a"] = msg.argument
         elif isinstance(msg, ProbeMessage):
-            obj = {"t": "probe", "ts": msg.timestamp}
+            obj = {
+                "t": "probe",
+                "ts": msg.timestamp,
+                "pv": msg.protocol_version,
+                "cmp": msg.component,
+                "cv": msg.component_version,
+            }
         elif isinstance(msg, ProbeAckMessage):
-            obj = {"t": "probe_ack", "ts": msg.timestamp}
+            obj = {
+                "t": "probe_ack",
+                "ts": msg.timestamp,
+                "pv": msg.protocol_version,
+                "cmp": msg.component,
+                "cv": msg.component_version,
+            }
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
 
@@ -145,9 +185,19 @@ class MsgpackProtocol(ProtocolAdapter):
         elif msg_type == "cmd":
             return CommandMessage(command=obj["c"], argument=obj.get("a"))
         elif msg_type == "probe":
-            return ProbeMessage(timestamp=obj["ts"])
+            return ProbeMessage(
+                timestamp=obj["ts"],
+                protocol_version=obj.get("pv", "0.0.0"),
+                component=obj.get("cmp", "unknown"),
+                component_version=obj.get("cv", "0.0.0"),
+            )
         elif msg_type == "probe_ack":
-            return ProbeAckMessage(timestamp=obj["ts"])
+            return ProbeAckMessage(
+                timestamp=obj["ts"],
+                protocol_version=obj.get("pv", "0.0.0"),
+                component=obj.get("cmp", "unknown"),
+                component_version=obj.get("cv", "0.0.0"),
+            )
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
 

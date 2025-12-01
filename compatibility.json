@@ -1,0 +1,47 @@
+{
+  "protocol": {
+    "current": "1.0.0",
+    "history": [
+      {
+        "version": "1.0.0",
+        "min_stt": "0.2.12",
+        "min_hid": "0.2.12",
+        "status": "active",
+        "notes": [
+          "Added protocol_version and component_version to all messages",
+          "Handshake enforces compatibility"
+        ]
+      },
+      {
+        "version": "0.0.0",
+        "min_stt": "0.1.0",
+        "min_hid": "0.1.0",
+        "status": "deprecated",
+        "notes": ["No version fields; fails handshake with 1.x peers"]
+      }
+    ]
+  },
+  "compatibility": [
+    {
+      "stt": "0.2.12",
+      "hid": ["0.2.12"],
+      "protocol": "1.0.0",
+      "status": "pass",
+      "notes": "Initial versioned release; strict pairing"
+    },
+    {
+      "stt": "0.2.12",
+      "hid": ["0.2.11"],
+      "protocol": "0.0.0",
+      "status": "fail",
+      "notes": "Protocol mismatch; handshake rejects"
+    },
+    {
+      "stt": "0.2.12",
+      "hid": ["0.1.0"],
+      "protocol": "0.0.0",
+      "status": "fail",
+      "notes": "Unversioned peer; handshake rejects"
+    }
+  ]
+}

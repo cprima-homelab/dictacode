@@ -1,5 +1,5 @@
 Package: dictacode-core
-Version: 0.1.0
+Version: 0.2.0
 Section: utils
 Priority: optional
 Maintainer: Christian Prior-Mamulyan <cprior@gmail.com>
@@ -8,4 +8,5 @@ Architecture: all
 Depends: adduser, systemd
 Description: Core user and directories for dictacode
  This package prepares a system to run dictacode components by
- creating the dictacode system user and required directories.
+ creating the dictacode system user, required directories, and
+ shared compatibility matrix for version enforcement.

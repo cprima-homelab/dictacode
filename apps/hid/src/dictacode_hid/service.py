@@ -22,6 +22,7 @@ try:
 except ImportError:
     HAS_SYSTEMD = False
 
+from dictacode_hid import __version__
 from dictacode_hid.protocol import (
     ProtocolAdapter,
     get_protocol,
@@ -31,6 +32,7 @@ from dictacode_hid.protocol import (
     ProbeMessage,
     ProbeAckMessage,
 )
+from dictacode_hid.compatibility import CompatibilityChecker
 from dictacode_hid.state import DeviceMode, HidState
 from dictacode_hid.transport import UartTransport, HidTransport, TransportError
 from dictacode_hid.keymaps import Keymap, load_keymap
@@ -263,13 +265,42 @@ class HidService:
             return False
 
     def _handle_probe(self, msg: ProbeMessage) -> None:
-        """Handle probe message during handshake - respond with ProbeAckMessage."""
-        logger.debug(f"Received probe ts={msg.timestamp}, sending ack")
-        ack = ProbeAckMessage(timestamp=msg.timestamp)
+        """Handle probe message during handshake with version validation."""
+        logger.info(
+            f"Received probe from {msg.component} v{msg.component_version} "
+            f"(protocol v{msg.protocol_version})"
+        )
+
+        # Initialize compatibility checker
+        try:
+            checker = CompatibilityChecker()
+        except FileNotFoundError as e:
+            logger.error(f"Compatibility matrix not found: {e}")
+            logger.error("Cannot perform version validation - rejecting handshake")
+            return
+
+        # Validate version compatibility
+        # Note: STT initiates, so we check if their STT version is compatible with our HID version
+        is_compatible, error_msg = checker.validate_compatibility(
+            msg.component_version, __version__
+        )
+
+        if not is_compatible:
+            logger.error(f"Version incompatibility: {error_msg}")
+            logger.error("Rejecting handshake - not sending probe_ack")
+            return
+
+        # Send versioned ProbeAckMessage
+        ack = ProbeAckMessage(
+            timestamp=msg.timestamp,
+            protocol_version=checker.matrix.protocol_version,
+            component="hid",
+            component_version=__version__,
+        )
         try:
             data = self.protocol.encode(ack)
             self.uart.write(data)
-            logger.info("Sent probe_ack - handshake complete")
+            logger.info(f"Sent probe_ack (HID v{__version__}) - handshake complete")
         except Exception as e:
             logger.error(f"Failed to send probe_ack: {e}")
 

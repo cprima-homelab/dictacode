@@ -1,5 +1,7 @@
 """dictacode HID - UART to HID keyboard bridge."""
 
+__version__ = "0.2.12"
+
 from dictacode_hid.protocol import (
     Message,
     TextMessage,

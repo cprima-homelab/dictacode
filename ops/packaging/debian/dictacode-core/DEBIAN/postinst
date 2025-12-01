@@ -17,10 +17,19 @@ case "$1" in
         fi
 
         # ensure directories
-        for d in "$PKG_HOME" /var/lib/dictacode /etc/dictacode; do
+        for d in "$PKG_HOME" /var/lib/dictacode /etc/dictacode "$PKG_HOME/shared"; do
             mkdir -p "$d"
             chown "$PKG_USER:$PKG_USER" "$d"
         done
+
+        # set permissions on shared directory and compatibility matrix
+        if [ -d "$PKG_HOME/shared" ]; then
+            chmod 755 "$PKG_HOME/shared"
+            if [ -f "$PKG_HOME/shared/compatibility.json" ]; then
+                chmod 644 "$PKG_HOME/shared/compatibility.json"
+                chown "$PKG_USER:$PKG_USER" "$PKG_HOME/shared/compatibility.json"
+            fi
+        fi
 
         # useful groups for audio / serial / USB stuff
         for g in audio video plugdev dialout tty; do

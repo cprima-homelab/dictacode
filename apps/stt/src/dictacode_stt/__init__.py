@@ -1,5 +1,7 @@
 """dictacode STT - Speech-to-text pipeline."""
 
+__version__ = "0.2.12"
+
 from dictacode_stt.protocol import (
     Message,
     TextMessage,
