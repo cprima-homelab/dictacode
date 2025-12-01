@@ -179,7 +179,28 @@ ssh dictacode-stt "test -f ~/dictacode/apps/stt/.venv/bin/python && echo 'Python
 # Check working directory exists
 ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep WorkingDirectory"
 ssh dictacode-stt "test -d ~/dictacode/apps/stt && echo 'WorkDir OK' || echo 'DIR MISSING'"
+
+# Check ProtectHome setting (must be false for ~/dictacode access)
+ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep ProtectHome"
+# Should show: ProtectHome=false
 ```
+
+### Systemd Start Timeout (v0.2.3)
+
+If `systemctl restart` times out but service is actually running:
+
+```bash
+# Check if process is running despite timeout
+ssh dictacode-stt "ps aux | grep dictacode_stt"
+
+# Check logs - service may be running in state machine loop
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager | grep 'State transition'"
+
+# For Type=notify services, timeout means READY=1 wasn't received in time
+# Service may still be functional - check state transitions in logs
+```
+
+**Common cause**: Service stuck in HANDSHAKE_INIT waiting for peer response.
 
 ### Import Errors
 
