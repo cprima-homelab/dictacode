@@ -1,0 +1,90 @@
+name: Bug Report
+description: Report a bug with dictacode (use dictacode-stt-bugreport for automatic report generation)
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        ## Automated Bug Report
+
+        For the most helpful bug report, please use the automated tool:
+
+        ```bash
+        dictacode-stt-bugreport
+        ```
+
+        This will generate a comprehensive report with:
+        - System information
+        - Diagnostic results
+        - Recent logs (with sensitive data redacted)
+        - Configuration files
+
+        Then paste the generated markdown below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: Brief description of what went wrong
+      placeholder: "Example: dictacode-stt service fails to start after upgrade"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Install dictacode-stt
+        2. Run `dictacode-stt`
+        3. See error...
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: "Service should start successfully"
+    validations:
+      required: false
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: "Service fails with error message..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: bugreport
+    attributes:
+      label: Automated Bug Report
+      description: |
+        Paste the output from `dictacode-stt-bugreport` here.
+
+        If you haven't run it yet, please do:
+        ```bash
+        dictacode-stt-bugreport
+        # Paste contents of the generated .md file here
+        ```
+      placeholder: "Paste the markdown report here..."
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: "This started happening after..."
+    validations:
+      required: false

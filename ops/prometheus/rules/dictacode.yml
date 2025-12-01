@@ -1,0 +1,106 @@
+# Prometheus alerting rules for dictacode (v0.2.13)
+#
+# Place this file in your Prometheus rules directory and reference it
+# in prometheus.yml under rule_files.
+
+groups:
+  - name: dictacode
+    interval: 30s
+    rules:
+      # HID Link Health Alert
+      - alert: DictacodeHIDLinkDown
+        expr: dictacode_link_healthy == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: transport
+        annotations:
+          summary: "Dictacode HID link is down"
+          description: "The link between STT and HID has been unhealthy for more than 1 minute. Instance: {{ $labels.instance }}"
+
+      # High Error Rate Alert
+      - alert: DictacodeHighErrorRate
+        expr: |
+          rate(dictacode_transcriptions_total{status="error"}[5m])
+          /
+          rate(dictacode_transcriptions_total[5m])
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: transcription
+        annotations:
+          summary: "Dictacode error rate > 10%"
+          description: "Transcription error rate has been above 10% for 5 minutes. Current rate: {{ $value | humanizePercentage }}"
+
+      # High Latency Alert
+      - alert: DictacodeHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(dictacode_transcription_duration_seconds_bucket[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: transcription
+        annotations:
+          summary: "Dictacode transcription latency high"
+          description: "95th percentile transcription latency is above 5 seconds: {{ $value | humanizeDuration }}"
+
+      # Service Down Alert
+      - alert: DictacodeServiceDown
+        expr: up{job="dictacode"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: service
+        annotations:
+          summary: "Dictacode service is down"
+          description: "Prometheus cannot scrape dictacode metrics from {{ $labels.instance }}"
+
+      # No Transcriptions Alert (Service Idle)
+      - alert: DictacodeNoTranscriptions
+        expr: |
+          rate(dictacode_transcriptions_total[10m]) == 0
+          and
+          dictacode_link_healthy == 1
+        for: 10m
+        labels:
+          severity: warning
+          component: transcription
+        annotations:
+          summary: "Dictacode has no transcriptions"
+          description: "No transcriptions have been processed in the last 10 minutes, but link is healthy. Service may be idle or stuck."
+
+      # Transport Reconnect Storm Alert
+      - alert: DictacodeReconnectStorm
+        expr: rate(dictacode_transport_reconnects_total[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: transport
+        annotations:
+          summary: "Dictacode transport reconnecting frequently"
+          description: "Transport {{ $labels.transport }} is reconnecting more than once per 5 minutes. This may indicate connectivity issues."
+
+      # Audio Buffer Warning
+      - alert: DictacodeAudioBufferHigh
+        expr: dictacode_audio_buffer_bytes > 5000000
+        for: 2m
+        labels:
+          severity: warning
+          component: audio
+        annotations:
+          summary: "Dictacode audio buffer is large"
+          description: "Audio buffer has been above 5MB for 2 minutes: {{ $value | humanize1024 }}B. This may indicate processing lag."
+
+      # Zero Active Connections
+      - alert: DictacodeNoConnections
+        expr: dictacode_active_connections == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: transport
+        annotations:
+          summary: "Dictacode has no active connections"
+          description: "No transport connections are active for 5 minutes. Service may be disconnected from HID device."

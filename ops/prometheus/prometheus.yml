@@ -1,0 +1,40 @@
+# Prometheus configuration for dictacode (v0.2.13)
+#
+# This is an example configuration file showing how to scrape dictacode STT metrics.
+# Add this to your existing Prometheus configuration.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - 'alertmanager:9093'
+
+# Load rules from files
+rule_files:
+  - 'rules/dictacode.yml'
+
+# Scrape configurations
+scrape_configs:
+  - job_name: 'dictacode'
+    static_configs:
+      - targets:
+          - 'dictacode-pi5:9100'   # STT metrics (adjust hostname as needed)
+          # - 'dictacode-pi0:9100' # HID metrics (if enabled)
+    scrape_interval: 15s
+    metrics_path: /metrics
+    honor_labels: true
+
+  # Alternative: Scrape from API server instead of dedicated metrics port
+  # - job_name: 'dictacode-api'
+  #   static_configs:
+  #     - targets:
+  #         - 'dictacode-pi5:8000'
+  #   metrics_path: /metrics
+
+# Optional: Service discovery for dynamic environments
+# Use file_sd_configs or consul_sd_configs for auto-discovery
