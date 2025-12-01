@@ -79,6 +79,19 @@ def register_service(service: any) -> None:
         logger.info("WebSocket manager wired to STT service")
 
 
+def _register_routes(app_instance: FastAPI) -> None:
+    """Register all routes and routers to the app instance.
+
+    This is called inside create_app() to ensure routes are registered
+    on the correct FastAPI instance (not the module-level one).
+    """
+    from dictacode_stt import health, diagnostics_api
+
+    # Include routers
+    app_instance.include_router(health.router)
+    app_instance.include_router(diagnostics_api.router)
+
+
 def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
     """Create FastAPI application.
 
@@ -121,6 +134,9 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
         global templates
         templates = Jinja2Templates(directory=str(templates_dir))
         logger.info(f"Jinja2 templates configured from {templates_dir}")
+
+    # Register route handlers and routers (v0.3.0: moved inside create_app)
+    _register_routes(app)
 
     return app
 
@@ -273,17 +289,8 @@ async def control_panel(request: Request):
     })
 
 
-# v0.2.13: Health endpoints moved to health.py module
-# Import and mount health router
-from dictacode_stt import health
-
-app.include_router(health.router)
-
-
-# v0.2.9 Phase 4: Diagnostics API endpoints
-from dictacode_stt import diagnostics_api
-
-app.include_router(diagnostics_api.router)
+# v0.2.13: Health endpoints moved to health.py module (routers now included in _register_routes)
+# v0.2.9: Diagnostics API endpoints (routers now included in _register_routes)
 
 
 # v0.2.13 Phase 4: Prometheus metrics endpoint
