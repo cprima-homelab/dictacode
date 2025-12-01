@@ -125,6 +125,7 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
     return app
 
 
+# Create default app instance (routes defined below will use this)
 app = create_app()
 
 
