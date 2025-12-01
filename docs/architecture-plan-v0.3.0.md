@@ -16,11 +16,13 @@
 - [x] Client-side reconnection logic
 - [x] Test client with exponential backoff reconnection
 
-### Phase 3: Web Panel
-- [ ] Create `web/` directory with static files
-- [ ] HTML structure with status, controls, log
-- [ ] JavaScript for API calls and WebSocket
-- [ ] Serve static files from Python
+### Phase 3: Web Panel ✅ COMPLETE
+- [x] Create `templates/` and `static/` directories
+- [x] HTML structure with status, controls, live feed (control panel, config, diagnostics, metrics)
+- [x] JavaScript for API calls and WebSocket
+- [x] Serve static files and templates from FastAPI
+- [x] Jinja2 templates with 3 switchable themes
+- [x] Pause/Resume service control (Phase 3.4)
 
 ### Phase 4: Bidirectional Protocol
 - [ ] Add `ResponseMessage` to protocol.py
@@ -34,7 +36,7 @@
 - [ ] Implement partial result handling
 - [ ] Update web panel for partial display
 
-**v0.3.0 PHASE 2 COMPLETE** - HTTP API functional, WebSocket implemented with test client.
+**v0.3.0 PHASE 3 COMPLETE** - Web control panel fully implemented with pause/resume, live transcription feed, diagnostics, and metrics.
 
 ---
 
