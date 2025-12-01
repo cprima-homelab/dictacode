@@ -24,6 +24,13 @@
   "compatibility": [
     {
       "stt": "0.3.0",
+      "hid": ["0.3.0"],
+      "protocol": "1.0.0",
+      "status": "pass",
+      "notes": "v0.3.0 STT (WebSocket) + HID (with libsystemd-dev dependency)"
+    },
+    {
+      "stt": "0.3.0",
       "hid": ["0.2.12"],
       "protocol": "1.0.0",
       "status": "pass",
