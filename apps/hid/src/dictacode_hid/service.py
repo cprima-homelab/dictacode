@@ -22,6 +22,8 @@ from dictacode_hid.protocol import (
     detect_protocol,
     TextMessage,
     CommandMessage,
+    ProbeMessage,
+    ProbeAckMessage,
 )
 from dictacode_hid.state import DeviceMode, HidState
 from dictacode_hid.transport import UartTransport, HidTransport, TransportError
@@ -205,6 +207,8 @@ class HidService:
                     self._handle_text(msg)
                 elif isinstance(msg, CommandMessage):
                     self._handle_command(msg)
+                elif isinstance(msg, ProbeMessage):
+                    self._handle_probe(msg)
 
             except KeyboardInterrupt:
                 logger.info("Interrupted")
@@ -245,6 +249,17 @@ class HidService:
         except Exception as e:
             logger.error(f"Reconnection failed: {e}")
             return False
+
+    def _handle_probe(self, msg: ProbeMessage) -> None:
+        """Handle probe message during handshake - respond with ProbeAckMessage."""
+        logger.debug(f"Received probe ts={msg.timestamp}, sending ack")
+        ack = ProbeAckMessage(timestamp=msg.timestamp)
+        try:
+            data = self.protocol.encode(ack)
+            self.uart.send(data)
+            logger.info("Sent probe_ack - handshake complete")
+        except Exception as e:
+            logger.error(f"Failed to send probe_ack: {e}")
 
     def _handle_command(self, msg: CommandMessage) -> None:
         """Process a command message."""
