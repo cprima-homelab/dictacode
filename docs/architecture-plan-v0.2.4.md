@@ -38,12 +38,14 @@
 **Phase 4 COMPLETED** - Commit: bb6da42 (tests pending)
 
 ### Phase 5: Device Configuration Files
-- [ ] Create `/etc/dictacode/audio/` directory structure
-- [ ] Implement `generic.conf` baseline profile
-- [ ] Implement `rode-videomic-ntg.conf` known device profile
-- [ ] Implement `audio.conf` main configuration
-- [ ] Add profile matching logic (exact → vendor → generic)
-- [ ] Update .deb packaging to install conffiles
+- [x] Create `/etc/dictacode/audio/` directory structure
+- [x] Implement `generic.conf` baseline profile
+- [x] Implement `rode-videomic-ntg.conf` known device profile
+- [x] Implement `audio.conf` main configuration
+- [x] Add profile matching logic (exact → vendor → generic)
+- [ ] Update .deb packaging to install conffiles (deferred)
+
+**Phase 5 COMPLETED** - Commit: 014ea65 (packaging deferred)
 
 ### Phase 6: Backend API (for web)
 - [ ] Add `/api/audio/ports` endpoint (preparation for v0.3.0)
@@ -51,8 +53,8 @@
 - [ ] Document API schema
 
 **v0.2.4 STATUS**:
-- Phase 1-4: COMPLETED
-- Phase 5-6: NOT STARTED (optional - configuration and API)
+- Phase 1-5: COMPLETED
+- Phase 6: NOT STARTED (optional - backend API for web console)
 
 ---
 
