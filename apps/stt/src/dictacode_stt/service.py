@@ -43,6 +43,10 @@ from dictacode_stt.audio import (
     AudioRingBuffer,
     Resampler,
 )
+from dictacode_stt.transcription import (
+    TranscriptionAdapter,
+    get_transcriber,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,8 @@ class SttService:
         uart_device: str = "/dev/serial0",
         baud_rate: int = 115200,
         protocol_name: str = "json",
+        transcriber: Optional[TranscriptionAdapter] = None,
+        transcriber_name: str = "whisper",
         whisper_binary: Optional[Path] = None,
         whisper_model: Optional[Path] = None,
         device_index: int = 0,
@@ -87,8 +93,10 @@ class SttService:
             uart_device: UART device path
             baud_rate: UART baud rate
             protocol_name: Protocol to use (json or msgpack)
-            whisper_binary: Path to whisper-cli (default: ~/whisper.cpp/build/bin/whisper-cli)
-            whisper_model: Path to whisper model (default: ~/whisper.cpp/models/ggml-tiny.bin)
+            transcriber: Transcription adapter instance (v0.2.6, default: None = auto-create)
+            transcriber_name: Transcriber name for factory (default: "whisper")
+            whisper_binary: Path to whisper-cli (for backward compatibility, used if transcriber=None)
+            whisper_model: Path to whisper model (for backward compatibility, used if transcriber=None)
             device_index: Audio device index
             native_sample_rate: Microphone native sample rate
             native_channels: Microphone channels
@@ -119,7 +127,7 @@ class SttService:
         self.handshake_timeout = handshake_timeout
         self._shutdown = False
 
-        # Whisper paths
+        # Whisper paths (kept for backward compatibility)
         if whisper_binary is None:
             whisper_binary = Path.home() / "whisper.cpp/build/bin/whisper-cli"
         if whisper_model is None:
@@ -127,6 +135,25 @@ class SttService:
 
         self.whisper_binary = whisper_binary
         self.whisper_model = whisper_model
+
+        # v0.2.6: Transcription adapter (strategy pattern)
+        if transcriber is None:
+            # Auto-create transcriber using factory
+            transcriber = get_transcriber(
+                transcriber_name,
+                binary_path=whisper_binary,
+                model_path=whisper_model,
+            )
+        self.transcriber = transcriber
+
+        # Get audio requirements from transcriber
+        audio_reqs = self.transcriber.get_audio_requirements()
+        # Override whisper_sample_rate with transcriber requirements
+        self.whisper_sample_rate = audio_reqs.sample_rate
+        logger.info(
+            f"Using transcriber: {self.transcriber.get_name()} "
+            f"(requires {audio_reqs.sample_rate}Hz, {audio_reqs.channels}ch)"
+        )
 
         # Initialize layers
         self.protocol: ProtocolAdapter = get_protocol(protocol_name)
@@ -513,7 +540,7 @@ class SttService:
 
     def transcribe(self, wav_path: str) -> str:
         """
-        Transcribe WAV file using whisper-cli.
+        Transcribe WAV file using configured transcription adapter.
 
         Args:
             wav_path: Path to WAV file
@@ -521,58 +548,20 @@ class SttService:
         Returns:
             Transcribed text (empty string on failure)
         """
-        cmd = [
-            str(self.whisper_binary),
-            "-m", str(self.whisper_model),
-            "-f", wav_path,
-            "--language", self.language,
-            "--no-timestamps",
-        ]
-
         logger.info("Transcribing...")
         start = time.perf_counter()
 
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-        except subprocess.TimeoutExpired:
-            logger.error("Transcription timed out")
-            return ""
-        except Exception as e:
-            logger.error(f"Transcription failed: {e}")
-            return ""
+        # Use transcription adapter (v0.2.6)
+        result = self.transcriber.transcribe(Path(wav_path), language=self.language)
 
         elapsed = time.perf_counter() - start
         logger.info(f"Transcribed in {elapsed:.2f}s")
 
-        if result.returncode != 0:
-            logger.error(f"Whisper failed: {result.stderr}")
+        if not result.success:
+            logger.error(f"Transcription failed: {result.error}")
             return ""
 
-        # Parse output
-        lines = result.stdout.strip().split("\n")
-        text_parts = []
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Remove timestamp brackets if present
-            if line.startswith("["):
-                bracket_end = line.find("]")
-                if bracket_end != -1:
-                    text = line[bracket_end + 1:].strip()
-                    if text:
-                        text_parts.append(text)
-            else:
-                text_parts.append(line)
-
-        return " ".join(text_parts)
+        return result.text
 
     def send_text(self, text: str) -> bool:
         """
