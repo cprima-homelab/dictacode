@@ -222,6 +222,37 @@ Examples:
             "Examples: file:path/to/audio.wav:fast, synthetic:silence:1000"
         ),
     )
+    # LLM post-processing (v0.3.1)
+    parser.add_argument(
+        "--llm",
+        action="store_true",
+        help="Enable LLM post-processing (v0.3.1, default: disabled)",
+    )
+    parser.add_argument(
+        "--llm-provider",
+        type=str,
+        choices=["ollama", "openai", "openrouter"],
+        default=None,
+        help="LLM provider (v0.3.1, default: ollama from config)",
+    )
+    parser.add_argument(
+        "--llm-model",
+        type=str,
+        default=None,
+        help="LLM model identifier (v0.3.1, default: llama3.2 from config)",
+    )
+    parser.add_argument(
+        "--llm-profile",
+        type=str,
+        choices=["grammar", "punctuation", "formal", "casual", "code", "passthrough"],
+        default=None,
+        help="Processing profile (v0.3.1, default: passthrough from config)",
+    )
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Disable LLM post-processing (v0.3.1, overrides config)",
+    )
 
     args = parser.parse_args()
 
@@ -329,6 +360,43 @@ Examples:
             logger.error(f"Failed to create audio source '{args.audio_source}': {e}")
             return 1
 
+    # v0.3.1: LLM post-processing configuration
+    # Precedence: CLI (--no-llm, --llm) > CLI params > config > defaults
+    llm_enabled = False
+    llm_provider = "ollama"
+    llm_model = "llama3.2"
+    llm_profile = "passthrough"
+    llm_fallback = True
+    llm_base_url = None
+    llm_api_key = None
+
+    if args.no_llm:
+        # Explicit disable via CLI
+        llm_enabled = False
+    elif args.llm:
+        # Explicit enable via CLI
+        llm_enabled = True
+        llm_provider = args.llm_provider or (
+            config.llm_provider if config else "ollama"
+        )
+        llm_model = args.llm_model or (config.llm_model if config else "llama3.2")
+        llm_profile = args.llm_profile or (
+            config.llm_profile if config else "passthrough"
+        )
+        if config:
+            llm_fallback = config.llm_fallback
+            llm_base_url = config.llm_base_url
+            llm_api_key = config.llm_api_key
+    elif config:
+        # Use config file settings
+        llm_enabled = config.llm_enabled
+        llm_provider = args.llm_provider or config.llm_provider
+        llm_model = args.llm_model or config.llm_model
+        llm_profile = args.llm_profile or config.llm_profile
+        llm_fallback = config.llm_fallback
+        llm_base_url = config.llm_base_url
+        llm_api_key = config.llm_api_key
+
     logger.info("=" * 60)
     logger.info("dictacode STT Service starting...")
     logger.info(f"UART: {args.uart} @ {args.baud}")
@@ -342,6 +410,12 @@ Examples:
     logger.info(f"Language: {args.language}")
     if args.streaming:
         logger.info("Streaming mode: ENABLED (real-time transcription)")
+    if llm_enabled:
+        logger.info(
+            f"LLM post-processing: ENABLED ({llm_provider}/{llm_model} + {llm_profile})"
+        )
+    else:
+        logger.info("LLM post-processing: DISABLED")
     if args.dry_run:
         logger.info("DRY RUN - UART output disabled")
     if args.once:
@@ -383,6 +457,13 @@ Examples:
             transport_type=args.transport,  # v0.2.8
             hid_device_id=args.hid_device,  # v0.2.8
             audio_source=audio_source,  # v0.2.11
+            llm_enabled=llm_enabled,  # v0.3.1
+            llm_provider=llm_provider,  # v0.3.1
+            llm_model=llm_model,  # v0.3.1
+            llm_profile=llm_profile,  # v0.3.1
+            llm_fallback=llm_fallback,  # v0.3.1
+            llm_base_url=llm_base_url,  # v0.3.1
+            llm_api_key=llm_api_key,  # v0.3.1
         )
     except Exception as e:
         logger.error(f"Failed to initialize service: {e}", exc_info=True)
