@@ -23,6 +23,13 @@
   },
   "compatibility": [
     {
+      "stt": "0.3.9",
+      "hid": ["0.3.9", "0.3.0", "0.2.12"],
+      "protocol": "1.0.0",
+      "status": "pass",
+      "notes": "v0.3.9 STT (Live Status) compatible with v0.3.9/v0.3.0/v0.2.12 HID"
+    },
+    {
       "stt": "0.3.0",
       "hid": ["0.3.0"],
       "protocol": "1.0.0",
