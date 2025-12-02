@@ -70,3 +70,21 @@ class TranscriptionAdapter(ABC):
     def supports_streaming(self) -> bool:
         """Return True if engine supports streaming transcription."""
         return False  # Default: no streaming
+
+    # v0.3.13: Live status for DiagnosticsAggregator
+    def status(self) -> dict:
+        """Return live status for diagnostics aggregator.
+
+        Subclasses may override to add backend-specific fields.
+        Timestamps/counters are set externally by service.py.
+
+        Returns:
+            Dict with backend, available, last_asr_ts, and counters.
+        """
+        return {
+            "backend": self.get_name(),
+            "available": self.is_available() if hasattr(self, "is_available") else True,
+            "last_asr_ts": getattr(self, "_last_asr_ts", None),
+            "asr_success_total": getattr(self, "_asr_success_total", 0),
+            "asr_error_total": getattr(self, "_asr_error_total", 0),
+        }

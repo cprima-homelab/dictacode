@@ -153,6 +153,25 @@ class TransportAdapter(ABC):
         """
         pass
 
+    # v0.3.13: Live status for DiagnosticsAggregator
+    def status(self) -> dict:
+        """Return live status for diagnostics aggregator.
+
+        Subclasses may override to add transport-specific fields.
+        Timestamps/counters are set externally by service.py.
+
+        Returns:
+            Dict with type, connected, connection_status, last_send_ts, and counters.
+        """
+        return {
+            "type": self.get_name(),
+            "connected": self.is_connected(),
+            "connection_status": self.get_status().value,
+            "last_send_ts": getattr(self, "_last_send_ts", None),
+            "send_success_total": getattr(self, "_send_success_total", 0),
+            "send_error_total": getattr(self, "_send_error_total", 0),
+        }
+
     # Context manager support
     def __enter__(self):
         """Context manager entry - establish connection."""

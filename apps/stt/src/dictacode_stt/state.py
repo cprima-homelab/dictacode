@@ -147,6 +147,24 @@ class SttState:
         """Get state transition history as serializable list."""
         return [t.to_dict() for t in self._history]
 
+    # v0.3.13: Live status for DiagnosticsAggregator
+    def status(self) -> dict:
+        """Return live status for diagnostics aggregator.
+
+        Returns:
+            Dict with state, failure_reason, history_count, last_transition,
+            model, language, and hid_keymap.
+        """
+        return {
+            "state": self.state.value,
+            "failure_reason": self.failure_reason,
+            "history_count": len(self._history),
+            "last_transition": self._history[-1].to_dict() if self._history else None,
+            "model": self.model,
+            "language": self.language,
+            "hid_keymap": self.hid_keymap,
+        }
+
     # Behavior predicates
     def should_transcribe(self) -> bool:
         """Return True if device should transcribe audio."""
