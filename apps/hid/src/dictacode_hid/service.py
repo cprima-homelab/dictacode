@@ -33,7 +33,6 @@ from dictacode_hid.protocol import (
     ProbeMessage,
     ProtocolAdapter,
     TextMessage,
-    detect_protocol,
     get_protocol,
 )
 from dictacode_hid.state import DeviceMode, HidState
@@ -215,17 +214,11 @@ class HidService:
                 try:
                     msg = self.protocol.decode(raw_data)
                 except Exception as e:
-                    # Try auto-detection on decode failure
-                    detected = detect_protocol(
-                        raw_data
-                        if self.protocol_name == "json"
-                        else length_bytes + raw_data
+                    # TODO: Implement protocol auto-detection
+                    logger.error(
+                        f"Decode error with {self.protocol_name} protocol: {e}",
+                        exc_info=True,
                     )
-                    if detected != self.protocol_name:
-                        logger.warning(
-                            f"Protocol mismatch? detected={detected}, expected={self.protocol_name}"
-                        )
-                    logger.error(f"Decode error: {e}")
                     continue
 
                 # Handle message
