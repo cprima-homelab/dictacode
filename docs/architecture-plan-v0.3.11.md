@@ -5,6 +5,7 @@
 - [x] Update validation to parse multiple entries from one token.
 - [x] Expose all badges via API/CLI (read-only) and POST save endpoint.
 - [x] Preserve existing single-badge behavior for compatibility.
+- [x] Control panel badge display (Phase 3 UI integration).
 - [ ] Tests for multi-badge parsing, validation, and API/CLI responses.
 
 ### Implementation Notes (Completed)
