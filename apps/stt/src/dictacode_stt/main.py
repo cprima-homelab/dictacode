@@ -490,15 +490,27 @@ Examples:
 
     # v0.3.7: Start diagnostics IPC server
     # v0.3.5: Added state providers for state.get/state.history IPC methods
+    # v0.3.13: Added DiagnosticsAggregator for live status
     ipc_server = None
+    aggregator = None
     try:
         from dictacode_stt.diagnostics.ipc import DiagnosticsIpcServer
+        from dictacode_stt.diagnostics.aggregator import DiagnosticsAggregator
 
         ipc_server = DiagnosticsIpcServer(
             service.diagnostics,
             state_provider=lambda: service.state.to_dict(),
             history_provider=lambda: service.state.get_history(),
         )
+
+        # v0.3.13: Create and wire DiagnosticsAggregator
+        aggregator = DiagnosticsAggregator(
+            state=service.state,
+            service=service,
+            ipc_server=ipc_server,
+        )
+        ipc_server.set_aggregator(aggregator)
+
         if ipc_server.start():
             logger.info(f"Diagnostics IPC available at {ipc_server.socket_path}")
         else:
