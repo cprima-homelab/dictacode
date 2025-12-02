@@ -873,6 +873,7 @@ def create_api_app(config_dir: Optional[str] = None) -> FastAPI:
     app.include_router(api_router)
     app.include_router(health.router, prefix="/v1")
     app.include_router(diagnostics_routes.router, prefix="/v1")
+    app.include_router(diagnostics_routes.status_router, prefix="/v1")  # v0.3.13: Live status
 
     # v0.3.9: Route validation - API only, no CP routes
     @app.on_event("startup")

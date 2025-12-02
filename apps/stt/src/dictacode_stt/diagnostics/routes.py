@@ -348,3 +348,43 @@ async def get_history():
     # Fallback: local service has no shared history
     service = get_diagnostics_service()
     return {"history": service.get_history()}
+
+
+# v0.3.13: Live status endpoint
+# Note: Using a separate router with /api/status prefix for cleaner API
+status_router = APIRouter(prefix="/api/status", tags=["status"])
+
+
+@status_router.get("/live")
+async def get_live_status():
+    """Get live aggregated status from all components (v0.3.13).
+
+    Queries running service via IPC to get real-time status from the
+    DiagnosticsAggregator, including flow staleness detection.
+
+    Returns:
+        Live status dict with:
+        - timestamp: Current time
+        - components: Dict of component statuses (state, audio, asr, transport, ipc)
+        - flow: Staleness flags (audio_fresh, asr_fresh, send_fresh, etc.)
+
+    Example:
+        >>> curl http://localhost:8000/v1/api/status/live
+    """
+    try:
+        # Try IPC first - live status only meaningful from running service
+        ipc_result = _try_ipc_call("status.live")
+        if ipc_result is not None:
+            return ipc_result
+
+        # No fallback: live status requires running service
+        raise HTTPException(
+            status_code=503,
+            detail="Live status unavailable - service not running or IPC unreachable"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get live status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get live status: {e!s}") from e
