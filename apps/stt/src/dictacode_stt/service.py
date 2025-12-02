@@ -307,6 +307,14 @@ class SttService:
         self._audio_stream_active = False
         self._last_transcription: str = ""  # For overlap deduplication
 
+        # v0.3.13: Audio status tracking for DiagnosticsAggregator
+        self._audio_status: Dict[str, any] = {
+            "active_port": None,
+            "mic_present": False,
+            "last_audio_ts": None,
+            "audio_chunks_total": 0,
+        }
+
         # Initialize audio port from device index (skip if using audio source)
         if not self._source_mode:
             try:
@@ -476,6 +484,11 @@ class SttService:
             )
             return
 
+        # v0.3.13: Update audio timestamps/counters for live status
+        self._audio_status["last_audio_ts"] = time.time()
+        self._audio_status["audio_chunks_total"] += 1
+        self._audio_status["mic_present"] = True
+
         try:
             # Resample from native rate to target rate (16kHz)
             resampled = self.resampler.process(
@@ -589,6 +602,11 @@ class SttService:
                 chunk_size=1024,
             )
             self._audio_stream_active = True
+
+            # v0.3.13: Update audio status with active port
+            self._audio_status["active_port"] = self.audio_port.port_id
+            self._audio_status["mic_present"] = True
+
             logger.info(
                 f"Audio stream started: {self.audio_port.port_id} "
                 f"@ {self.audio_port.capabilities.native_rate}Hz"
@@ -1025,6 +1043,17 @@ class SttService:
         # Use transcription adapter (v0.2.6)
         result = self.transcriber.transcribe(Path(wav_path), language=self.language)
 
+        # v0.3.13: Update ASR timestamps/counters for live status
+        self.transcriber._last_asr_ts = time.time()
+        if result.success:
+            self.transcriber._asr_success_total = (
+                getattr(self.transcriber, "_asr_success_total", 0) + 1
+            )
+        else:
+            self.transcriber._asr_error_total = (
+                getattr(self.transcriber, "_asr_error_total", 0) + 1
+            )
+
         elapsed = time.perf_counter() - start
         logger.info(f"Transcribed in {elapsed:.2f}s")
 
@@ -1086,6 +1115,14 @@ class SttService:
         try:
             self.transport.send(encoded)
             logger.info(f"Sent {len(encoded)} bytes: {text}")
+
+            # v0.3.13: Update transport timestamps/counters for live status
+            if self.transport:
+                self.transport._last_send_ts = time.time()
+                self.transport._send_success_total = (
+                    getattr(self.transport, "_send_success_total", 0) + 1
+                )
+
             # Supervisor: mark activity on successful send
             if self.supervisor_enabled:
                 self.supervisor.mark_activity()
@@ -1096,6 +1133,13 @@ class SttService:
             return True
         except TransportError as e:
             logger.error(f"Transport send failed: {e}")
+
+            # v0.3.13: Update transport error counter for live status
+            if self.transport:
+                self.transport._send_error_total = (
+                    getattr(self.transport, "_send_error_total", 0) + 1
+                )
+
             if self.supervisor_enabled:
                 self.supervisor._mark_unhealthy()
             return False
@@ -1207,6 +1251,14 @@ class SttService:
             Current state value (e.g., 'listening', 'paused', 'degraded')
         """
         return self.state.state.value
+
+    def audio_status(self) -> dict:
+        """Return live audio status for DiagnosticsAggregator (v0.3.13).
+
+        Returns:
+            Dict with active_port, mic_present, last_audio_ts, audio_chunks_total
+        """
+        return self._audio_status.copy()
 
     def _reconnect(self) -> bool:
         """
