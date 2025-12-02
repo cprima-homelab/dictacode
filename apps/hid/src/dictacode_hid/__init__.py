@@ -11,9 +11,7 @@ from dictacode_hid.protocol import (
     ProbeMessage,
     ProtocolAdapter,
     TextMessage,
-    detect_protocol,
     get_protocol,
-    try_decode,
 )
 from dictacode_hid.service import (
     HidService,
@@ -43,8 +41,6 @@ __all__ = [
     "JsonProtocol",
     "MsgpackProtocol",
     "get_protocol",
-    "detect_protocol",
-    "try_decode",
     # State
     "DeviceMode",
     "HidState",
