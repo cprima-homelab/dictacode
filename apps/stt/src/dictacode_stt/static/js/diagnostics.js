@@ -20,8 +20,8 @@
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">Running diagnostics...</td></tr>';
 
         try {
-            // Fetch all diagnostic checks
-            const response = await fetch('/api/diagnostics');
+            // v0.3.4: API versioning - fetch diagnostics from /v1
+            const response = await fetch('/v1/api/diagnostics');
             const data = await response.json();
 
             diagnosticsData = data;

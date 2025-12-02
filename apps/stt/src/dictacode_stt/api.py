@@ -1,4 +1,4 @@
-"""FastAPI server for audio port management (v0.2.4 Phase 6)."""
+"""FastAPI server for audio port management (v0.3.4 API versioning)."""
 
 import asyncio
 import logging
@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from dictacode_stt.audio import AudioPort, AudioPortManager
 from dictacode_stt.paths import AUDIO_CONFIG_DIR
@@ -109,8 +110,18 @@ def register_service(service: any) -> None:
         logger.info("WebSocket manager wired to STT service")
 
 
-# Create APIRouter for all routes (v0.3.0: proper FastAPI pattern)
-router = APIRouter()
+# v0.3.4: Versioned API router - all routes under /v1 prefix
+router = APIRouter(prefix="/v1")
+
+
+class VersionHeaderMiddleware(BaseHTTPMiddleware):
+    """v0.3.4: Add X-Dictacode-API-Version header to all /v1 responses."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/v1"):
+            response.headers["X-Dictacode-API-Version"] = "v1"
+        return response
 
 
 def create_app(config_dir: Optional[str] = None) -> FastAPI:
@@ -127,11 +138,18 @@ def create_app(config_dir: Optional[str] = None) -> FastAPI:
     # Use paths.py constant if not explicitly provided
     effective_config_dir = config_dir or str(AUDIO_CONFIG_DIR)
 
+    # v0.3.4: API versioning - docs under /v1
     app = FastAPI(
-        title="dictacode STT Audio API",
-        description="REST API for audio port management (v0.2.4)",
-        version="0.2.4",
+        title="dictacode STT API",
+        description="REST API for speech-to-text service (v0.3.4)",
+        version="0.3.4",
+        docs_url="/v1/docs",
+        redoc_url=None,
+        openapi_url="/v1/openapi.json",
     )
+
+    # v0.3.4: Add version header middleware
+    app.add_middleware(VersionHeaderMiddleware)
 
     # CORS for web console
     app.add_middleware(
@@ -161,12 +179,33 @@ def create_app(config_dir: Optional[str] = None) -> FastAPI:
         templates = Jinja2Templates(directory=str(templates_dir))
         logger.info(f"Jinja2 templates configured from {templates_dir}")
 
-    # Include routers (v0.3.0: use module-level router)
+    # v0.3.4: Include all routers under /v1 prefix
     from dictacode_stt import diagnostics_api, health
 
+    # Include health and diagnostics into the v1 router
+    router.include_router(health.router)
+    router.include_router(diagnostics_api.router)
+
+    # Include the v1 router in the app
     app.include_router(router)
-    app.include_router(health.router)
-    app.include_router(diagnostics_api.router)
+
+    # v0.3.4: Startup route validation guard
+    @app.on_event("startup")
+    async def validate_routes():
+        """Assert all routes are versioned (except static mounts)."""
+        for route in app.routes:
+            if hasattr(route, "path"):
+                path = route.path
+                # Allow: /v1/*, /static/*, /docs paths, / (root)
+                if (
+                    path.startswith("/v1")
+                    or path.startswith("/static")
+                    or path == "/"
+                ):
+                    continue
+                # Fail loudly if unversioned route detected
+                raise RuntimeError(f"Unversioned route detected: {path}")
+        logger.info("v0.3.4: Route validation passed - all routes under /v1")
 
     return app
 

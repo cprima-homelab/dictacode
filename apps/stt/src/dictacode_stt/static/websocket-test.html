@@ -158,7 +158,8 @@
         let messageCount = 0;
         let connectedAt = null;
         let uptimeInterval = null;
-        const wsUrl = `ws://${window.location.hostname}:8000/api/ws`;
+        // v0.3.4: API versioning
+        const wsUrl = `ws://${window.location.hostname}:8000/v1/api/ws`;
 
         function updateStatus(text, className) {
             const statusEl = document.getElementById('status');

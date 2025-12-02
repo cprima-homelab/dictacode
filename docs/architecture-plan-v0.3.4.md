@@ -1,11 +1,11 @@
 # dictacode Architecture Plan v0.3.4 — API Versioning to /v1
 
 ## Status
-- [ ] Add versioned router `/v1` for all public STT endpoints (REST, WS, docs, CP) and remove unversioned endpoints.
-- [ ] Emit response header `X-Dictacode-API-Version: v1`.
-- [ ] Update OpenAPI/docs to live under `/v1`.
-- [ ] Align any HID HTTP/WS endpoints if present (confirm exposure).
-- [ ] Add runtime and CI guards to prevent regression to unversioned routes.
+- [x] Add versioned router `/v1` for all public STT endpoints (REST, WS, docs, CP) and remove unversioned endpoints.
+- [x] Emit response header `X-Dictacode-API-Version: v1`.
+- [x] Update OpenAPI/docs to live under `/v1`.
+- [x] Align any HID HTTP/WS endpoints if present (confirm exposure). → HID has no HTTP endpoints (out of scope)
+- [x] Add runtime and CI guards to prevent regression to unversioned routes.
 
 **v0.3.4 goal:** ship `/v1`-only surface with strong safeguards; no backward compatibility required.
 

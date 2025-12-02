@@ -14,7 +14,8 @@
     let connectedAt = null;
     let uptimeInterval = null;
 
-    const wsUrl = `ws://${window.location.host}/api/ws`;
+    // v0.3.4: API versioning - all endpoints under /v1
+    const wsUrl = `ws://${window.location.host}/v1/api/ws`;
 
     /**
      * Update service status badge
@@ -184,7 +185,8 @@
         if (!btn) return;
 
         const isPaused = btn.textContent.includes('Resume');
-        const endpoint = isPaused ? '/api/service/resume' : '/api/service/pause';
+        // v0.3.4: API versioning
+        const endpoint = isPaused ? '/v1/api/service/resume' : '/v1/api/service/pause';
 
         btn.disabled = true;
         const originalText = btn.textContent;

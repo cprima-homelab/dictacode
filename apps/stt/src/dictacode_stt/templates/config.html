@@ -5,7 +5,8 @@
 {% block breadcrumb %}Configuration{% endblock %}
 
 {% block content %}
-<form class="form-row" method="post" action="/api/config" id="config-form">
+<!-- v0.3.4: API versioning -->
+<form class="form-row" method="post" action="/v1/api/config" id="config-form">
     <label>Audio Port
         <select name="audio_port" id="audio-port-select">
             <option value="">Loading...</option>

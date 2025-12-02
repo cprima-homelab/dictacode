@@ -13,8 +13,8 @@
      */
     async function loadConfig() {
         try {
-            // Load audio ports
-            const portsResponse = await fetch('/api/audio/ports');
+            // v0.3.4: API versioning - load audio ports from /v1
+            const portsResponse = await fetch('/v1/api/audio/ports');
             const portsData = await portsResponse.json();
 
             const select = document.getElementById('audio-port-select');
