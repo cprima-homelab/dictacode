@@ -1,11 +1,17 @@
 # dictacode Architecture Plan v0.3.11 — Multi-Badge License Tokens
 
 ## Status / ToDo
-- [ ] Support license tokens containing multiple badges/tiers.
-- [ ] Update validation to parse multiple entries from one token.
-- [ ] Expose all badges via API/CLI (read-only) and POST save endpoint.
-- [ ] Preserve existing single-badge behavior for compatibility.
+- [x] Support license tokens containing multiple badges/tiers.
+- [x] Update validation to parse multiple entries from one token.
+- [x] Expose all badges via API/CLI (read-only) and POST save endpoint.
+- [x] Preserve existing single-badge behavior for compatibility.
 - [ ] Tests for multi-badge parsing, validation, and API/CLI responses.
+
+### Implementation Notes (Completed)
+- **Badge dataclass**: Added `Badge` dataclass for individual badges with `kid, tier, name, issued_at`.
+- **BadgeState**: Updated to hold `List[Badge]` with backward-compat properties (`tier`, `badge`, `name`, `issued_at`).
+- **API response**: `to_dict()` returns both v0.3.11 fields (`badges`, `tiers`, `primary`, `token_present`) and v0.3.3 compat fields.
+- **CLI**: `show` command displays all badges; `save` validates and shows badge count.
 
 ---
 

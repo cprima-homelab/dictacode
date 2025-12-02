@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI tool for managing dictacode license tokens.
+"""CLI tool for managing dictacode license tokens (v0.3.11 multi-badge support).
 
 Usage:
     dictacode-license save <token>           # Save to user config
@@ -65,10 +65,13 @@ def cmd_save(token: str, system: bool) -> int:
         from dictacode_stt.license import load_badge_state
 
         state = load_badge_state(token)
-        if state.tier == "free":
-            print("Warning: Token validation failed. Check the token format.")
+
+        if state.badges:
+            print(f"Validated: {len(state.badges)} badge(s)")
+            for badge in state.badges:
+                print(f"  - {badge.tier}: {badge.name or '(unnamed)'}")
         else:
-            print(f"Validated: tier={state.tier}, name={state.name}")
+            print("Warning: No valid badges in token. Check token format.")
 
         return 0
 
@@ -83,7 +86,7 @@ def cmd_save(token: str, system: bool) -> int:
 
 
 def cmd_show() -> int:
-    """Show current license status."""
+    """Show current license status (v0.3.11 multi-badge support)."""
     from dictacode_stt.license import LICENSE_PATHS, load_badge_state
 
     # Find which file is being used
@@ -95,11 +98,27 @@ def cmd_show() -> int:
 
     state = load_badge_state()
 
-    print(f"Tier:      {state.tier}")
-    print(f"Badge:     {state.badge or '(none)'}")
-    print(f"Name:      {state.name or '(none)'}")
-    print(f"Issued:    {state.issued_at or '(none)'}")
-    print(f"File:      {active_path or '(not found)'}")
+    if not state.token_present:
+        print("No license token found")
+        print(f"Tier:   free")
+        print(f"File:   (not found)")
+        return 0
+
+    if not state.badges:
+        print("License token present but invalid")
+        print(f"Tier:   free")
+        print(f"File:   {active_path or '(unknown)'}")
+        return 0
+
+    # Show all badges
+    print(f"Badges: {len(state.badges)}")
+    for i, badge in enumerate(state.badges, 1):
+        print(f"\n  [{i}] {badge.tier}")
+        print(f"      Name:   {badge.name or '(none)'}")
+        print(f"      Issued: {badge.issued_at or '(none)'}")
+
+    print(f"\nPrimary: {state.tier}")
+    print(f"File:    {active_path or '(unknown)'}")
 
     return 0
 
