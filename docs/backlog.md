@@ -391,4 +391,22 @@ evaluate bluetooth transport
 
 ---
 
+the diagrams in @docs/diagrams.md are horribly outdated.
+  generate 24 mermaid diagrams of your choice
 
+---
+
+ Command Detection (Stub)
+- [ ] Define `CommandDetector` interface
+- [ ] Implement wake word detection stub
+- [ ] Define `Command` types (wake, action, cancel)
+- [ ] Prepare hooks for future voice command system
+- [ ] Document extension points
+
+---
+
+  - Ownership/permissions: chmod 666 on /dev/serial0 is risky; if not reset, it masks permission problems rather than validating proper group
+    membership.
+
+
+---

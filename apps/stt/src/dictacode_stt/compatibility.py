@@ -2,22 +2,17 @@
 
 import json
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
+from dictacode_stt.paths import find_compatibility_matrix
 
-# Search paths for matrix file (in priority order)
-MATRIX_SEARCH_PATHS = [
-    Path("/opt/dictacode/shared/compatibility.json"),  # Production
-    Path(__file__).parent.parent.parent.parent
-    / "compatibility.json",  # Dev (repo root)
-    Path("/etc/dictacode/compatibility.json"),  # Alternative system location
-]
 
-# Add package-internal path (for PyPI installs) - HIGHEST PRIORITY
+# PyPI package-internal path (highest priority for pip installs)
+_PYPI_MATRIX_PATH: Optional[Path] = None
 try:
-    import sys
     from importlib import resources
 
     if sys.version_info >= (3, 9):
@@ -32,11 +27,11 @@ try:
 
         # Try package-internal first (most reliable)
         if pkg_matrix.is_file():
-            MATRIX_SEARCH_PATHS.insert(0, Path(str(pkg_matrix)))
+            _PYPI_MATRIX_PATH = Path(str(pkg_matrix))
         elif shared_data_path.exists():
-            MATRIX_SEARCH_PATHS.insert(0, shared_data_path)
+            _PYPI_MATRIX_PATH = shared_data_path
 except (ImportError, AttributeError, TypeError):
-    pass  # Fall back to other paths
+    pass  # Fall back to paths.py search
 
 
 @dataclass
@@ -63,21 +58,35 @@ class CompatibilityMatrix:
         self._load_matrix()
 
     def _find_matrix_file(self) -> Path:
-        """Find matrix file in search paths. HARD-FAIL if not found."""
-        for path in MATRIX_SEARCH_PATHS:
-            if path.exists():
-                self.logger.info(f"Found compatibility matrix: {path}")
-                return path
+        """Find matrix file using authoritative search order. HARD-FAIL if not found.
 
-        # HARD FAIL - no fallback
-        error_msg = (
-            "FATAL: Compatibility matrix file not found!\n"
-            "Searched paths:\n"
-            + "\n".join(f"  - {p}" for p in MATRIX_SEARCH_PATHS)
-            + "\n\nThis file is REQUIRED for operation. Cannot continue."
-        )
-        self.logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+        Search order:
+        1. PyPI package-internal path (if installed via pip)
+        2. Explicit override (from config)
+        3. DICTACODE_COMPATIBILITY_MATRIX env var
+        4. /opt/dictacode/shared/compatibility.json (package install)
+        5. /etc/dictacode/compatibility.json (legacy/manual)
+        6. {repo}/compatibility.json (development)
+        """
+        # PyPI package-internal path has highest priority
+        if _PYPI_MATRIX_PATH and _PYPI_MATRIX_PATH.exists():
+            self.logger.info(f"Found compatibility matrix (PyPI): {_PYPI_MATRIX_PATH}")
+            return _PYPI_MATRIX_PATH
+
+        # Fall through to shared search function
+        try:
+            matrix_path = find_compatibility_matrix()
+            self.logger.info(f"Found compatibility matrix: {matrix_path}")
+            return matrix_path
+        except FileNotFoundError as e:
+            # HARD FAIL - no fallback
+            error_msg = (
+                "FATAL: Compatibility matrix file not found!\n"
+                + str(e)
+                + "\n\nThis file is REQUIRED for operation. Cannot continue."
+            )
+            self.logger.error(error_msg)
+            raise FileNotFoundError(error_msg) from e
 
     def _load_matrix(self):
         """Load matrix from JSON file."""

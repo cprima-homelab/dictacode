@@ -1,12 +1,13 @@
 """Base keymap class and utilities."""
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict, Optional
 
+from dictacode_hid.paths import KEYMAP_CONFIG
 
-# Config file location
-CONFIG_FILE = Path("/etc/dictacode/keymap.conf")
+
+# Config file location (uses paths.py constant)
+CONFIG_FILE = KEYMAP_CONFIG
 DEFAULT_KEYMAP = "en_us"
 
 

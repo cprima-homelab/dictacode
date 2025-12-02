@@ -11,7 +11,7 @@
 
 ### Phase 2: LLM Implementations
 - [x] Implement `OllamaAdapter` (local Llama)
-- [x] Implement `OpenAiAdapter` (OpenAI API)
+- [x] Implement `O2penAiAdapter` (OpenAI API)
 - [x] Implement `OpenRouterAdapter` (OpenRouter)
 - [x] Factory function `create_llm_adapter(config)`
 - [ ] Unit tests with mock responses
@@ -31,11 +31,7 @@
 - [x] Error handling (fallback to raw text)
 
 ### Phase 5: Command Detection (Stub)
-- [ ] Define `CommandDetector` interface
-- [ ] Implement wake word detection stub
-- [ ] Define `Command` types (wake, action, cancel)
-- [ ] Prepare hooks for future voice command system
-- [ ] Document extension points
+deferred to backlog
 
 ### Phase 6: CLI & Config Integration
 - [ ] Add `--llm` flag for LLM selection

@@ -11,25 +11,17 @@
 
 ---
 
-## ⚠️ IMPORTANT: Package Management
+## ⚠️ IMPORTANT: Deployment Method
 
-**ALWAYS use `uv` for Python package management, never `pip` or `pip3`**
+**ALL testing uses Debian packages (.deb) - no direct code deployment**
 
-On the Raspberry Pi devices, `uv` must be called with its **absolute path** from the home directory:
+This ensures:
+- Configuration files come from canonical templates (`ops/packaging/templates/`)
+- System files are properly installed and validated
+- Checksums are verified during build
+- Consistent deployment across environments
 
-```bash
-# ✅ CORRECT - Use absolute path on devices
-ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv pip install -e ."
-ssh dictacode-hid "cd ~/dictacode/apps/hid && ~/.local/bin/uv pip install -e ."
-
-# ❌ WRONG - Don't use pip/pip3
-ssh dictacode-stt "pip3 install -e ."  # NEVER DO THIS
-
-# ❌ WRONG - Don't use bare uv (not in PATH on devices)
-ssh dictacode-stt "uv pip install -e ."  # WILL FAIL
-```
-
-**Local development:**
+**Local development with `uv`:**
 ```bash
 # On your local machine, uv should be in PATH
 cd apps/stt
@@ -38,62 +30,30 @@ uv run pytest tests/
 
 ---
 
-## Development Testing Workflows
+## Deployment Workflow (Debian Packages)
 
-### Quick Development (Code Changes Only)
-
-**Use when:** Only Python code in `~/dictacode` changed (no system files)
+**Use for ALL changes** - code, config, or system files.
 
 ```bash
 # 1. Local testing first (MANDATORY)
 cd apps/stt
 uv run pytest tests/
 
-# 2. Push to GitHub
-git add .
-git commit -m "Your changes"
-git push origin exploration
-
-# 3. Pull on devices
-ssh dictacode-stt "cd ~/dictacode && git pull"
-ssh dictacode-hid "cd ~/dictacode && git pull"
-
-# 4. Restart services (uses code from ~/dictacode)
-ssh dictacode-stt "sudo systemctl restart dictacode-stt"
-ssh dictacode-hid "sudo systemctl restart dictacode-hid"
-
-# 5. Check logs
-ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager"
-ssh dictacode-hid "sudo journalctl -u dictacode-hid -n 50 --no-pager"
-```
-
----
-
-### System Changes (Debian Package Deployment)
-
-**MANDATORY when:** Changes to files outside `~/dictacode`:
-- systemd service files (`*.service`)
-- Configuration files (`/etc/dictacode/*`)
-- System scripts (`/usr/bin/*`, `/opt/dictacode/*`)
-- Boot configuration (`/boot/*`)
-
-```bash
-# 1. Local testing first (MANDATORY)
-cd apps/stt
-uv run pytest tests/
-
-# 2. Update package version in control files
-# Edit: ops/packaging/debian/dictacode-stt/DEBIAN/control
-# Edit: ops/packaging/debian/dictacode-hid/DEBIAN/control
-
-# 3. Build packages locally
+# 2. Build packages locally
 cd ops/packaging
+./build-deb.sh                    # Build all packages
+# Or build specific:
 ./build-deb.sh dictacode-stt
 ./build-deb.sh dictacode-hid
 
+# 3. Validate artifacts (optional but recommended)
+./validate-artifacts.sh
+
 # 4. Copy to devices (use -O for legacy SCP)
-scp -O dist/dictacode-stt_*.deb dictacode-stt:/tmp/
-scp -O dist/dictacode-hid_*.deb dictacode-hid:/tmp/
+scp -O dist/dictacode-core.deb dictacode-stt:/tmp/
+scp -O dist/dictacode-stt.deb dictacode-stt:/tmp/
+scp -O dist/dictacode-core.deb dictacode-hid:/tmp/
+scp -O dist/dictacode-hid.deb dictacode-hid:/tmp/
 
 # 5. Install on devices (use apt install to auto-resolve dependencies)
 ssh dictacode-stt "sudo apt install -y /tmp/dictacode-core.deb /tmp/dictacode-stt.deb"
@@ -107,6 +67,23 @@ ssh dictacode-hid "sudo systemctl daemon-reload && sudo systemctl restart dictac
 ssh dictacode-stt "systemctl status dictacode-stt --no-pager"
 ssh dictacode-hid "systemctl status dictacode-hid --no-pager"
 ```
+
+### Package Contents
+
+| Package | Contents |
+|---------|----------|
+| `dictacode-core` | `compatibility.json`, shared assets |
+| `dictacode-stt` | `stt.conf`, `stt.d/`, systemd units, audio config |
+| `dictacode-hid` | `hid.conf`, `keymap.conf`, `hid.d/`, systemd units |
+
+### Template Management (v0.3.2+)
+
+All configuration templates are sourced from `ops/packaging/templates/`:
+- `stt.conf` - STT service configuration
+- `hid.conf` - HID service configuration
+- `keymap.conf` - Keyboard mapping
+
+Build scripts validate template checksums against canonical source.
 
 ---
 
@@ -166,14 +143,20 @@ ssh dictacode-stt "sudo journalctl -u dictacode-stt -p err --no-pager -n 20"
 
 ```bash
 # Pi5 - Check whisper installation
-ssh dictacode-stt "test -f ~/dictacode/apps/stt/whisper.cpp/build/bin/whisper-cli && echo 'Whisper OK' || echo 'Whisper MISSING'"
-ssh dictacode-stt "test -f ~/dictacode/apps/stt/models/ggml-tiny.bin && echo 'Model OK' || echo 'Model MISSING'"
+ssh dictacode-stt "which whisper-cli && echo 'Whisper OK' || echo 'Whisper MISSING'"
+ssh dictacode-stt "test -f /opt/dictacode/models/ggml-tiny.bin && echo 'Model OK' || echo 'Model MISSING'"
 
-# Pi5 - Check UART
+# Pi5 - Check UART permissions
 ssh dictacode-stt "groups dictacode | grep dialout && echo 'Permissions OK' || echo 'Add to dialout group'"
+
+# Pi5 - Check package installed
+ssh dictacode-stt "dpkg -s dictacode-stt >/dev/null 2>&1 && echo 'Package OK' || echo 'Package MISSING'"
 
 # Pi0 - Check HID gadget service
 ssh dictacode-hid "systemctl is-active dictacode-hid-gadget.service"
+
+# Pi0 - Check package installed
+ssh dictacode-hid "dpkg -s dictacode-hid >/dev/null 2>&1 && echo 'Package OK' || echo 'Package MISSING'"
 ```
 
 ### Audio Testing (Pi5)
@@ -185,8 +168,8 @@ ssh dictacode-stt "arecord -l"
 # Test 5-second recording
 ssh dictacode-stt "arecord -D hw:3,0 -f S16_LE -r 16000 -d 5 /tmp/test.wav"
 
-# Test whisper transcription
-ssh dictacode-stt "~/dictacode/apps/stt/whisper.cpp/build/bin/whisper-cli -m ~/dictacode/apps/stt/models/ggml-tiny.bin /tmp/test.wav"
+# Test whisper transcription (if whisper-cli in PATH)
+ssh dictacode-stt "whisper-cli -m /opt/dictacode/models/ggml-tiny.bin /tmp/test.wav"
 ```
 
 ---
@@ -199,29 +182,29 @@ ssh dictacode-stt "~/dictacode/apps/stt/whisper.cpp/build/bin/whisper-cli -m ~/d
 # Check systemd unit file syntax
 ssh dictacode-stt "systemd-analyze verify dictacode-stt.service"
 
-# Check ExecStart path exists
+# Check ExecStart path
 ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep ExecStart"
-ssh dictacode-stt "test -f ~/dictacode/apps/stt/.venv/bin/python && echo 'Python OK' || echo 'VENV MISSING'"
 
-# Check working directory exists
+# Check working directory
 ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep WorkingDirectory"
-ssh dictacode-stt "test -d ~/dictacode/apps/stt && echo 'WorkDir OK' || echo 'DIR MISSING'"
 
-# Check ProtectHome setting (must be false for ~/dictacode access)
-ssh dictacode-stt "cat /lib/systemd/system/dictacode-stt.service | grep ProtectHome"
-# Should show: ProtectHome=false
+# Check config file exists
+ssh dictacode-stt "test -f /etc/dictacode/stt.conf && echo 'Config OK' || echo 'Config MISSING'"
+
+# Check package is installed correctly
+ssh dictacode-stt "dpkg --verify dictacode-stt"
 ```
 
-### Systemd Start Timeout (v0.2.3)
+### Systemd Start Timeout
 
 If `systemctl restart` times out but service is actually running:
 
 ```bash
 # Check if process is running despite timeout
-ssh dictacode-stt "ps aux | grep dictacode_stt"
+ssh dictacode-stt "ps aux | grep dictacode"
 
 # Check logs - service may be running in state machine loop
-ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager | grep 'State transition'"
+ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager | grep -E 'State|transition|ready'"
 
 # For Type=notify services, timeout means READY=1 wasn't received in time
 # Service may still be functional - check state transitions in logs
@@ -233,10 +216,13 @@ ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 50 --no-pager | grep 'Sta
 
 ```bash
 # Verify package installation
-ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv run python -c 'import dictacode_stt; print(dictacode_stt.__file__)'"
+ssh dictacode-stt "dpkg -L dictacode-stt | grep python"
 
-# Reinstall in editable mode (use absolute path for uv)
-ssh dictacode-stt "cd ~/dictacode/apps/stt && ~/.local/bin/uv pip install -e ."
+# Check installed version
+ssh dictacode-stt "dpkg -s dictacode-stt | grep Version"
+
+# Reinstall package
+ssh dictacode-stt "sudo apt install --reinstall -y /tmp/dictacode-stt.deb"
 ```
 
 ### UART Communication Issues
@@ -292,14 +278,17 @@ ssh dictacode-hid "sudo journalctl -u dictacode-hid -f"
 
 ### File Locations
 
-**Development (Git Repo):**
-- Code: `~/dictacode/apps/{stt,hid}/`
-- Virtual envs: `~/dictacode/apps/{stt,hid}/.venv/`
-- Tests: `~/dictacode/apps/{stt,hid}/tests/`
+**Local Development:**
+- Source: `apps/{stt,hid}/src/`
+- Tests: `apps/{stt,hid}/tests/`
+- Templates: `ops/packaging/templates/`
+- Package specs: `ops/packaging/debian/`
 
-**System (Debian Package):**
+**On Device (Debian Package):**
 - Service files: `/lib/systemd/system/dictacode-{stt,hid}.service`
 - Config files: `/etc/dictacode/{stt,hid}.conf`
+- Drop-in dirs: `/etc/dictacode/{stt,hid}.d/`
+- Shared data: `/opt/dictacode/shared/`
 - State directory: `/var/lib/dictacode/`
 - Runtime directory: `/run/dictacode-{stt,hid}/`
 - Logs: `journalctl -u dictacode-{stt,hid}`
@@ -307,8 +296,12 @@ ssh dictacode-hid "sudo journalctl -u dictacode-hid -f"
 ### Common Commands
 
 ```bash
-# Restart after code change
-ssh dictacode-stt "cd ~/dictacode && git pull && sudo systemctl restart dictacode-stt"
+# Build and deploy (full workflow) - use scp -O for legacy protocol
+./ops/packaging/build-deb.sh && \
+scp -O ops/packaging/dist/*.deb dictacode-stt:/tmp/ && \
+ssh dictacode-stt "sudo apt install -y /tmp/dictacode-*.deb && sudo systemctl daemon-reload && sudo systemctl restart dictacode-stt"
+
+# Note: -O flag required for SCP to Raspberry Pi (uses legacy SCP protocol)
 
 # View last 100 log lines
 ssh dictacode-stt "sudo journalctl -u dictacode-stt -n 100 --no-pager"
@@ -318,4 +311,10 @@ ssh dictacode-stt "sudo systemctl reset-failed dictacode-stt"
 
 # Stop service
 ssh dictacode-stt "sudo systemctl stop dictacode-stt"
+
+# Check installed package version
+ssh dictacode-stt "dpkg -l | grep dictacode"
+
+# View installed config
+ssh dictacode-stt "cat /etc/dictacode/stt.conf"
 ```
