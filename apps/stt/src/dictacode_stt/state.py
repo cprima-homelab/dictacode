@@ -1,17 +1,23 @@
 """Device state management for STT.
 
 v0.2.3: Expanded SolutionState covering full lifecycle from install to operation.
+v0.3.5: Added state history tracking and serialization for IPC.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from typing import Optional
 
 
 logger = logging.getLogger(__name__)
+
+# v0.3.5: Configurable history buffer size
+DEFAULT_HISTORY_SIZE = 20
+_history_max_size = int(os.environ.get("DICTACODE_STATE_HISTORY_SIZE", DEFAULT_HISTORY_SIZE))
 
 
 class SolutionState(Enum):
@@ -37,27 +43,109 @@ class SolutionState(Enum):
 
 
 @dataclass
+class StateTransition:
+    """Record of a state transition (v0.3.5).
+
+    Used for history tracking in the state ring buffer.
+    """
+
+    timestamp: datetime
+    old_state: str
+    new_state: str
+    reason: str | None
+    source: str  # "service", "api", "supervisor"
+
+    def to_dict(self) -> dict:
+        """Serialize transition for API/IPC response."""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "old_state": self.old_state,
+            "new_state": self.new_state,
+            "reason": self.reason,
+            "source": self.source,
+        }
+
+
+@dataclass
 class SttState:
-    """Single source of truth for solution state (on STT controller)."""
+    """Single source of truth for solution state (on STT controller).
+
+    v0.3.5: Added history tracking and serialization for IPC.
+    """
 
     state: SolutionState = SolutionState.UNCONFIGURED
-    failure_reason: Optional[str] = None
+    failure_reason: str | None = None
     model: str = "tiny"
     language: str = "en"
     hid_keymap: str = "en_us"  # track what we told HID to use
 
-    def transition_to(self, new_state: SolutionState, reason: str = None) -> None:
-        """Transition to new state with logging."""
+    # v0.3.5: History tracking (ring buffer)
+    _history: list[StateTransition] = field(default_factory=list, repr=False)
+    _history_max: int = field(default_factory=lambda: _history_max_size, repr=False)
+
+    def transition_to(
+        self,
+        new_state: SolutionState,
+        reason: str | None = None,
+        source: str = "service",
+    ) -> None:
+        """Transition to new state with logging and history tracking.
+
+        Args:
+            new_state: The target state.
+            reason: Optional reason for the transition (shown in FAILED/DEGRADED).
+            source: Origin of the transition ("service", "api", "supervisor").
+        """
         old = self.state
         self.state = new_state
-        self.failure_reason = reason if new_state == SolutionState.FAILED else None
+        self.failure_reason = reason if new_state in (
+            SolutionState.FAILED,
+            SolutionState.DEGRADED,
+        ) else None
         logger.info(f"State transition: {old.value} → {new_state.value}")
+
+        # v0.3.5: Record transition in history
+        self._history.append(
+            StateTransition(
+                timestamp=datetime.now(),
+                old_state=old.value,
+                new_state=new_state.value,
+                reason=reason,
+                source=source,
+            )
+        )
+        # Trim to max size
+        if len(self._history) > self._history_max:
+            self._history = self._history[-self._history_max :]
+
+        # v0.3.5: Record metric (if metrics enabled)
+        try:
+            from dictacode_stt.metrics import metrics
+
+            metrics.record_state_transition(old.value, new_state.value)
+        except Exception:
+            pass  # Metrics may not be initialized yet
 
     def set_hid_keymap(self, keymap: str) -> None:
         """Track the keymap we've sent to HID."""
         old = self.hid_keymap
         self.hid_keymap = keymap
         logger.info(f"hid_keymap: {old} → {keymap}")
+
+    # v0.3.5: Serialization methods for IPC
+    def to_dict(self) -> dict:
+        """Serialize state for API/IPC response."""
+        return {
+            "state": self.state.value,
+            "failure_reason": self.failure_reason,
+            "model": self.model,
+            "language": self.language,
+            "hid_keymap": self.hid_keymap,
+        }
+
+    def get_history(self) -> list[dict]:
+        """Get state transition history as serializable list."""
+        return [t.to_dict() for t in self._history]
 
     # Behavior predicates
     def should_transcribe(self) -> bool:

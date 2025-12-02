@@ -1,7 +1,14 @@
-"""Health and status endpoints for dictacode STT (v0.2.13 Phase 6)."""
+"""Health and status endpoints for dictacode STT (v0.2.13 Phase 6).
+
+v0.3.5: _service_instance is DEPRECATED for cross-process use.
+        Use IPC (DiagnosticsIpcClient) to query running service state.
+        The global is kept only for same-process fallback (unit tests,
+        embedded API mode). All cross-process access should use IPC.
+"""
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -9,6 +16,8 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -48,22 +57,53 @@ class StatusResponse(BaseModel):
 
 
 # Global service reference (set by API server)
+# DEPRECATED v0.3.5: Use IPC for cross-process access. This global is kept only
+# for same-process fallback (unit tests, embedded API mode).
 _service_instance: Optional[Any] = None
+
+# Track if deprecation warning has been logged (log once per session)
+_deprecation_warned = False
+
+
+def get_service_instance() -> Optional[Any]:
+    """Get the service instance with deprecation warning.
+
+    DEPRECATED v0.3.5: For cross-process state access, use IPC instead:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+        client = DiagnosticsIpcClient()
+        state = client.get_state()
+
+    Returns:
+        Service instance if set, None otherwise
+
+    Warning:
+        Logs a warning on first use. Prefer IPC for production code.
+    """
+    global _deprecation_warned
+    if _service_instance is not None and not _deprecation_warned:
+        logger.warning(
+            "Using _service_instance (deprecated for cross-process). "
+            "Prefer IPC via DiagnosticsIpcClient for state access."
+        )
+        _deprecation_warned = True
+    return _service_instance
 
 
 def set_service_instance(service: Any) -> None:
     """Set the global service instance for health checks.
 
+    DEPRECATED v0.3.5: This global is for same-process use only.
+    Cross-process access should use IPC (DiagnosticsIpcClient).
+
     Args:
         service: SttService instance
 
-    Example:
-        >>> from dictacode_stt.health import set_service_instance
-        >>> service = SttService(...)
-        >>> set_service_instance(service)
+    Note:
+        Still needed for same-process scenarios (unit tests, embedded mode).
     """
     global _service_instance
     _service_instance = service
+    logger.debug("Service instance registered (same-process mode)")
 
 
 @router.get("/health", response_model=HealthResponse)

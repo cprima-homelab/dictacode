@@ -482,6 +482,32 @@ Examples:
         logger.error(f"Failed to initialize service: {e}", exc_info=True)
         return 1
 
+    # v0.3.7: Register service instance for API/IPC access
+    from dictacode_stt.health import set_service_instance
+
+    set_service_instance(service)
+    logger.debug("Registered service instance for diagnostics access")
+
+    # v0.3.7: Start diagnostics IPC server
+    # v0.3.5: Added state providers for state.get/state.history IPC methods
+    ipc_server = None
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcServer
+
+        ipc_server = DiagnosticsIpcServer(
+            service.diagnostics,
+            state_provider=lambda: service.state.to_dict(),
+            history_provider=lambda: service.state.get_history(),
+        )
+        if ipc_server.start():
+            logger.info(f"Diagnostics IPC available at {ipc_server.socket_path}")
+        else:
+            logger.debug("Diagnostics IPC not available (CLI will run standalone)")
+            ipc_server = None
+    except Exception as e:
+        logger.warning(f"Failed to start diagnostics IPC: {e}")
+        ipc_server = None
+
     # v0.2.3: Service handles prerequisites, startup, and sd_notify internally via state machine
     # Run pipeline
     try:
@@ -501,6 +527,9 @@ Examples:
         logger.error(f"Pipeline error: {e}", exc_info=True)
         return 1
     finally:
+        # v0.3.7: Stop IPC server
+        if ipc_server:
+            ipc_server.stop()
         service.stop()
 
     logger.info("Shutdown complete")

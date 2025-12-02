@@ -227,3 +227,99 @@ class TestSttStateWorkflow:
         # Return to normal
         state.transition_to(SolutionState.LISTENING)
         assert state.should_transcribe() is True
+
+
+class TestSttStateHistory:
+    """Tests for state history tracking (v0.3.5)."""
+
+    def test_history_records_transitions(self):
+        """History records state transitions."""
+        state = SttState()
+        state.transition_to(SolutionState.LINK_PENDING)
+        state.transition_to(SolutionState.LISTENING)
+
+        history = state.get_history()
+        assert len(history) == 2
+        assert history[0]["old_state"] == "unconfigured"
+        assert history[0]["new_state"] == "link_pending"
+        assert history[1]["old_state"] == "link_pending"
+        assert history[1]["new_state"] == "listening"
+
+    def test_history_includes_timestamp(self):
+        """History entries include ISO timestamp."""
+        state = SttState()
+        state.transition_to(SolutionState.LISTENING)
+
+        history = state.get_history()
+        assert len(history) == 1
+        assert "timestamp" in history[0]
+        # Timestamp should be ISO format
+        assert "T" in history[0]["timestamp"]
+
+    def test_history_includes_reason(self):
+        """History entries include reason when provided."""
+        state = SttState()
+        state.transition_to(SolutionState.FAILED, reason="Test failure")
+
+        history = state.get_history()
+        assert len(history) == 1
+        assert history[0]["reason"] == "Test failure"
+
+    def test_history_includes_source(self):
+        """History entries include source."""
+        state = SttState()
+        state.transition_to(SolutionState.PAUSED, source="api")
+
+        history = state.get_history()
+        assert len(history) == 1
+        assert history[0]["source"] == "api"
+
+    def test_history_respects_max_size(self):
+        """History is bounded by max size."""
+        state = SttState()
+        state._history_max = 3
+
+        # Make 5 transitions
+        state.transition_to(SolutionState.LINK_PENDING)
+        state.transition_to(SolutionState.HANDSHAKE_INIT)
+        state.transition_to(SolutionState.LISTENING)
+        state.transition_to(SolutionState.PAUSED)
+        state.transition_to(SolutionState.LISTENING)
+
+        # Only last 3 should be kept
+        assert len(state._history) == 3
+        history = state.get_history()
+        assert history[0]["new_state"] == "listening"
+        assert history[1]["new_state"] == "paused"
+        assert history[2]["new_state"] == "listening"
+
+    def test_to_dict_serialization(self):
+        """to_dict serializes state for IPC."""
+        state = SttState()
+        state.transition_to(SolutionState.LISTENING)
+        state.model = "base"
+        state.language = "de"
+
+        result = state.to_dict()
+        assert result["state"] == "listening"
+        assert result["model"] == "base"
+        assert result["language"] == "de"
+        assert result["hid_keymap"] == "en_us"
+        assert result["failure_reason"] is None
+
+    def test_to_dict_includes_failure_reason(self):
+        """to_dict includes failure_reason when set."""
+        state = SttState()
+        state.transition_to(SolutionState.FAILED, reason="No audio device")
+
+        result = state.to_dict()
+        assert result["state"] == "failed"
+        assert result["failure_reason"] == "No audio device"
+
+    def test_default_source_is_service(self):
+        """Default source for transitions is 'service'."""
+        state = SttState()
+        state.transition_to(SolutionState.LISTENING)
+
+        history = state.get_history()
+        assert history[0]["source"] == "service"

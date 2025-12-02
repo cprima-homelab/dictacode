@@ -116,6 +116,19 @@ class Metrics:
             "Number of items in transcription queue",
         )
 
+        # v0.3.5: State metrics
+        self.state_transitions_total = Counter(
+            "dictacode_state_transitions_total",
+            "Total state transitions",
+            ["from_state", "to_state"],
+        )
+
+        self.current_state = Gauge(
+            "dictacode_current_state",
+            "Current service state (1=active, 0=inactive)",
+            ["state"],
+        )
+
         logger.info("Prometheus metrics initialized")
 
     def start_server(self) -> None:
@@ -250,6 +263,30 @@ class Metrics:
             return
 
         self.transport_reconnects_total.labels(transport=transport).inc()
+
+    def record_state_transition(self, old_state: str, new_state: str) -> None:
+        """Record a state transition (v0.3.5).
+
+        Args:
+            old_state: Previous state value
+            new_state: New state value
+        """
+        if not self.enabled:
+            return
+
+        # Increment transition counter
+        self.state_transitions_total.labels(
+            from_state=old_state, to_state=new_state
+        ).inc()
+
+        # Update current state gauge - set new state to 1, others implicitly 0
+        # We need to know all possible states to reset them
+        from dictacode_stt.state import SolutionState
+
+        for state in SolutionState:
+            self.current_state.labels(state=state.value).set(
+                1 if state.value == new_state else 0
+            )
 
     def get_metrics(self) -> bytes:
         """Get metrics in Prometheus format.

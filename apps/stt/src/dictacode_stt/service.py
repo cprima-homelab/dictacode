@@ -289,6 +289,16 @@ class SttService:
         # v0.3.0: WebSocket manager for broadcasting updates
         self.websocket_manager = websocket_manager
 
+        # v0.3.6: Central diagnostics service
+        from dictacode_stt.diagnostics.service import DiagnosticsService
+
+        self.diagnostics = DiagnosticsService(
+            device_index=device_index,
+            uart_device=uart_device,
+            whisper_binary=whisper_binary,
+            whisper_model=whisper_model,
+        )
+
         # v0.2.4: Audio Port Abstraction (only used when audio_source=None)
         self.audio_manager = AudioPortManager()
         self.audio_port: Optional[AudioPort] = None
@@ -1440,6 +1450,7 @@ class SttService:
         """Run diagnostic checks and log results.
 
         Only runs in MAINTENANCE state.
+        v0.3.6: Uses self.diagnostics service for history tracking.
 
         Args:
             scope: "audio", "whisper", "uart", or "all"
@@ -1448,21 +1459,16 @@ class SttService:
             logger.warning("diagnose ignored - not in MAINTENANCE state")
             return
 
-        from dictacode_stt.diagnostics import run_all_checks
-
         logger.info(f"Running diagnostic: {scope}")
-        result = run_all_checks(
-            device_index=self.device_index,
-            uart_device=self.uart_device,
-            whisper_binary=self.whisper_binary,
-            whisper_model=self.whisper_model,
-        )
+
+        # v0.3.6: Route through DiagnosticsService for history/hooks
+        result = self.diagnostics.run_all()
 
         # Log results to journal
         for check in result.checks:
-            if check.status.value == "ok":
+            if check.status.value == "passed":
                 logger.info(f"[DIAG OK] {check.name}: {check.message}")
-            elif check.status.value == "warn":
+            elif check.status.value == "warning":
                 logger.warning(f"[DIAG WARN] {check.name}: {check.message}")
             else:
                 logger.error(f"[DIAG FAIL] {check.name}: {check.message}")
