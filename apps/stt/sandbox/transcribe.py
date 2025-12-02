@@ -15,6 +15,7 @@ import sys
 import time
 from pathlib import Path
 
+
 # Hardcoded from inventory - sandbox doesn't use config loader
 WHISPER_BINARY = Path.home() / "whisper.cpp/build/bin/whisper-cli"
 WHISPER_MODEL = Path.home() / "whisper.cpp/models/ggml-tiny.bin"
@@ -44,9 +45,12 @@ def transcribe_file(wav_path: str) -> str:
     # Build command
     cmd = [
         str(WHISPER_BINARY),
-        "-m", str(WHISPER_MODEL),
-        "-f", str(wav_path),
-        "--language", "en",
+        "-m",
+        str(WHISPER_MODEL),
+        "-f",
+        str(wav_path),
+        "--language",
+        "en",
         "--no-timestamps",
         "--output-txt",
     ]
@@ -59,6 +63,7 @@ def transcribe_file(wav_path: str) -> str:
     try:
         result = subprocess.run(
             cmd,
+            check=False,
             capture_output=True,
             text=True,
             timeout=60,
@@ -97,7 +102,7 @@ def transcribe_file(wav_path: str) -> str:
             # Find the closing bracket and extract text after
             bracket_end = line.find("]")
             if bracket_end != -1:
-                text = line[bracket_end + 1:].strip()
+                text = line[bracket_end + 1 :].strip()
                 if text:
                     text_lines.append(text)
         else:

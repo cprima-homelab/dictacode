@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
+
 
 logger = logging.getLogger(__name__)
 
 # Optional import - metrics disabled if not installed
 try:
     from prometheus_client import (
-        Counter,
-        Histogram,
-        Gauge,
-        Info,
-        start_http_server,
         REGISTRY,
+        Counter,
+        Gauge,
+        Histogram,
+        Info,
         generate_latest,
+        start_http_server,
     )
 
     PROMETHEUS_AVAILABLE = True
@@ -132,7 +132,9 @@ class Metrics:
 
         try:
             start_http_server(self.port)
-            logger.info(f"Prometheus metrics available at http://localhost:{self.port}/metrics")
+            logger.info(
+                f"Prometheus metrics available at http://localhost:{self.port}/metrics"
+            )
         except Exception as e:
             logger.error(f"Failed to start metrics server: {e}")
 
@@ -185,7 +187,9 @@ class Metrics:
 
         self.hid_commands_total.labels(type=cmd_type).inc()
 
-    def record_audio_chunk(self, buffer_duration: float = None, buffer_size: int = None) -> None:
+    def record_audio_chunk(
+        self, buffer_duration: float = None, buffer_size: int = None
+    ) -> None:
         """Record audio chunk processed.
 
         Args:

@@ -12,8 +12,9 @@ Usage:
 """
 
 import sys
-import wave
 import time
+import wave
+
 
 # Hardcoded from inventory - sandbox doesn't use config loader
 DEVICE_INDEX = 0  # hw:0,0 - RØDE VideoMic NTG
@@ -24,7 +25,9 @@ NATIVE_CHANNELS = 2
 WHISPER_SAMPLE_RATE = 16000
 
 
-def record_audio(output_path: str, duration_sec: float, for_whisper: bool = True) -> None:
+def record_audio(
+    output_path: str, duration_sec: float, for_whisper: bool = True
+) -> None:
     """Record audio from microphone to WAV file.
 
     Args:
@@ -33,8 +36,8 @@ def record_audio(output_path: str, duration_sec: float, for_whisper: bool = True
         for_whisper: If True, resample to 16kHz mono for whisper
     """
     try:
-        import sounddevice as sd
         import numpy as np
+        import sounddevice as sd
     except ImportError:
         print("ERROR: sounddevice/numpy not installed")
         sys.exit(1)

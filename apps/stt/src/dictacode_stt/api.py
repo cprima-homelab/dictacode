@@ -1,24 +1,35 @@
 """FastAPI server for audio port management (v0.2.4 Phase 6)."""
 
-import logging
 import asyncio
+import logging
+from pathlib import Path
 from typing import List, Optional, Set
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request, APIRouter
+
+from fastapi import (
+    APIRouter,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from dictacode_stt.audio import AudioPortManager, AudioPort, PortStatus
+from dictacode_stt.audio import AudioPort, AudioPortManager
 from dictacode_stt.responses import AudioPortsListResponse
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
+
 
 logger = logging.getLogger(__name__)
+
 
 # Pydantic models for API
 class AudioPortCapabilitiesModel(BaseModel):
     """Audio port capabilities."""
+
     sample_rates: List[int]
     channels: int
     formats: List[str]
@@ -27,6 +38,7 @@ class AudioPortCapabilitiesModel(BaseModel):
 
 class AudioPortModel(BaseModel):
     """Audio port information."""
+
     port_id: str
     port_type: str
     name: str
@@ -37,6 +49,7 @@ class AudioPortModel(BaseModel):
 
 class AudioPortsResponse(BaseModel):
     """Response for GET /api/audio/ports."""
+
     ports: List[AudioPortModel]
     active_port: Optional[str] = None
     pipeline_target_rate: int = 16000
@@ -44,11 +57,13 @@ class AudioPortsResponse(BaseModel):
 
 class SelectPortRequest(BaseModel):
     """Request body for POST /api/audio/select."""
+
     port_id: str
 
 
 class SelectPortResponse(BaseModel):
     """Response for POST /api/audio/select."""
+
     success: bool
     message: str
     selected_port: Optional[AudioPortModel] = None
@@ -74,7 +89,7 @@ def register_service(service: any) -> None:
     _stt_service = service
 
     # Wire WebSocket manager to service
-    if service and hasattr(service, 'websocket_manager'):
+    if service and hasattr(service, "websocket_manager"):
         service.websocket_manager = ws_manager
         logger.info("WebSocket manager wired to STT service")
 
@@ -111,7 +126,9 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
 
     # Initialize port manager
     _port_manager = AudioPortManager(config_dir=config_dir)
-    logger.info(f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports")
+    logger.info(
+        f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports"
+    )
 
     # v0.3.0 Phase 2: Mount static files for WebSocket test client
     static_dir = Path(__file__).parent / "static"
@@ -127,7 +144,8 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
         logger.info(f"Jinja2 templates configured from {templates_dir}")
 
     # Include routers (v0.3.0: use module-level router)
-    from dictacode_stt import health, diagnostics_api
+    from dictacode_stt import diagnostics_api, health
+
     app.include_router(router)
     app.include_router(health.router)
     app.include_router(diagnostics_api.router)
@@ -192,7 +210,7 @@ async def list_audio_ports(refresh: bool = False):
         )
     except Exception as e:
         logger.error(f"Failed to list audio ports: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list ports: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list ports: {e!s}")
 
 
 @router.post("/api/audio/select", response_model=SelectPortResponse)
@@ -234,7 +252,7 @@ async def select_audio_port(request: SelectPortRequest):
 
     except Exception as e:
         logger.error(f"Failed to select port: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to select port: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to select port: {e!s}")
 
 
 @router.get("/api/audio/ports/{port_id}", response_model=AudioPortModel)
@@ -262,7 +280,7 @@ async def get_audio_port(port_id: str):
         raise
     except Exception as e:
         logger.error(f"Failed to get port: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get port: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get port: {e!s}")
 
 
 # v0.3.0 Phase 3: Web Panel Routes
@@ -277,10 +295,13 @@ async def control_panel(request: Request):
     except ImportError:
         __version__ = "unknown"
 
-    return templates.TemplateResponse("control-panel.html", {
-        "request": request,
-        "version": __version__,
-    })
+    return templates.TemplateResponse(
+        "control-panel.html",
+        {
+            "request": request,
+            "version": __version__,
+        },
+    )
 
 
 @router.get("/cp/config", response_class=HTMLResponse)
@@ -294,10 +315,13 @@ async def config_page(request: Request):
     except ImportError:
         __version__ = "unknown"
 
-    return templates.TemplateResponse("config.html", {
-        "request": request,
-        "version": __version__,
-    })
+    return templates.TemplateResponse(
+        "config.html",
+        {
+            "request": request,
+            "version": __version__,
+        },
+    )
 
 
 @router.get("/cp/diagnostics", response_class=HTMLResponse)
@@ -311,10 +335,13 @@ async def diagnostics_page(request: Request):
     except ImportError:
         __version__ = "unknown"
 
-    return templates.TemplateResponse("diagnostics.html", {
-        "request": request,
-        "version": __version__,
-    })
+    return templates.TemplateResponse(
+        "diagnostics.html",
+        {
+            "request": request,
+            "version": __version__,
+        },
+    )
 
 
 @router.get("/cp/metrics", response_class=HTMLResponse)
@@ -328,10 +355,13 @@ async def metrics_page(request: Request):
     except ImportError:
         __version__ = "unknown"
 
-    return templates.TemplateResponse("metrics.html", {
-        "request": request,
-        "version": __version__,
-    })
+    return templates.TemplateResponse(
+        "metrics.html",
+        {
+            "request": request,
+            "version": __version__,
+        },
+    )
 
 
 # v0.2.13: Health endpoints moved to health.py module (routers now included in _register_routes)
@@ -348,8 +378,9 @@ async def prometheus_metrics():
     Returns:
         Metrics in Prometheus format or 404 if metrics disabled
     """
-    from dictacode_stt.metrics import metrics
     from fastapi import Response
+
+    from dictacode_stt.metrics import metrics
 
     if not metrics.enabled:
         return Response(
@@ -386,14 +417,14 @@ async def pause_service():
             return {
                 "status": "ok",
                 "state": _service_instance.get_state(),
-                "message": "Service paused"
+                "message": "Service paused",
             }
         else:
             current_state = _service_instance.get_state()
             return {
                 "status": "error",
                 "state": current_state,
-                "message": f"Cannot pause from state '{current_state}'"
+                "message": f"Cannot pause from state '{current_state}'",
             }
     except Exception as e:
         logger.error(f"Failed to pause service: {e}", exc_info=True)
@@ -422,14 +453,14 @@ async def resume_service():
             return {
                 "status": "ok",
                 "state": _service_instance.get_state(),
-                "message": "Service resumed"
+                "message": "Service resumed",
             }
         else:
             current_state = _service_instance.get_state()
             return {
                 "status": "error",
                 "state": current_state,
-                "message": f"Cannot resume from state '{current_state}'"
+                "message": f"Cannot resume from state '{current_state}'",
             }
     except Exception as e:
         logger.error(f"Failed to resume service: {e}", exc_info=True)
@@ -443,8 +474,9 @@ async def get_service_state():
     Returns:
         {"state": "listening|paused|degraded|...", "timestamp": "..."}
     """
-    from dictacode_stt.health import _service_instance
     from datetime import datetime
+
+    from dictacode_stt.health import _service_instance
 
     if not _service_instance:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -452,7 +484,7 @@ async def get_service_state():
     try:
         return {
             "state": _service_instance.get_state(),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get service state: {e}", exc_info=True)
@@ -531,7 +563,10 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Send initial status with current service state (v0.3.0 Phase 3.4)
         from dictacode_stt.health import _service_instance
-        current_state = _service_instance.get_state() if _service_instance else "unknown"
+
+        current_state = (
+            _service_instance.get_state() if _service_instance else "unknown"
+        )
 
         await ws_manager.send_to(
             websocket,
@@ -554,7 +589,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Handle ping/pong
                 if data.get("type") == "ping":
                     await ws_manager.send_to(
-                        websocket, {"type": "pong", "data": {"timestamp": data.get("timestamp")}}
+                        websocket,
+                        {"type": "pong", "data": {"timestamp": data.get("timestamp")}},
                     )
 
             except WebSocketDisconnect:

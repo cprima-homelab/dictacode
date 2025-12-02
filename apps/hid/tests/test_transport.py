@@ -1,7 +1,8 @@
 """Tests for transport layer (UART and HID)."""
 
 import pytest
-from dictacode_hid import TransportError, UartTransport, HidTransport
+
+from dictacode_hid import HidTransport, TransportError, UartTransport
 
 
 class TestUartTransport:

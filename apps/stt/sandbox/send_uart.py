@@ -23,10 +23,11 @@ import time
 
 # Import from src/ package
 from dictacode_stt import (
-    get_protocol,
-    TextMessage,
     CommandMessage,
+    TextMessage,
+    get_protocol,
 )
+
 
 # Hardcoded from inventory - sandbox doesn't use config loader
 UART_DEVICE = "/dev/serial0"
@@ -64,7 +65,9 @@ def send_text(ser, protocol, text: str) -> None:
     elapsed = time.perf_counter() - start_time
 
     chars_per_sec = len(encoded) / elapsed if elapsed > 0 else 0
-    print(f"[send_uart] sent text ({len(encoded)} bytes) in {elapsed*1000:.2f} ms ({chars_per_sec:.0f} bytes/sec)")
+    print(
+        f"[send_uart] sent text ({len(encoded)} bytes) in {elapsed*1000:.2f} ms ({chars_per_sec:.0f} bytes/sec)"
+    )
     print(f"[send_uart] payload: {text}")
 
 
@@ -104,7 +107,7 @@ def stress_test(ser, protocol, count: int) -> None:
     elapsed = time.perf_counter() - start_time
 
     print()
-    print(f"[send_uart] stress test complete")
+    print("[send_uart] stress test complete")
     print(f"[send_uart] total: {total_bytes} bytes in {elapsed:.2f} sec")
     print(f"[send_uart] rate: {total_bytes / elapsed:.0f} bytes/sec")
     print(f"[send_uart] messages/sec: {count / elapsed:.0f}")
@@ -115,7 +118,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Send protocol messages over UART")
     parser.add_argument("text", nargs="*", help="Text to send")
-    parser.add_argument("--cmd", nargs="+", help="Command to send (e.g., --cmd keymap de_de)")
+    parser.add_argument(
+        "--cmd", nargs="+", help="Command to send (e.g., --cmd keymap de_de)"
+    )
     parser.add_argument("--file", help="File to send")
     parser.add_argument("--stress", type=int, help="Stress test with N messages")
     parser.add_argument("--stdin", action="store_true", help="Read from stdin")
@@ -141,7 +146,7 @@ def main() -> None:
 
         elif args.file:
             # Send file contents
-            with open(args.file, "r") as f:
+            with open(args.file) as f:
                 text = f.read().strip()
             send_text(ser, protocol, text)
 

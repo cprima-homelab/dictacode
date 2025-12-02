@@ -18,10 +18,11 @@ import signal
 import sys
 from pathlib import Path
 
-from dictacode_stt import SttService, SolutionState
+from dictacode_stt import SolutionState, SttService
 from dictacode_stt.audio import AudioPortManager
-from dictacode_stt.logging_config import LogConfig, LogFormat, configure_logging
 from dictacode_stt.log_control import log_controller
+from dictacode_stt.logging_config import LogConfig, LogFormat, configure_logging
+
 
 # Global flag for shutdown
 _shutdown_requested = False
@@ -321,6 +322,7 @@ Examples:
     if args.audio_source:
         try:
             from dictacode_stt.audio.sources import create_audio_source
+
             audio_source = create_audio_source(args.audio_source)
             logger.info(f"Created audio source: {args.audio_source}")
         except Exception as e:
@@ -353,11 +355,14 @@ Examples:
         os.environ.get("DICTACODE_SUPERVISOR_TIMEOUT", args.supervisor_timeout)
     )
     supervisor_ping_interval = float(
-        os.environ.get("DICTACODE_SUPERVISOR_PING_INTERVAL", args.supervisor_ping_interval)
+        os.environ.get(
+            "DICTACODE_SUPERVISOR_PING_INTERVAL", args.supervisor_ping_interval
+        )
     )
-    supervisor_enabled = os.environ.get(
-        "DICTACODE_SUPERVISOR_ENABLED", "true"
-    ).lower() != "false" and not args.no_supervisor
+    supervisor_enabled = (
+        os.environ.get("DICTACODE_SUPERVISOR_ENABLED", "true").lower() != "false"
+        and not args.no_supervisor
+    )
 
     # Create service
     try:

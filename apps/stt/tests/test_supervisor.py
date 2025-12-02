@@ -1,14 +1,9 @@
 """Tests for LinkSupervisor class - v0.2.3."""
 
-import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-import tempfile
-
 import pytest
 
+from dictacode_stt.state import SolutionState, SttState
 from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
-from dictacode_stt.state import SttState, SolutionState
 
 
 class TestLinkSupervisorV023:
@@ -47,7 +42,9 @@ class TestLinkSupervisorV023:
         """Test prerequisites check when all present."""
         assert supervisor.check_prerequisites() is True
 
-    def test_check_prerequisites_missing_binary(self, state, temp_whisper_setup, tmp_path):
+    def test_check_prerequisites_missing_binary(
+        self, state, temp_whisper_setup, tmp_path
+    ):
         """Test prerequisites check with missing binary."""
         whisper_bin, whisper_model = temp_whisper_setup
         whisper_bin.unlink()  # Remove binary

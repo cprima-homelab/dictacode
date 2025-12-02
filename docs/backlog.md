@@ -379,3 +379,16 @@ sudo apt update && sudo apt install dictacode-stt
 
 evaluate bluetooth transport
 
+---
+
+
+### Phase 5: Streaming (Optional)
+- [ ] Evaluate whisper.cpp streaming support
+- [ ] Or evaluate Vosk for streaming STT
+- [ ] Implement partial result handling
+- [ ] Update web panel for partial display
+
+
+---
+
+

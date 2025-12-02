@@ -7,11 +7,10 @@ Enhanced with categories, severity, timestamps, and duration tracking.
 from __future__ import annotations
 
 import json
-import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class CheckStatus(Enum):
@@ -19,11 +18,11 @@ class CheckStatus(Enum):
 
     PENDING = "pending"  # Not yet run
     RUNNING = "running"  # Currently executing
-    PASSED = "passed"    # Equivalent to OK (v0.2.9 naming)
+    PASSED = "passed"  # Equivalent to OK (v0.2.9 naming)
     WARNING = "warning"  # Equivalent to WARN (v0.2.9 naming)
-    FAILED = "failed"    # Equivalent to FAIL (v0.2.9 naming)
+    FAILED = "failed"  # Equivalent to FAIL (v0.2.9 naming)
     SKIPPED = "skipped"  # Check was skipped
-    ERROR = "error"      # Check encountered error
+    ERROR = "error"  # Check encountered error
 
     # Legacy aliases for backward compatibility
     OK = "passed"
@@ -34,20 +33,20 @@ class CheckStatus(Enum):
 class CheckCategory(Enum):
     """Category of diagnostic check (v0.2.9)."""
 
-    SYSTEM = "system"           # OS, Python, dependencies
-    AUDIO = "audio"             # Audio devices, recording
+    SYSTEM = "system"  # OS, Python, dependencies
+    AUDIO = "audio"  # Audio devices, recording
     TRANSCRIPTION = "transcription"  # Whisper, Vosk, etc.
-    TRANSPORT = "transport"     # UART, USB-Serial, WiFi
-    HID = "hid"                 # HID device status
-    CONFIG = "config"           # Configuration files
+    TRANSPORT = "transport"  # UART, USB-Serial, WiFi
+    HID = "hid"  # HID device status
+    CONFIG = "config"  # Configuration files
 
 
 class CheckSeverity(Enum):
     """Severity of check failure (v0.2.9)."""
 
-    INFO = "info"           # Informational
-    WARNING = "warning"     # May cause issues
-    CRITICAL = "critical"   # Will prevent operation
+    INFO = "info"  # Informational
+    WARNING = "warning"  # May cause issues
+    CRITICAL = "critical"  # Will prevent operation
 
 
 @dataclass
@@ -58,13 +57,13 @@ class CheckResult:
     status: CheckStatus
     message: str
     # v0.2.9 enhancements:
-    check_id: Optional[str] = None          # Unique check identifier
+    check_id: Optional[str] = None  # Unique check identifier
     category: Optional[CheckCategory] = None  # Check category
     details: Optional[Dict[str, Any]] = None  # Additional details
     severity: CheckSeverity = CheckSeverity.INFO  # Severity level
-    duration_ms: Optional[int] = None       # Execution duration
-    timestamp: Optional[datetime] = None    # When check was run
-    next_step: Optional[str] = None         # Remediation hint (legacy)
+    duration_ms: Optional[int] = None  # Execution duration
+    timestamp: Optional[datetime] = None  # When check was run
+    next_step: Optional[str] = None  # Remediation hint (legacy)
 
     def __post_init__(self):
         """Set default values for v0.2.9 fields."""
@@ -234,7 +233,11 @@ class DiagnosticResult:
 
         # Show next steps for failures
         if self.failures > 0:
-            next_steps = [c.next_step for c in self.checks if c.next_step and c.status == CheckStatus.FAIL]
+            next_steps = [
+                c.next_step
+                for c in self.checks
+                if c.next_step and c.status == CheckStatus.FAIL
+            ]
             if next_steps:
                 lines.append("")
                 lines.append("Next steps:")

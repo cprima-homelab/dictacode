@@ -10,25 +10,26 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+from .audio import run_audio_checks
 from .base import (
-    CheckStatus,
     CheckCategory,
-    CheckSeverity,
     CheckResult,
+    CheckSeverity,
+    CheckStatus,
     DiagnosticResult,
+)
+from .bugreport import (
+    BugReportGenerator,
+    SystemReport,
 )
 from .registry import (
     DiagnosticCheck,
     DiagnosticRegistry,
     get_registry,
 )
-from .audio import run_audio_checks
-from .whisper import run_whisper_checks
 from .uart import run_uart_checks
-from .bugreport import (
-    BugReportGenerator,
-    SystemReport,
-)
+from .whisper import run_whisper_checks
+
 
 __all__ = [
     # v0.2.9 Types

@@ -2,6 +2,7 @@
 
 from .base import Keymap, KeyMapping, register_keymap
 
+
 # Modifier constants
 MOD_NONE = 0
 MOD_SHIFT = 2  # Left Shift
@@ -44,7 +45,7 @@ class EnUsKeymap(Keymap):
             self.mappings[char] = KeyMapping(scancode=scancode, modifier=MOD_SHIFT)
 
         # Special keys
-        self.mappings[" "] = KeyMapping(scancode=44)   # Space
+        self.mappings[" "] = KeyMapping(scancode=44)  # Space
         self.mappings["\n"] = KeyMapping(scancode=40)  # Enter
         self.mappings["\t"] = KeyMapping(scancode=43)  # Tab
 
@@ -54,7 +55,7 @@ class EnUsKeymap(Keymap):
             "=": 46,  # Equals
             "[": 47,  # Left bracket
             "]": 48,  # Right bracket
-            "\\": 49, # Backslash
+            "\\": 49,  # Backslash
             ";": 51,  # Semicolon
             "'": 52,  # Single quote
             "`": 53,  # Grave/backtick

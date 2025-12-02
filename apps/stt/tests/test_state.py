@@ -1,7 +1,5 @@
 """Tests for dictacode_stt.state module - v0.2.3."""
 
-import pytest
-
 from dictacode_stt.state import SolutionState, SttState
 
 
@@ -41,6 +39,7 @@ class TestSttState:
     def test_transition_to(self, caplog):
         """Test state transitions."""
         import logging
+
         caplog.set_level(logging.INFO, logger="dictacode_stt.state")
 
         state = SttState()

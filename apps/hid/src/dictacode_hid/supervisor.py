@@ -20,7 +20,7 @@ Usage:
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Optional, Callable
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,9 @@ class LinkSupervisor:
     """
 
     # Configuration (can be overridden at init)
-    ping_interval: float = 5.0      # seconds between pings
-    timeout: float = 30.0           # seconds without message = dead link
-    max_backoff: float = 30.0       # max reconnect delay
+    ping_interval: float = 5.0  # seconds between pings
+    timeout: float = 30.0  # seconds without message = dead link
+    max_backoff: float = 30.0  # max reconnect delay
 
     # State (managed internally)
     link_healthy: bool = field(default=True, init=False)
@@ -87,7 +87,7 @@ class LinkSupervisor:
         Returns:
             Delay in seconds: 1s → 2s → 4s → 8s → 16s → 30s (max)
         """
-        delay = min(2 ** self.reconnect_attempts, self.max_backoff)
+        delay = min(2**self.reconnect_attempts, self.max_backoff)
         return delay
 
     def should_send_ping(self) -> bool:
@@ -115,9 +115,7 @@ class LinkSupervisor:
     def on_reconnect_success(self) -> None:
         """Called after successful reconnection. Resets attempt counter."""
         if self.reconnect_attempts > 0:
-            logger.info(
-                f"Reconnected after {self.reconnect_attempts} attempts"
-            )
+            logger.info(f"Reconnected after {self.reconnect_attempts} attempts")
         self.reconnect_attempts = 0
         self._mark_healthy()
         self.mark_activity()  # Reset timeout
@@ -141,6 +139,7 @@ class LinkSupervisor:
         """
         try:
             from systemd.daemon import notify
+
             notify("WATCHDOG=1")
             return True
         except ImportError:

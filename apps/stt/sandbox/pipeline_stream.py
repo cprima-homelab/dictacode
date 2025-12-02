@@ -19,6 +19,7 @@ import threading
 import time
 from pathlib import Path
 
+
 # Hardcoded from inventory
 DEVICE_INDEX = 0  # hw:0,0 - RØDE VideoMic NTG
 NATIVE_SAMPLE_RATE = 48000
@@ -43,8 +44,9 @@ class AudioRecorder:
 
         # Import here to fail early if not available
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
+
             self.sd = sd
             self.np = np
         except ImportError:
@@ -122,13 +124,18 @@ def transcribe(wav_path: str) -> str:
     """Transcribe WAV file using whisper-cli."""
     cmd = [
         str(WHISPER_BINARY),
-        "-m", str(WHISPER_MODEL),
-        "-f", wav_path,
-        "--language", "en",
+        "-m",
+        str(WHISPER_MODEL),
+        "-f",
+        wav_path,
+        "--language",
+        "en",
         "--no-timestamps",
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(
+        cmd, check=False, capture_output=True, text=True, timeout=60
+    )
 
     if result.returncode != 0:
         print(f"[transcribe] ERROR: {result.stderr}")
@@ -144,7 +151,7 @@ def transcribe(wav_path: str) -> str:
         if line.startswith("["):
             bracket_end = line.find("]")
             if bracket_end != -1:
-                text = line[bracket_end + 1:].strip()
+                text = line[bracket_end + 1 :].strip()
                 if text:
                     text_parts.append(text)
         else:
@@ -199,7 +206,9 @@ def process_loop(recorder: AudioRecorder, dry_run: bool = False):
         Path(wav_path).unlink()
 
         # Report
-        print(f"[process] transcribed in {elapsed:.2f}s: {text[:80]}{'...' if len(text) > 80 else ''}")
+        print(
+            f"[process] transcribed in {elapsed:.2f}s: {text[:80]}{'...' if len(text) > 80 else ''}"
+        )
 
         # Send over UART
         if text and not dry_run:
@@ -213,12 +222,16 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Continuous STT pipeline")
-    parser.add_argument("--chunk", type=float, default=5.0, help="Chunk duration in seconds")
+    parser.add_argument(
+        "--chunk", type=float, default=5.0, help="Chunk duration in seconds"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Skip UART send")
     args = parser.parse_args()
 
     print("[pipeline] dictacode continuous STT")
-    print(f"[pipeline] mic: hw:{DEVICE_INDEX},0 ({NATIVE_SAMPLE_RATE}Hz -> {WHISPER_SAMPLE_RATE}Hz)")
+    print(
+        f"[pipeline] mic: hw:{DEVICE_INDEX},0 ({NATIVE_SAMPLE_RATE}Hz -> {WHISPER_SAMPLE_RATE}Hz)"
+    )
     print(f"[pipeline] chunk: {args.chunk}s")
     print(f"[pipeline] whisper: {WHISPER_MODEL.name}")
     print(f"[pipeline] uart: {UART_DEVICE} @ {BAUD_RATE}")

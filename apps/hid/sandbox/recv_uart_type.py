@@ -22,13 +22,14 @@ import time
 
 # Import from src/ package
 from dictacode_hid import (
-    get_protocol,
-    detect_protocol,
-    TextMessage,
     CommandMessage,
     DeviceMode,
     HidState,
+    TextMessage,
+    detect_protocol,
+    get_protocol,
 )
+
 
 # Hardcoded from inventory
 UART_DEVICE = "/dev/serial0"
@@ -37,23 +38,107 @@ HID_DEVICE = "/dev/hidg0"
 
 # US keyboard keycodes (basic)
 KEYMAP = {
-    "a": 4, "b": 5, "c": 6, "d": 7, "e": 8, "f": 9, "g": 10, "h": 11,
-    "i": 12, "j": 13, "k": 14, "l": 15, "m": 16, "n": 17, "o": 18, "p": 19,
-    "q": 20, "r": 21, "s": 22, "t": 23, "u": 24, "v": 25, "w": 26, "x": 27,
-    "y": 28, "z": 29, "1": 30, "2": 31, "3": 32, "4": 33, "5": 34, "6": 35,
-    "7": 36, "8": 37, "9": 38, "0": 39, " ": 44, "\n": 40, "\t": 43,
-    "-": 45, "=": 46, "[": 47, "]": 48, "\\": 49, ";": 51, "'": 52,
-    "`": 53, ",": 54, ".": 55, "/": 56,
+    "a": 4,
+    "b": 5,
+    "c": 6,
+    "d": 7,
+    "e": 8,
+    "f": 9,
+    "g": 10,
+    "h": 11,
+    "i": 12,
+    "j": 13,
+    "k": 14,
+    "l": 15,
+    "m": 16,
+    "n": 17,
+    "o": 18,
+    "p": 19,
+    "q": 20,
+    "r": 21,
+    "s": 22,
+    "t": 23,
+    "u": 24,
+    "v": 25,
+    "w": 26,
+    "x": 27,
+    "y": 28,
+    "z": 29,
+    "1": 30,
+    "2": 31,
+    "3": 32,
+    "4": 33,
+    "5": 34,
+    "6": 35,
+    "7": 36,
+    "8": 37,
+    "9": 38,
+    "0": 39,
+    " ": 44,
+    "\n": 40,
+    "\t": 43,
+    "-": 45,
+    "=": 46,
+    "[": 47,
+    "]": 48,
+    "\\": 49,
+    ";": 51,
+    "'": 52,
+    "`": 53,
+    ",": 54,
+    ".": 55,
+    "/": 56,
 }
 
 # Shifted characters
 SHIFT_KEYMAP = {
-    "A": 4, "B": 5, "C": 6, "D": 7, "E": 8, "F": 9, "G": 10, "H": 11,
-    "I": 12, "J": 13, "K": 14, "L": 15, "M": 16, "N": 17, "O": 18, "P": 19,
-    "Q": 20, "R": 21, "S": 22, "T": 23, "U": 24, "V": 25, "W": 26, "X": 27,
-    "Y": 28, "Z": 29, "!": 30, "@": 31, "#": 32, "$": 33, "%": 34, "^": 35,
-    "&": 36, "*": 37, "(": 38, ")": 39, "_": 45, "+": 46, "{": 47, "}": 48,
-    "|": 49, ":": 51, '"': 52, "~": 53, "<": 54, ">": 55, "?": 56,
+    "A": 4,
+    "B": 5,
+    "C": 6,
+    "D": 7,
+    "E": 8,
+    "F": 9,
+    "G": 10,
+    "H": 11,
+    "I": 12,
+    "J": 13,
+    "K": 14,
+    "L": 15,
+    "M": 16,
+    "N": 17,
+    "O": 18,
+    "P": 19,
+    "Q": 20,
+    "R": 21,
+    "S": 22,
+    "T": 23,
+    "U": 24,
+    "V": 25,
+    "W": 26,
+    "X": 27,
+    "Y": 28,
+    "Z": 29,
+    "!": 30,
+    "@": 31,
+    "#": 32,
+    "$": 33,
+    "%": 34,
+    "^": 35,
+    "&": 36,
+    "*": 37,
+    "(": 38,
+    ")": 39,
+    "_": 45,
+    "+": 46,
+    "{": 47,
+    "}": 48,
+    "|": 49,
+    ":": 51,
+    '"': 52,
+    "~": 53,
+    "<": 54,
+    ">": 55,
+    "?": 56,
 }
 
 
@@ -151,9 +236,13 @@ def flush_buffer(state: HidState, hid_file) -> None:
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="UART to HID bridge with protocol support")
+    parser = argparse.ArgumentParser(
+        description="UART to HID bridge with protocol support"
+    )
     parser.add_argument("--dry-run", action="store_true", help="Don't send to HID")
-    parser.add_argument("--maintenance", action="store_true", help="Start in maintenance mode")
+    parser.add_argument(
+        "--maintenance", action="store_true", help="Start in maintenance mode"
+    )
     args = parser.parse_args()
 
     try:
@@ -207,7 +296,9 @@ def main() -> None:
                 length = int.from_bytes(length_bytes, "big")
                 payload = ser.read(length)
                 if len(payload) < length:
-                    print(f"[recv_uart_type] incomplete message: got {len(payload)}/{length} bytes")
+                    print(
+                        f"[recv_uart_type] incomplete message: got {len(payload)}/{length} bytes"
+                    )
                     continue
                 raw_data = payload
 
@@ -215,9 +306,13 @@ def main() -> None:
                 msg = protocol.decode(raw_data)
             except Exception as e:
                 # Try auto-detection on decode failure
-                detected = detect_protocol(raw_data if protocol_name == "json" else length_bytes + raw_data)
+                detected = detect_protocol(
+                    raw_data if protocol_name == "json" else length_bytes + raw_data
+                )
                 if detected != protocol_name:
-                    print(f"[recv_uart_type] protocol mismatch? detected {detected}, expected {protocol_name}")
+                    print(
+                        f"[recv_uart_type] protocol mismatch? detected {detected}, expected {protocol_name}"
+                    )
                 print(f"[recv_uart_type] decode error: {e}")
                 continue
 

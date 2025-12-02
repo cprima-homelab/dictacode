@@ -54,23 +54,27 @@ Migration Guide:
 
 # Re-export all transport classes for backward compatibility
 from dictacode_hid.transport.adapter import (
+    ConnectionStatus,
     TransportAdapter,
     TransportConfig,
     TransportError,
-    ConnectionStatus,
 )
-
-from dictacode_hid.transport.uart import (
-    UartTransport as _NewUartTransport,
-    UartConfig,
-)
-
 from dictacode_hid.transport.hid import (
-    HidTransport as _NewHidTransport,
     HidConfig,
 )
+from dictacode_hid.transport.hid import (
+    HidTransport as _NewHidTransport,
+)
+from dictacode_hid.transport.uart import (
+    UartConfig,
+)
+from dictacode_hid.transport.uart import (
+    UartTransport as _NewUartTransport,
+)
+
 
 # For backward compatibility: Allow old-style constructors
+
 
 class _LegacyUartTransport(_NewUartTransport):
     """Backward compatibility wrapper for old UartTransport constructor.
@@ -118,12 +122,12 @@ UartTransport = _LegacyUartTransport
 HidTransport = _LegacyHidTransport
 
 __all__ = [
-    "UartTransport",
-    "UartConfig",
-    "HidTransport",
+    "ConnectionStatus",
     "HidConfig",
-    "TransportError",
+    "HidTransport",
     "TransportAdapter",
     "TransportConfig",
-    "ConnectionStatus",
+    "TransportError",
+    "UartConfig",
+    "UartTransport",
 ]

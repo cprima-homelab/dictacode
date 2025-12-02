@@ -2,9 +2,7 @@
 
 import json
 
-import pytest
-
-from dictacode_hid.diagnostics.base import CheckStatus, CheckResult, DiagnosticResult
+from dictacode_hid.diagnostics.base import CheckResult, CheckStatus, DiagnosticResult
 
 
 class TestCheckStatus:

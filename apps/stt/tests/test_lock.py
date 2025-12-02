@@ -1,13 +1,12 @@
 """Tests for SerialLock class."""
 
 import os
-import tempfile
 import subprocess
 import sys
 
 import pytest
 
-from dictacode_stt.lock import SerialLock, LockError
+from dictacode_stt.lock import LockError, SerialLock
 
 
 class TestSerialLock:
@@ -36,7 +35,7 @@ class TestSerialLock:
         lock = SerialLock("/dev/serial0", lock_dir=str(tmp_path))
         lock.acquire()
 
-        with open(lock.lock_path, "r") as f:
+        with open(lock.lock_path) as f:
             content = f.read().strip()
         assert content == str(os.getpid())
 
@@ -206,6 +205,7 @@ sys.exit(0 if lock.acquire() else 1)
 """
         result = subprocess.run(
             [sys.executable, "-c", code],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -216,6 +216,7 @@ sys.exit(0 if lock.acquire() else 1)
         # Now subprocess should succeed
         result = subprocess.run(
             [sys.executable, "-c", code],
+            check=False,
             capture_output=True,
             text=True,
         )

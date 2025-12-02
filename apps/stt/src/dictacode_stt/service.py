@@ -11,54 +11,54 @@ Usage:
     service.run_continuous()  # Runs until interrupted
 """
 
+import asyncio
 import logging
-import subprocess
-import sys
 import tempfile
 import time
 import wave
-import asyncio
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 
 try:
     from systemd import daemon as sd_daemon
+
     HAS_SYSTEMD = True
 except ImportError:
     HAS_SYSTEMD = False
 
 from dictacode_stt import __version__
-from dictacode_stt.protocol import (
-    ProtocolAdapter,
-    get_protocol,
-    TextMessage,
-    CommandMessage,
-    ProbeMessage,
-    ProbeAckMessage,
-)
-from dictacode_stt.compatibility import CompatibilityChecker
-from dictacode_stt.state import SolutionState, SttState
-from dictacode_stt.transport import (
-    TransportAdapter,
-    TransportError,
-    UartTransport,
-    create_transport,
-)
-from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
-from dictacode_stt.hid import HidDeviceRegistry, HidDevice
 from dictacode_stt.audio import (
-    AudioPortManager,
     AudioPort,
+    AudioPortManager,
     AudioRingBuffer,
     Resampler,
 )
 from dictacode_stt.audio.source import AudioSource
+from dictacode_stt.compatibility import CompatibilityChecker
+from dictacode_stt.hid import HidDevice, HidDeviceRegistry
+from dictacode_stt.protocol import (
+    CommandMessage,
+    ProbeAckMessage,
+    ProbeMessage,
+    ProtocolAdapter,
+    TextMessage,
+    get_protocol,
+)
+from dictacode_stt.state import SolutionState, SttState
+from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
 from dictacode_stt.transcription import (
+    FinalResult,
+    PartialResult,
     TranscriptionAdapter,
     get_transcriber,
-    PartialResult,
-    FinalResult,
 )
+from dictacode_stt.transport import (
+    TransportAdapter,
+    TransportError,
+    create_transport,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +314,8 @@ class SttService:
         # If transport type specified, filter by transport
         if self.transport_type:
             devices = [
-                d for d in self.hid_registry.list_devices()
+                d
+                for d in self.hid_registry.list_devices()
                 if d.transport == self.transport_type
             ]
             if devices:
@@ -326,9 +327,7 @@ class SttService:
                 )
                 return device
             else:
-                logger.warning(
-                    f"No {self.transport_type} devices found in registry"
-                )
+                logger.warning(f"No {self.transport_type} devices found in registry")
 
         # Auto-select best available device
         if self.hid_registry.has_devices():
@@ -379,9 +378,7 @@ class SttService:
                 "baud_rate", self.baud_rate
             )
 
-        logger.info(
-            f"Creating {device.transport} transport: {device.address}"
-        )
+        logger.info(f"Creating {device.transport} transport: {device.address}")
         logger.debug(f"Transport kwargs: {transport_kwargs}")
 
         try:
@@ -399,14 +396,15 @@ class SttService:
             audio_data: Raw audio bytes from device
         """
         if not self.audio_buffer or not self.resampler or not self.audio_port:
-            logger.warning("Audio buffer/resampler not initialized, dropping audio data")
+            logger.warning(
+                "Audio buffer/resampler not initialized, dropping audio data"
+            )
             return
 
         try:
             # Resample from native rate to target rate (16kHz)
             resampled = self.resampler.process(
-                audio_data,
-                source_rate=self.audio_port.capabilities.native_rate
+                audio_data, source_rate=self.audio_port.capabilities.native_rate
             )
 
             # v0.2.7: Feed directly to streaming transcriber if enabled
@@ -420,7 +418,9 @@ class SttService:
                 duration = self.audio_buffer.get_duration_seconds()
                 if int(duration) % 5 == 0 and duration > 0:
                     unread = self.audio_buffer.get_unread_duration_seconds()
-                    logger.debug(f"Audio buffer: {duration:.1f}s total, {unread:.1f}s unread")
+                    logger.debug(
+                        f"Audio buffer: {duration:.1f}s total, {unread:.1f}s unread"
+                    )
 
         except Exception as e:
             logger.error(f"Error processing audio data: {e}", exc_info=True)
@@ -446,10 +446,9 @@ class SttService:
         """
         logger.debug(f"Partial: {result.text}")
         # v0.3.0: Broadcast partial results to WebSocket clients
-        self._broadcast_websocket({
-            "type": "transcription",
-            "data": {"text": result.text, "final": False}
-        })
+        self._broadcast_websocket(
+            {"type": "transcription", "data": {"text": result.text, "final": False}}
+        )
 
     def _on_final_result(self, result: FinalResult) -> None:
         """
@@ -481,7 +480,9 @@ class SttService:
             True if stream started successfully, False otherwise
         """
         if not self.audio_port or not self.audio_buffer or not self.resampler:
-            logger.warning("Audio port abstraction not available, cannot start streaming")
+            logger.warning(
+                "Audio port abstraction not available, cannot start streaming"
+            )
             return False
 
         if self._audio_stream_active:
@@ -607,6 +608,7 @@ class SttService:
         """Send notification to systemd."""
         try:
             from systemd.daemon import notify
+
             notify(message)
         except ImportError:
             pass
@@ -640,7 +642,9 @@ class SttService:
 
         try:
             self.transport.send(encoded)
-            logger.info(f"Sent probe message (STT v{__version__}, protocol v{checker.matrix.protocol_version})")
+            logger.info(
+                f"Sent probe message (STT v{__version__}, protocol v{checker.matrix.protocol_version})"
+            )
         except TransportError as e:
             logger.error(f"Failed to send probe: {e}")
             return False
@@ -654,7 +658,7 @@ class SttService:
                 # Try to read response
                 read_attempts += 1
                 # Read line-delimited response (most transports support readline)
-                if hasattr(self.transport, 'readline'):
+                if hasattr(self.transport, "readline"):
                     data = self.transport.readline()
                 else:
                     # Fallback: read fixed amount
@@ -688,16 +692,22 @@ class SttService:
                             logger.error(f"Version incompatibility: {error_msg}")
                             return False
 
-                        logger.info(f"Handshake complete - protocol and versions compatible")
+                        logger.info(
+                            "Handshake complete - protocol and versions compatible"
+                        )
                         return True
                     else:
-                        logger.info(f"Received unexpected message type: {type(msg).__name__}")
+                        logger.info(
+                            f"Received unexpected message type: {type(msg).__name__}"
+                        )
             except Exception as e:
                 # Continue waiting on decode errors
                 logger.info(f"Handshake read attempt {read_attempts} error: {e}")
                 time.sleep(0.1)
 
-        logger.warning(f"Handshake timeout after {self.handshake_timeout}s ({read_attempts} read attempts)")
+        logger.warning(
+            f"Handshake timeout after {self.handshake_timeout}s ({read_attempts} read attempts)"
+        )
         return False
 
     def record_audio_from_source(self) -> Optional[bytes]:
@@ -749,7 +759,9 @@ class SttService:
         # Concatenate chunks
         audio_bytes = b"".join(chunks)
         duration = total_frames / self.whisper_sample_rate
-        logger.info(f"Got {duration:.1f}s from source in {elapsed:.2f}s ({len(audio_bytes)} bytes)")
+        logger.info(
+            f"Got {duration:.1f}s from source in {elapsed:.2f}s ({len(audio_bytes)} bytes)"
+        )
 
         return audio_bytes
 
@@ -765,8 +777,8 @@ class SttService:
             Exception: If recording fails
         """
         try:
-            import sounddevice as sd
             import numpy as np
+            import sounddevice as sd
         except ImportError:
             raise ImportError("sounddevice/numpy not installed")
 
@@ -835,7 +847,9 @@ class SttService:
                 audio_bytes = self.audio_buffer.read_for_transcription()
                 if audio_bytes:
                     duration = len(audio_bytes) // 2 // self.whisper_sample_rate
-                    logger.info(f"Read {duration:.1f}s from buffer ({len(audio_bytes)} bytes)")
+                    logger.info(
+                        f"Read {duration:.1f}s from buffer ({len(audio_bytes)} bytes)"
+                    )
                     return audio_bytes
                 else:
                     logger.warning("Buffer returned None despite having unread data")
@@ -973,10 +987,9 @@ class SttService:
             if self.supervisor_enabled:
                 self.supervisor.mark_activity()
             # v0.3.0: Broadcast transcription to WebSocket clients
-            self._broadcast_websocket({
-                "type": "transcription",
-                "data": {"text": text, "final": True}
-            })
+            self._broadcast_websocket(
+                {"type": "transcription", "data": {"text": text, "final": True}}
+            )
             return True
 
         try:
@@ -986,10 +999,9 @@ class SttService:
             if self.supervisor_enabled:
                 self.supervisor.mark_activity()
             # v0.3.0: Broadcast transcription to WebSocket clients
-            self._broadcast_websocket({
-                "type": "transcription",
-                "data": {"text": text, "final": True}
-            })
+            self._broadcast_websocket(
+                {"type": "transcription", "data": {"text": text, "final": True}}
+            )
             return True
         except TransportError as e:
             logger.error(f"Transport send failed: {e}")
@@ -1049,14 +1061,17 @@ class SttService:
 
         # Broadcast state change to WebSocket clients
         from datetime import datetime
-        self._broadcast_websocket({
-            "type": "state_change",
-            "data": {
-                "new_state": "paused",
-                "old_state": "listening",
-                "timestamp": datetime.utcnow().isoformat()
+
+        self._broadcast_websocket(
+            {
+                "type": "state_change",
+                "data": {
+                    "new_state": "paused",
+                    "old_state": "listening",
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             }
-        })
+        )
 
         return True
 
@@ -1078,14 +1093,17 @@ class SttService:
 
         # Broadcast state change to WebSocket clients
         from datetime import datetime
-        self._broadcast_websocket({
-            "type": "state_change",
-            "data": {
-                "new_state": "listening",
-                "old_state": "paused",
-                "timestamp": datetime.utcnow().isoformat()
+
+        self._broadcast_websocket(
+            {
+                "type": "state_change",
+                "data": {
+                    "new_state": "listening",
+                    "old_state": "paused",
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             }
-        })
+        )
 
         return True
 
@@ -1129,9 +1147,7 @@ class SttService:
 
             # Success
             self.supervisor.on_reconnect_success()
-            logger.info(
-                f"Transport reconnected: {self.active_hid_device.device_id}"
-            )
+            logger.info(f"Transport reconnected: {self.active_hid_device.device_id}")
             return True
 
         except Exception as e:
@@ -1161,7 +1177,9 @@ class SttService:
                 stats["mode"] = "source"
             elif self._audio_stream_active and self.audio_buffer:
                 # v0.2.4: Read from ring buffer (streaming mode)
-                audio_bytes = self.read_audio_from_buffer(min_duration=self.recording_duration)
+                audio_bytes = self.read_audio_from_buffer(
+                    min_duration=self.recording_duration
+                )
                 stats["mode"] = "streaming"
             else:
                 # Legacy: Blocking record
@@ -1197,7 +1215,9 @@ class SttService:
             text = self._deduplicate_transcription(text)
             if text != text_before_dedup:
                 stats["deduplicated"] = True
-            self._last_transcription = text_before_dedup  # Store original for next comparison
+            self._last_transcription = (
+                text_before_dedup  # Store original for next comparison
+            )
 
         stats["text"] = text
         stats["text_len"] = len(text)
@@ -1278,7 +1298,9 @@ class SttService:
                             if self.start_audio_stream():
                                 logger.info("Audio streaming started")
                             else:
-                                logger.warning("Failed to start audio stream, will use blocking mode")
+                                logger.warning(
+                                    "Failed to start audio stream, will use blocking mode"
+                                )
 
                         # Notify systemd that we're ready
                         if HAS_SYSTEMD:
@@ -1315,12 +1337,16 @@ class SttService:
                         if not self._reconnect():
                             # Reconnection failed
                             delay = self.supervisor.reconnect_delay()
-                            logger.error(f"Reconnection failed, waiting {delay:.1f}s...")
+                            logger.error(
+                                f"Reconnection failed, waiting {delay:.1f}s..."
+                            )
                             time.sleep(delay)
                             self.supervisor.signal_link_lost()
                         else:
                             # Reconnection succeeded - transition back to LISTENING
-                            logger.info("Reconnection successful, resuming transcription")
+                            logger.info(
+                                "Reconnection successful, resuming transcription"
+                            )
                             self.state.transition_to(SolutionState.LISTENING)
 
                 time.sleep(0.5)  # Brief pause between iterations

@@ -16,7 +16,8 @@ import os
 import signal
 import sys
 
-from dictacode_hid import HidService, DeviceMode
+from dictacode_hid import DeviceMode, HidService
+
 
 # Global flag for shutdown
 _shutdown_requested = False
@@ -151,11 +152,14 @@ Examples:
         os.environ.get("DICTACODE_SUPERVISOR_TIMEOUT", args.supervisor_timeout)
     )
     supervisor_ping_interval = float(
-        os.environ.get("DICTACODE_SUPERVISOR_PING_INTERVAL", args.supervisor_ping_interval)
+        os.environ.get(
+            "DICTACODE_SUPERVISOR_PING_INTERVAL", args.supervisor_ping_interval
+        )
     )
-    supervisor_enabled = os.environ.get(
-        "DICTACODE_SUPERVISOR_ENABLED", "true"
-    ).lower() != "false" and not args.no_supervisor
+    supervisor_enabled = (
+        os.environ.get("DICTACODE_SUPERVISOR_ENABLED", "true").lower() != "false"
+        and not args.no_supervisor
+    )
 
     # Create service
     try:
@@ -178,6 +182,7 @@ Examples:
     # Notify systemd if running under it
     try:
         from systemd.daemon import notify
+
         notify("READY=1")
         logger.info("Notified systemd: READY")
     except ImportError:

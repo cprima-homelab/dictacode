@@ -64,7 +64,7 @@ def check_module_loaded(module: str) -> bool:
     """Check if kernel module is currently loaded."""
     try:
         result = subprocess.run(
-            ["lsmod"], capture_output=True, text=True, timeout=5
+            ["lsmod"], check=False, capture_output=True, text=True, timeout=5
         )
         for line in result.stdout.splitlines():
             if line.startswith(module) or f" {module} " in line:
@@ -96,7 +96,7 @@ def get_udc_name() -> Optional[str]:
 def check_configfs_mounted() -> bool:
     """Check if configfs is mounted."""
     try:
-        with open("/proc/mounts", "r") as f:
+        with open("/proc/mounts") as f:
             for line in f:
                 if "configfs" in line and "/sys/kernel/config" in line:
                     return True

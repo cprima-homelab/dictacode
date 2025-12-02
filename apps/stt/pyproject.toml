@@ -41,3 +41,53 @@ packages = ["src/dictacode_stt"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "src/dictacode_stt/compatibility.json" = "share/dictacode_stt/compatibility.json"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.venv
+    | venv
+    | __pycache__
+    | \.mypy_cache
+    | build
+    | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Gradual typing - start permissive
+check_untyped_defs = true
+ignore_missing_imports = true  # Third-party libs without stubs
+
+# Stricter settings for new code (enable gradually)
+# disallow_untyped_defs = true
+# strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

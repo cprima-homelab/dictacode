@@ -1,7 +1,5 @@
 """Tests for dictacode_hid.state module."""
 
-import pytest
-
 from dictacode_hid import DeviceMode, HidState
 
 

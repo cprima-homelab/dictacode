@@ -14,14 +14,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from .adapter import TranscriptionAdapter, TranscriptionResult, AudioRequirements
+from .adapter import AudioRequirements, TranscriptionAdapter, TranscriptionResult
 from .streaming import (
-    PartialResult,
+    ErrorCallback,
+    FinalCallback,
     FinalResult,
     PartialCallback,
-    FinalCallback,
-    ErrorCallback,
+    PartialResult,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +93,7 @@ class VoskAdapter(TranscriptionAdapter):
             formats=["wav"],
         )
 
-    def transcribe(
-        self, audio_path: Path, language: str = "en"
-    ) -> TranscriptionResult:
+    def transcribe(self, audio_path: Path, language: str = "en") -> TranscriptionResult:
         """Transcribe audio file using Vosk (batch mode).
 
         Args:
@@ -105,8 +104,9 @@ class VoskAdapter(TranscriptionAdapter):
             TranscriptionResult with text or error
         """
         try:
-            from vosk import Model, KaldiRecognizer
             import wave
+
+            from vosk import KaldiRecognizer, Model
         except ImportError:
             return TranscriptionResult(
                 text="",
@@ -201,7 +201,7 @@ class VoskAdapter(TranscriptionAdapter):
             raise RuntimeError("Streaming already active")
 
         try:
-            from vosk import Model, KaldiRecognizer
+            from vosk import KaldiRecognizer, Model
         except ImportError as e:
             if on_error:
                 on_error(e)

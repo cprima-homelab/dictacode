@@ -5,13 +5,13 @@ instead of a physical microphone for testing.
 """
 
 from pathlib import Path
+
 from dictacode_stt.audio.sources import (
-    create_audio_source,
-    FileSource,
-    SyntheticSource,
     AudioSourceConfig,
-    SourceType,
+    FileSource,
     PlaybackMode,
+    SourceType,
+    create_audio_source,
 )
 
 
@@ -21,11 +21,13 @@ def example_file_source_fast():
     source = create_audio_source("file:test_audio.wav:fast")
 
     # Or create directly with config
-    source = FileSource(AudioSourceConfig(
-        source_type=SourceType.FILE,
-        file_path=Path("test_audio.wav"),
-        playback_mode=PlaybackMode.FAST,  # No timing delays, max speed
-    ))
+    source = FileSource(
+        AudioSourceConfig(
+            source_type=SourceType.FILE,
+            file_path=Path("test_audio.wav"),
+            playback_mode=PlaybackMode.FAST,  # No timing delays, max speed
+        )
+    )
 
     # Track chunks received
     chunks_received = []
@@ -45,6 +47,7 @@ def example_file_source_fast():
 
     # Wait for completion
     import time
+
     while source.is_active():
         time.sleep(0.1)
 
@@ -65,6 +68,7 @@ def example_file_source_realtime():
 
     # Runs at real-time speed
     import time
+
     time.sleep(5)  # Let it run for 5 seconds
 
     source.stop()
@@ -73,12 +77,14 @@ def example_file_source_realtime():
 
 def example_file_source_looping():
     """Example: Loop a short audio file for continuous testing."""
-    source = FileSource(AudioSourceConfig(
-        source_type=SourceType.FILE,
-        file_path=Path("short_phrase.wav"),
-        loop=True,  # Repeat indefinitely
-        playback_mode=PlaybackMode.FAST,
-    ))
+    source = FileSource(
+        AudioSourceConfig(
+            source_type=SourceType.FILE,
+            file_path=Path("short_phrase.wav"),
+            loop=True,  # Repeat indefinitely
+            playback_mode=PlaybackMode.FAST,
+        )
+    )
 
     total_frames = 0
 
@@ -93,6 +99,7 @@ def example_file_source_looping():
 
     # Run for a while
     import time
+
     time.sleep(2)
 
     source.stop()
@@ -108,6 +115,7 @@ def example_synthetic_silence():
     def on_audio(data: bytes, frames: int):
         # Verify it's actually silence
         import numpy as np
+
         samples = np.frombuffer(data, dtype=np.int16)
         assert np.all(samples == 0), "Expected silence!"
         print(f"Verified {frames} frames of silence")
@@ -119,6 +127,7 @@ def example_synthetic_silence():
     source.start(callback=on_audio, on_end=on_end)
 
     import time
+
     while source.is_active():
         time.sleep(0.01)
 
@@ -127,13 +136,15 @@ def example_synthetic_silence():
 
 def example_file_with_segment():
     """Example: Play only a segment of a file."""
-    source = FileSource(AudioSourceConfig(
-        source_type=SourceType.FILE,
-        file_path=Path("long_recording.wav"),
-        start_offset_ms=5000,  # Start at 5 seconds
-        end_offset_ms=10000,   # End at 10 seconds
-        playback_mode=PlaybackMode.FAST,
-    ))
+    source = FileSource(
+        AudioSourceConfig(
+            source_type=SourceType.FILE,
+            file_path=Path("long_recording.wav"),
+            start_offset_ms=5000,  # Start at 5 seconds
+            end_offset_ms=10000,  # End at 10 seconds
+            playback_mode=PlaybackMode.FAST,
+        )
+    )
 
     def on_audio(data: bytes, frames: int):
         print(f"Processing segment: {frames} frames")
@@ -145,6 +156,7 @@ def example_file_with_segment():
     source.start(callback=on_audio, on_end=on_end)
 
     import time
+
     while source.is_active():
         time.sleep(0.01)
 

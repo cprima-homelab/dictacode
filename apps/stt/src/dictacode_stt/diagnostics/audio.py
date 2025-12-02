@@ -5,7 +5,7 @@ Checks microphone detection and recording capability.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List
 
 from .base import DiagnosticResult
 
@@ -48,8 +48,8 @@ def check_device_exists(device_index: int) -> bool:
 def test_audio_recording(device_index: int, duration: float = 1.0) -> bool:
     """Test if audio recording works (1 second test capture)."""
     try:
-        import sounddevice as sd
         import numpy as np
+        import sounddevice as sd
 
         # Record a short sample
         sample_rate = 16000

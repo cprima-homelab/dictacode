@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
+
 # Status indicators
 OK = "[OK]"
 WARN = "[WARN]"
@@ -51,7 +52,7 @@ def find_config_txt() -> Tuple[Path | None, str]:
     """Find config.txt location (varies by distro)."""
     paths = [
         Path("/boot/firmware/config.txt"),  # Modern Pi OS (Bookworm+)
-        Path("/boot/config.txt"),            # Legacy Pi OS
+        Path("/boot/config.txt"),  # Legacy Pi OS
     ]
     for p in paths:
         if p.exists():
@@ -98,10 +99,7 @@ def check_module_loaded(module: str) -> bool:
     """Check if kernel module is currently loaded."""
     try:
         result = subprocess.run(
-            ["lsmod"],
-            capture_output=True,
-            text=True,
-            timeout=5
+            ["lsmod"], check=False, capture_output=True, text=True, timeout=5
         )
         for line in result.stdout.splitlines():
             if line.startswith(module) or f" {module} " in line:
@@ -135,7 +133,7 @@ def get_udc_name() -> str | None:
 def check_configfs_mounted() -> bool:
     """Check if configfs is mounted."""
     try:
-        with open("/proc/mounts", "r") as f:
+        with open("/proc/mounts") as f:
             for line in f:
                 if "configfs" in line and "/sys/kernel/config" in line:
                     return True
@@ -195,13 +193,10 @@ def main() -> int:
         else:
             result.fail(
                 "dtoverlay=dwc2 not found in config.txt",
-                f"Add 'dtoverlay=dwc2' to {config_txt}"
+                f"Add 'dtoverlay=dwc2' to {config_txt}",
             )
     else:
-        result.fail(
-            "config.txt not found",
-            "Check Pi boot partition mount"
-        )
+        result.fail("config.txt not found", "Check Pi boot partition mount")
     print()
 
     # 2. Module Configuration
@@ -217,7 +212,9 @@ def main() -> int:
     if libcomp_configured:
         result.ok(f"libcomposite configured in {libcomp_location}")
     else:
-        result.warn("libcomposite not in module autoload (loaded manually or by script)")
+        result.warn(
+            "libcomposite not in module autoload (loaded manually or by script)"
+        )
     print()
 
     # 3. Kernel Modules
@@ -226,18 +223,12 @@ def main() -> int:
     if check_dwc2_active():
         result.ok("dwc2 active (UDC available or module loaded)")
     else:
-        result.fail(
-            "dwc2 not active",
-            "Reboot after configuring dtoverlay=dwc2"
-        )
+        result.fail("dwc2 not active", "Reboot after configuring dtoverlay=dwc2")
 
     if check_module_loaded("libcomposite"):
         result.ok("libcomposite module loaded")
     else:
-        result.fail(
-            "libcomposite module not loaded",
-            "Run: sudo modprobe libcomposite"
-        )
+        result.fail("libcomposite module not loaded", "Run: sudo modprobe libcomposite")
     print()
 
     # 4. ConfigFS
@@ -248,7 +239,7 @@ def main() -> int:
     else:
         result.fail(
             "configfs not mounted",
-            "Run: sudo mount -t configfs none /sys/kernel/config"
+            "Run: sudo mount -t configfs none /sys/kernel/config",
         )
     print()
 
@@ -261,7 +252,7 @@ def main() -> int:
     else:
         result.fail(
             "No UDC found in /sys/class/udc/",
-            "Ensure dwc2 module is loaded and hardware supports USB gadget"
+            "Ensure dwc2 module is loaded and hardware supports USB gadget",
         )
     print()
 
@@ -277,7 +268,7 @@ def main() -> int:
         else:
             result.fail(
                 "HID function not configured",
-                "Run gadget setup script to create HID function"
+                "Run gadget setup script to create HID function",
             )
 
         bound, bound_udc = check_gadget_bound(gadget_name)
@@ -286,12 +277,12 @@ def main() -> int:
         else:
             result.fail(
                 "Gadget not bound to UDC",
-                f"Run: echo '{udc_name}' | sudo tee /sys/kernel/config/usb_gadget/{gadget_name}/UDC"
+                f"Run: echo '{udc_name}' | sudo tee /sys/kernel/config/usb_gadget/{gadget_name}/UDC",
             )
     else:
         result.fail(
             "No gadget configured in /sys/kernel/config/usb_gadget/",
-            "Run gadget setup script"
+            "Run gadget setup script",
         )
     print()
 
@@ -306,12 +297,11 @@ def main() -> int:
         if os.access(hidg0, os.W_OK):
             result.ok("/dev/hidg0 is writable")
         else:
-            result.warn(f"/dev/hidg0 not writable by current user (run as root or add to group)")
+            result.warn(
+                "/dev/hidg0 not writable by current user (run as root or add to group)"
+            )
     else:
-        result.fail(
-            "/dev/hidg0 does not exist",
-            "Configure and bind USB gadget first"
-        )
+        result.fail("/dev/hidg0 does not exist", "Configure and bind USB gadget first")
     print()
 
     # Summary

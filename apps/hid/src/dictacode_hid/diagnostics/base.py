@@ -177,7 +177,11 @@ class DiagnosticResult:
 
         # Show next steps for failures
         if self.failures > 0:
-            next_steps = [c.next_step for c in self.checks if c.next_step and c.status == CheckStatus.FAIL]
+            next_steps = [
+                c.next_step
+                for c in self.checks
+                if c.next_step and c.status == CheckStatus.FAIL
+            ]
             if next_steps:
                 lines.append("")
                 lines.append("Next steps:")

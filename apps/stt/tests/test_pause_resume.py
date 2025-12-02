@@ -1,7 +1,8 @@
 """Unit tests for pause/resume functionality (v0.3.0 Phase 3.4)."""
 
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from dictacode_stt.service import SttService
 from dictacode_stt.state import SolutionState
@@ -17,6 +18,7 @@ def mock_service():
 
     # Import actual methods from service
     from dictacode_stt.service import SttService as RealService
+
     service.pause = lambda: RealService.pause(service)
     service.resume = lambda: RealService.resume(service)
     service.get_state = lambda: RealService.get_state(service)
@@ -136,7 +138,9 @@ def test_get_state_degraded(mock_service):
 def test_pause_resume_cycle(mock_service):
     """Test full pause/resume cycle."""
     mock_service.state.state = SolutionState.LISTENING
-    mock_service.state.transition_to = Mock(side_effect=lambda s: setattr(mock_service.state, 'state', s))
+    mock_service.state.transition_to = Mock(
+        side_effect=lambda s: setattr(mock_service.state, "state", s)
+    )
 
     # Pause
     result1 = mock_service.pause()

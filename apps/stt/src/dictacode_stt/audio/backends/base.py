@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Callable
+from typing import Callable, List, Optional
 
 
 class BackendType(Enum):
@@ -103,7 +103,7 @@ class AudioBackend(ABC):
         channels: int,
         callback: AudioDataCallback,
         buffer_frames: int = 1024,
-    ) -> "AudioInputStream":
+    ) -> AudioInputStream:
         """Open an input stream on the specified device."""
         pass
 

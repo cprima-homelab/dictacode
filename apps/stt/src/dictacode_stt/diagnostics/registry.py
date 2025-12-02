@@ -9,15 +9,16 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Set, Dict, Any
+from typing import Callable, Dict, List, Optional, Set
 
 from .base import (
-    CheckStatus,
     CheckCategory,
-    CheckSeverity,
     CheckResult,
+    CheckSeverity,
+    CheckStatus,
     DiagnosticResult,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -231,9 +232,7 @@ class DiagnosticRegistry:
 
         return result
 
-    async def run_check(
-        self, check: DiagnosticCheck, **kwargs
-    ) -> CheckResult:
+    async def run_check(self, check: DiagnosticCheck, **kwargs) -> CheckResult:
         """Run a single check with timeout.
 
         Args:
@@ -287,15 +286,13 @@ class DiagnosticRegistry:
 
         except Exception as e:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
-            logger.error(
-                f"Check {check.check_id} raised exception: {e}", exc_info=True
-            )
+            logger.error(f"Check {check.check_id} raised exception: {e}", exc_info=True)
 
             return CheckResult(
                 check_id=check.check_id,
                 name=check.name,
                 status=CheckStatus.ERROR,
-                message=f"Check failed with error: {str(e)}",
+                message=f"Check failed with error: {e!s}",
                 category=check.category,
                 severity=CheckSeverity.CRITICAL,
                 duration_ms=duration_ms,

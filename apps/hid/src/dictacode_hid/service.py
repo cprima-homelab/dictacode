@@ -16,27 +16,30 @@ import logging
 import time
 from typing import Optional
 
+
 try:
     from systemd import daemon as sd_daemon
+
     HAS_SYSTEMD = True
 except ImportError:
     HAS_SYSTEMD = False
 
 from dictacode_hid import __version__
-from dictacode_hid.protocol import (
-    ProtocolAdapter,
-    get_protocol,
-    detect_protocol,
-    TextMessage,
-    CommandMessage,
-    ProbeMessage,
-    ProbeAckMessage,
-)
 from dictacode_hid.compatibility import CompatibilityChecker
-from dictacode_hid.state import DeviceMode, HidState
-from dictacode_hid.transport import UartTransport, HidTransport, TransportError
 from dictacode_hid.keymaps import Keymap, load_keymap
+from dictacode_hid.protocol import (
+    CommandMessage,
+    ProbeAckMessage,
+    ProbeMessage,
+    ProtocolAdapter,
+    TextMessage,
+    detect_protocol,
+    get_protocol,
+)
+from dictacode_hid.state import DeviceMode, HidState
 from dictacode_hid.supervisor import LinkSupervisor
+from dictacode_hid.transport import HidTransport, TransportError, UartTransport
+
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +126,7 @@ class HidService:
 
         # Open transports (v0.2.8: use UartConfig)
         from dictacode_hid.transport.uart import UartConfig
+
         uart_config = UartConfig(device=self.uart_device, baud_rate=self.baud_rate)
         self.uart = UartTransport(uart_config)
         self.uart.connect()
@@ -131,6 +135,7 @@ class HidService:
         if not self.dry_run:
             # v0.2.8: use HidConfig
             from dictacode_hid.transport.hid import HidConfig
+
             hid_config = HidConfig(device=self.hid_device)
             self.hid = HidTransport(hid_config)
             self.hid.connect()
@@ -212,7 +217,9 @@ class HidService:
                 except Exception as e:
                     # Try auto-detection on decode failure
                     detected = detect_protocol(
-                        raw_data if self.protocol_name == "json" else length_bytes + raw_data
+                        raw_data
+                        if self.protocol_name == "json"
+                        else length_bytes + raw_data
                     )
                     if detected != self.protocol_name:
                         logger.warning(
@@ -258,6 +265,7 @@ class HidService:
 
             # Reopen transport (v0.2.8: use UartConfig)
             from dictacode_hid.transport.uart import UartConfig
+
             uart_config = UartConfig(device=self.uart_device, baud_rate=self.baud_rate)
             self.uart = UartTransport(uart_config)
             self.uart.connect()
@@ -430,7 +438,9 @@ class HidService:
             mapping = self.keymap.get(char)
             if mapping:
                 if self.dry_run:
-                    logger.debug(f"Would type: {char} (code={mapping.scancode}, mod={mapping.modifier})")
+                    logger.debug(
+                        f"Would type: {char} (code={mapping.scancode}, mod={mapping.modifier})"
+                    )
                 else:
                     try:
                         self.hid.send_key(mapping.scancode, mapping.modifier)

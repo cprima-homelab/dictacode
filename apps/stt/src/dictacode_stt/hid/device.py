@@ -22,16 +22,17 @@ Usage:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class HidDeviceStatus(Enum):
     """HID device connection status."""
-    UNKNOWN = "unknown"      # Status not yet determined
-    ONLINE = "online"        # Device reachable but not active
-    OFFLINE = "offline"      # Device unreachable
-    ACTIVE = "active"        # Currently selected and in use
-    ERROR = "error"          # Device has errors
+
+    UNKNOWN = "unknown"  # Status not yet determined
+    ONLINE = "online"  # Device reachable but not active
+    OFFLINE = "offline"  # Device unreachable
+    ACTIVE = "active"  # Currently selected and in use
+    ERROR = "error"  # Device has errors
 
 
 @dataclass
@@ -51,6 +52,7 @@ class HidDevice:
         status: Current device status
         metadata: Additional device-specific configuration
     """
+
     device_id: str
     name: str
     transport: str

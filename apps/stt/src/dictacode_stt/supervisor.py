@@ -20,9 +20,9 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
-from dictacode_stt.state import SttState, SolutionState
+from dictacode_stt.state import SolutionState, SttState
+
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +66,7 @@ class LinkSupervisor:
     def check_prerequisites(self) -> bool:
         """Detect if whisper binary and model exist."""
         return (
-            self.config.whisper_binary.exists()
-            and self.config.whisper_model.exists()
+            self.config.whisper_binary.exists() and self.config.whisper_model.exists()
         )
 
     def check_link_available(self) -> bool:
@@ -112,7 +111,7 @@ class LinkSupervisor:
         Returns:
             Delay in seconds: 1s → 2s → 4s → 8s → 16s → 30s (max)
         """
-        delay = min(2 ** self.reconnect_attempts, self.config.max_backoff)
+        delay = min(2**self.reconnect_attempts, self.config.max_backoff)
         return delay
 
     def should_send_ping(self) -> bool:
@@ -166,9 +165,7 @@ class LinkSupervisor:
     def on_reconnect_success(self) -> None:
         """Called after successful reconnection. Resets attempt counter."""
         if self.reconnect_attempts > 0:
-            logger.info(
-                f"Reconnected after {self.reconnect_attempts} attempts"
-            )
+            logger.info(f"Reconnected after {self.reconnect_attempts} attempts")
         self.reconnect_attempts = 0
         self._mark_healthy()
         self.mark_activity()  # Reset timeout
@@ -192,6 +189,7 @@ class LinkSupervisor:
         """
         try:
             from systemd.daemon import notify
+
             notify("WATCHDOG=1")
             return True
         except ImportError:

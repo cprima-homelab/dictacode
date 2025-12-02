@@ -31,10 +31,11 @@ Usage:
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import List, Optional
 
 from ..lock import SerialLock
-from .adapter import TransportAdapter, TransportConfig, TransportError, ConnectionStatus
+from .adapter import ConnectionStatus, TransportAdapter, TransportConfig, TransportError
+
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +47,23 @@ KNOWN_USB_SERIAL_DEVICES = {
     (0x0403, 0x6010): "FTDI FT2232H",
     (0x0403, 0x6011): "FTDI FT4232H",
     (0x0403, 0x6014): "FTDI FT232H",
-    (0x1a86, 0x7523): "CH340",
-    (0x10c4, 0xea60): "CP2102",
-    (0x067b, 0x2303): "Prolific PL2303",
+    (0x1A86, 0x7523): "CH340",
+    (0x10C4, 0xEA60): "CP2102",
+    (0x067B, 0x2303): "Prolific PL2303",
 }
 
 
 @dataclass
 class UsbSerialDevice:
     """Detected USB-serial device information."""
-    port: str                    # e.g., "/dev/ttyUSB0"
-    vendor_id: int               # e.g., 0x0403 (FTDI)
-    product_id: int              # e.g., 0x6011 (FT4232H)
-    serial_number: Optional[str] # Unique device serial
-    description: str             # e.g., "FT4232H"
+
+    port: str  # e.g., "/dev/ttyUSB0"
+    vendor_id: int  # e.g., 0x0403 (FTDI)
+    product_id: int  # e.g., 0x6011 (FT4232H)
+    serial_number: Optional[str]  # Unique device serial
+    description: str  # e.g., "FT4232H"
     manufacturer: Optional[str]  # e.g., "FTDI"
-    location: Optional[str]      # USB bus location
+    location: Optional[str]  # USB bus location
 
     def __str__(self) -> str:
         """Human-readable device description."""
@@ -104,6 +106,7 @@ class UsbSerialConfig(TransportConfig):
         timeout: Read timeout in seconds (default: 1.0)
         lock_dir: Optional lock directory override (for testing)
     """
+
     port: Optional[str] = None
     vendor_id: Optional[int] = None
     product_id: Optional[int] = None
@@ -164,15 +167,17 @@ class UsbSerialTransport(TransportAdapter):
         devices = []
         for port_info in serial.tools.list_ports.comports():
             if port_info.vid is not None:  # USB device
-                devices.append(UsbSerialDevice(
-                    port=port_info.device,
-                    vendor_id=port_info.vid,
-                    product_id=port_info.pid,
-                    serial_number=port_info.serial_number,
-                    description=port_info.description or "",
-                    manufacturer=port_info.manufacturer,
-                    location=port_info.location,
-                ))
+                devices.append(
+                    UsbSerialDevice(
+                        port=port_info.device,
+                        vendor_id=port_info.vid,
+                        product_id=port_info.pid,
+                        serial_number=port_info.serial_number,
+                        description=port_info.description or "",
+                        manufacturer=port_info.manufacturer,
+                        location=port_info.location,
+                    )
+                )
 
         return devices
 
@@ -204,13 +209,16 @@ class UsbSerialTransport(TransportAdapter):
                 if device.serial_number == self.config.serial_number:
                     logger.info(f"Found device by serial number: {device}")
                     return device.port
-            logger.warning(f"No device found with serial number: {self.config.serial_number}")
+            logger.warning(
+                f"No device found with serial number: {self.config.serial_number}"
+            )
             return None
 
         # Priority 3: Match by vendor/product ID
         if self.config.vendor_id and self.config.product_id:
             matching_devices = [
-                d for d in devices
+                d
+                for d in devices
                 if d.vendor_id == self.config.vendor_id
                 and d.product_id == self.config.product_id
             ]
@@ -247,7 +255,9 @@ class UsbSerialTransport(TransportAdapter):
                 )
             return device.port
 
-        logger.error("No device selection criteria specified (port, serial_number, or vid:pid)")
+        logger.error(
+            "No device selection criteria specified (port, serial_number, or vid:pid)"
+        )
         return None
 
     def connect(self) -> bool:

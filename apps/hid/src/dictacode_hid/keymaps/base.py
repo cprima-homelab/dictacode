@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+
 # Config file location
 CONFIG_FILE = Path("/etc/dictacode/keymap.conf")
 DEFAULT_KEYMAP = "en_us"
@@ -12,6 +13,7 @@ DEFAULT_KEYMAP = "en_us"
 @dataclass
 class KeyMapping:
     """Represents a single key mapping."""
+
     scancode: int
     modifier: int = 0  # 0=none, 2=left_shift, 64=right_alt (AltGr)
 
@@ -56,7 +58,9 @@ def get_available_keymaps() -> Dict[str, str]:
 def load_keymap(name: str) -> Keymap:
     """Load a keymap by name."""
     if name not in _KEYMAP_REGISTRY:
-        raise ValueError(f"Unknown keymap: {name}. Available: {list(_KEYMAP_REGISTRY.keys())}")
+        raise ValueError(
+            f"Unknown keymap: {name}. Available: {list(_KEYMAP_REGISTRY.keys())}"
+        )
     return _KEYMAP_REGISTRY[name]()
 
 
@@ -80,7 +84,9 @@ def get_current_keymap() -> str:
 def set_current_keymap(name: str) -> None:
     """Write keymap to config file."""
     if name not in _KEYMAP_REGISTRY:
-        raise ValueError(f"Unknown keymap: {name}. Available: {list(_KEYMAP_REGISTRY.keys())}")
+        raise ValueError(
+            f"Unknown keymap: {name}. Available: {list(_KEYMAP_REGISTRY.keys())}"
+        )
 
     # Ensure directory exists
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)

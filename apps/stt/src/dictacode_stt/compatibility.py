@@ -2,21 +2,23 @@
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional, Set, Tuple
+
 
 # Search paths for matrix file (in priority order)
 MATRIX_SEARCH_PATHS = [
     Path("/opt/dictacode/shared/compatibility.json"),  # Production
-    Path(__file__).parent.parent.parent.parent / "compatibility.json",  # Dev (repo root)
+    Path(__file__).parent.parent.parent.parent
+    / "compatibility.json",  # Dev (repo root)
     Path("/etc/dictacode/compatibility.json"),  # Alternative system location
 ]
 
 # Add package-internal path (for PyPI installs) - HIGHEST PRIORITY
 try:
-    from importlib import resources
     import sys
+    from importlib import resources
 
     if sys.version_info >= (3, 9):
         # Python 3.9+: Use files() API
@@ -24,7 +26,9 @@ try:
         pkg_matrix = pkg_files / "compatibility.json"
 
         # For shared-data installs, also check sys.prefix location
-        shared_data_path = Path(sys.prefix) / "share" / "dictacode_stt" / "compatibility.json"
+        shared_data_path = (
+            Path(sys.prefix) / "share" / "dictacode_stt" / "compatibility.json"
+        )
 
         # Try package-internal first (most reliable)
         if pkg_matrix.is_file():
@@ -34,14 +38,17 @@ try:
 except (ImportError, AttributeError, TypeError):
     pass  # Fall back to other paths
 
+
 @dataclass
 class CompatibilityEntry:
     """Single compatibility entry from matrix."""
+
     stt_version: str
     hid_versions: List[str]
     protocol: str
     status: str  # "pass" or "fail"
     notes: str
+
 
 class CompatibilityMatrix:
     """Loads and queries compatibility matrix from external JSON file."""
@@ -65,9 +72,9 @@ class CompatibilityMatrix:
         # HARD FAIL - no fallback
         error_msg = (
             "FATAL: Compatibility matrix file not found!\n"
-            f"Searched paths:\n" +
-            "\n".join(f"  - {p}" for p in MATRIX_SEARCH_PATHS) +
-            "\n\nThis file is REQUIRED for operation. Cannot continue."
+            "Searched paths:\n"
+            + "\n".join(f"  - {p}" for p in MATRIX_SEARCH_PATHS)
+            + "\n\nThis file is REQUIRED for operation. Cannot continue."
         )
         self.logger.error(error_msg)
         raise FileNotFoundError(error_msg)
@@ -91,14 +98,16 @@ class CompatibilityMatrix:
                     hid_versions=entry["hid"],
                     protocol=entry["protocol"],
                     status=entry["status"],
-                    notes=entry.get("notes", "")
+                    notes=entry.get("notes", ""),
                 )
 
                 if entry.get("status") == "pass":
                     # Merge HID versions if STT version already exists
                     if stt_ver in self.entries:
                         existing = self.entries[stt_ver]
-                        existing.hid_versions = list(set(existing.hid_versions) | set(entry_obj.hid_versions))
+                        existing.hid_versions = list(
+                            set(existing.hid_versions) | set(entry_obj.hid_versions)
+                        )
                     else:
                         self.entries[stt_ver] = entry_obj
                 elif entry.get("status") == "fail":
@@ -136,6 +145,7 @@ class CompatibilityMatrix:
             self.logger.info(f"STT {entry.stt_version} → HID [{hid_str}]")
         self.logger.info("=" * 50)
 
+
 class CompatibilityChecker:
     """Runtime compatibility validation."""
 
@@ -145,9 +155,7 @@ class CompatibilityChecker:
         self.matrix.log_active_matrix()
 
     def validate_compatibility(
-        self,
-        stt_version: str,
-        hid_version: str
+        self, stt_version: str, hid_version: str
     ) -> Tuple[bool, str]:
         """
         Validate version compatibility.

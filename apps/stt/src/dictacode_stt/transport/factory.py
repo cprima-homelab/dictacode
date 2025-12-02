@@ -20,20 +20,19 @@ Usage:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .adapter import TransportAdapter, TransportConfig
-from .uart import UartTransport, UartConfig
-from .usb_serial import UsbSerialTransport, UsbSerialConfig, UsbSerialDevice
-from .wifi import WifiTransport, WifiConfig
+from .uart import UartConfig, UartTransport
+from .usb_serial import UsbSerialConfig, UsbSerialDevice, UsbSerialTransport
+from .wifi import WifiConfig, WifiTransport
+
 
 logger = logging.getLogger(__name__)
 
 
 def create_transport(
-    transport_type: str,
-    config: Optional[TransportConfig] = None,
-    **kwargs
+    transport_type: str, config: Optional[TransportConfig] = None, **kwargs
 ) -> TransportAdapter:
     """Create a transport adapter by type name.
 
@@ -143,8 +142,12 @@ def create_transport_from_config(config_dict: Dict[str, Any]) -> TransportAdapte
     # Handle hex strings for USB vendor/product IDs
     if transport_type in ("usb-serial", "usb_serial", "usb"):
         if "vendor_id" in config_params and isinstance(config_params["vendor_id"], str):
-            config_params["vendor_id"] = int(config_params["vendor_id"], 0)  # Auto-detect hex/dec
-        if "product_id" in config_params and isinstance(config_params["product_id"], str):
+            config_params["vendor_id"] = int(
+                config_params["vendor_id"], 0
+            )  # Auto-detect hex/dec
+        if "product_id" in config_params and isinstance(
+            config_params["product_id"], str
+        ):
             config_params["product_id"] = int(config_params["product_id"], 0)
 
     return create_transport(transport_type, **config_params)
@@ -258,6 +261,7 @@ def detect_available_transports() -> Dict[str, List[str]]:
 
     # Check for UART devices
     import os
+
     common_uart_devices = ["/dev/serial0", "/dev/ttyAMA0", "/dev/ttyS0"]
     for device in common_uart_devices:
         if os.path.exists(device):

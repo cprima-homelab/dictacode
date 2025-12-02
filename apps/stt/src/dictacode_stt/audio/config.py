@@ -6,9 +6,10 @@ Loads and manages device profiles and audio configuration.
 
 import configparser
 import logging
-from pathlib import Path
-from typing import Optional, Dict, List
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Optional
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,9 @@ class AudioProfile:
     max_overlap_words: int = 10
 
     @classmethod
-    def from_config(cls, config: configparser.ConfigParser, profile_name: str = "") -> "AudioProfile":
+    def from_config(
+        cls, config: configparser.ConfigParser, profile_name: str = ""
+    ) -> "AudioProfile":
         """Create AudioProfile from ConfigParser."""
         profile = cls()
 
@@ -62,11 +65,15 @@ class AudioProfile:
         # Audio section
         if config.has_section("audio"):
             if config.has_option("audio", "buffer_size_seconds"):
-                profile.buffer_size_seconds = config.getfloat("audio", "buffer_size_seconds")
+                profile.buffer_size_seconds = config.getfloat(
+                    "audio", "buffer_size_seconds"
+                )
             if config.has_option("audio", "overlap_seconds"):
                 profile.overlap_seconds = config.getfloat("audio", "overlap_seconds")
             if config.has_option("audio", "target_sample_rate"):
-                profile.target_sample_rate = config.getint("audio", "target_sample_rate")
+                profile.target_sample_rate = config.getint(
+                    "audio", "target_sample_rate"
+                )
             if config.has_option("audio", "channels"):
                 profile.channels = config.getint("audio", "channels")
             if config.has_option("audio", "dtype"):
@@ -84,11 +91,17 @@ class AudioProfile:
         # Advanced section
         if config.has_section("advanced"):
             if config.has_option("advanced", "streaming_enabled"):
-                profile.streaming_enabled = config.getboolean("advanced", "streaming_enabled")
+                profile.streaming_enabled = config.getboolean(
+                    "advanced", "streaming_enabled"
+                )
             if config.has_option("advanced", "deduplication_enabled"):
-                profile.deduplication_enabled = config.getboolean("advanced", "deduplication_enabled")
+                profile.deduplication_enabled = config.getboolean(
+                    "advanced", "deduplication_enabled"
+                )
             if config.has_option("advanced", "max_overlap_words"):
-                profile.max_overlap_words = config.getint("advanced", "max_overlap_words")
+                profile.max_overlap_words = config.getint(
+                    "advanced", "max_overlap_words"
+                )
 
         logger.debug(f"Loaded audio profile: {profile_name} ({profile.description})")
         return profile
@@ -199,13 +212,17 @@ class AudioConfig:
         # Try profile matching by match_port_id
         for profile_name, profile in self._profiles.items():
             if profile.match_port_id and profile.match_port_id == port_id:
-                logger.info(f"Matched profile {profile_name} by match_port_id: {port_id}")
+                logger.info(
+                    f"Matched profile {profile_name} by match_port_id: {port_id}"
+                )
                 return profile
 
         # Try profile matching by device name
         for profile_name, profile in self._profiles.items():
             if profile.match_name and profile.match_name.lower() in port_name.lower():
-                logger.info(f"Matched profile {profile_name} by device name: {port_name}")
+                logger.info(
+                    f"Matched profile {profile_name} by device name: {port_name}"
+                )
                 return profile
 
         # Try vendor match (first part of hyphenated port_id)

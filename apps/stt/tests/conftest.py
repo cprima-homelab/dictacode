@@ -1,15 +1,15 @@
 """Pytest configuration and fixtures for dictacode STT tests."""
 
-import pytest
 from pathlib import Path
-from typing import Optional
+
+import pytest
 
 from dictacode_stt.audio.sources import (
-    create_audio_source,
     AudioSource,
     AudioSourceConfig,
-    SourceType,
     PlaybackMode,
+    SourceType,
+    create_audio_source,
 )
 
 
@@ -95,6 +95,7 @@ def create_file_source(
 
     # Use config for advanced options
     from dictacode_stt.audio.sources import FileSource
+
     config = AudioSourceConfig(
         source_type=SourceType.FILE,
         file_path=fixture_path,
@@ -132,6 +133,7 @@ def collect_audio_from_source(source: AudioSource, max_duration: float = 10.0) -
     source.start(callback=on_audio, on_end=on_end)
 
     import time
+
     while source.is_active() and total_frames < max_frames:
         time.sleep(0.01)
 

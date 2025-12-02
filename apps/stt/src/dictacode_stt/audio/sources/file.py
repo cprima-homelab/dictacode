@@ -6,19 +6,19 @@ import logging
 import threading
 import time
 import wave
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
 from dictacode_stt.audio.source import (
+    AudioChunkCallback,
     AudioSource,
     AudioSourceConfig,
-    AudioChunkCallback,
+    PlaybackMode,
     SourceEndCallback,
     SourceType,
-    PlaybackMode,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +128,7 @@ class FileSource(AudioSource):
             if not data:
                 if self.config.loop:
                     # Restart from beginning
-                    start_frame = int(
-                        self.config.start_offset_ms * file_rate / 1000
-                    )
+                    start_frame = int(self.config.start_offset_ms * file_rate / 1000)
                     self._wav.setpos(start_frame)
                     logger.debug("Looping back to start")
                     continue
@@ -142,9 +140,7 @@ class FileSource(AudioSource):
             # Check end position
             if end_frame and self._wav.tell() >= end_frame:
                 if self.config.loop:
-                    start_frame = int(
-                        self.config.start_offset_ms * file_rate / 1000
-                    )
+                    start_frame = int(self.config.start_offset_ms * file_rate / 1000)
                     self._wav.setpos(start_frame)
                     logger.debug("Reached end offset, looping")
                     continue

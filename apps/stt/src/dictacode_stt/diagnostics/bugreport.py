@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import platform
 import shutil
 import subprocess
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
-from dictacode_stt.diagnostics.base import DiagnosticResult, CheckStatus, CheckSeverity
+from dictacode_stt.diagnostics.base import CheckStatus, DiagnosticResult
 from dictacode_stt.diagnostics.registry import DiagnosticRegistry
+
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +233,9 @@ class BugReportGenerator:
 
         summary = {
             "status": "healthy" if not failed else "unhealthy",
-            "checks_passed": len([d for d in diagnostics if d.status == CheckStatus.OK]),
+            "checks_passed": len(
+                [d for d in diagnostics if d.status == CheckStatus.OK]
+            ),
             "checks_failed": len(failed),
             "checks_warning": len(warnings),
             "critical_issues": [
@@ -280,7 +282,9 @@ class BugReportGenerator:
         # Platform
         md.append("\n## System Information")
         md.append("```")
-        md.append(f"OS: {report.platform['os']} {report.platform.get('os_release', 'N/A')}")
+        md.append(
+            f"OS: {report.platform['os']} {report.platform.get('os_release', 'N/A')}"
+        )
         md.append(f"Kernel: {report.platform.get('kernel', 'N/A')}")
         md.append(f"Machine: {report.platform['machine']}")
         md.append(f"Python: {report.platform['python_version']}")
@@ -354,7 +358,7 @@ class BugReportGenerator:
         """
         try:
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=10
+                cmd, check=False, shell=True, capture_output=True, text=True, timeout=10
             )
             return result.stdout.strip()
         except Exception as e:

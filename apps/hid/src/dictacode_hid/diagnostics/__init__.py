@@ -9,17 +9,18 @@ import argparse
 import sys
 from typing import List, Optional
 
-from .base import CheckStatus, CheckResult, DiagnosticResult
+from .base import CheckResult, CheckStatus, DiagnosticResult
 from .hardware import run_hardware_checks, run_uart_checks
 
+
 __all__ = [
-    "CheckStatus",
     "CheckResult",
+    "CheckStatus",
     "DiagnosticResult",
-    "run_hardware_checks",
-    "run_uart_checks",
     "check_main",
     "diagnose_main",
+    "run_hardware_checks",
+    "run_uart_checks",
 ]
 
 

@@ -18,6 +18,7 @@ import tempfile
 import time
 from pathlib import Path
 
+
 # Hardcoded from inventory - sandbox doesn't use config loader
 DEVICE_INDEX = 0  # hw:0,0 - RØDE VideoMic NTG
 # RØDE VideoMic NTG native: 48000 Hz, 2 channels only
@@ -36,15 +37,17 @@ BAUD_RATE = 115200
 def record_audio(duration_sec: float) -> bytes:
     """Record audio from microphone, return 16kHz mono audio for whisper."""
     try:
-        import sounddevice as sd
         import numpy as np
+        import sounddevice as sd
     except ImportError:
         print("ERROR: sounddevice/numpy not installed")
         sys.exit(1)
 
     total_frames = int(NATIVE_SAMPLE_RATE * duration_sec)
 
-    print(f"[pipeline] recording {duration_sec} sec at {NATIVE_SAMPLE_RATE}Hz stereo...")
+    print(
+        f"[pipeline] recording {duration_sec} sec at {NATIVE_SAMPLE_RATE}Hz stereo..."
+    )
     start = time.perf_counter()
 
     audio_data = sd.rec(
@@ -62,7 +65,9 @@ def record_audio(duration_sec: float) -> bytes:
     # Convert stereo to mono and downsample 48000 -> 16000
     mono = audio_data.mean(axis=1).astype(np.int16)
     resampled = mono[::3]
-    print(f"[pipeline] resampled to {WHISPER_SAMPLE_RATE}Hz mono: {len(resampled)} frames")
+    print(
+        f"[pipeline] resampled to {WHISPER_SAMPLE_RATE}Hz mono: {len(resampled)} frames"
+    )
 
     return resampled.tobytes()
 
@@ -82,16 +87,21 @@ def transcribe(wav_path: str) -> str:
     """Transcribe WAV file using whisper-cli."""
     cmd = [
         str(WHISPER_BINARY),
-        "-m", str(WHISPER_MODEL),
-        "-f", wav_path,
-        "--language", "en",
+        "-m",
+        str(WHISPER_MODEL),
+        "-f",
+        wav_path,
+        "--language",
+        "en",
         "--no-timestamps",
     ]
 
-    print(f"[pipeline] transcribing...")
+    print("[pipeline] transcribing...")
     start = time.perf_counter()
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(
+        cmd, check=False, capture_output=True, text=True, timeout=60
+    )
 
     elapsed = time.perf_counter() - start
     print(f"[pipeline] transcribed in {elapsed:.2f} sec")
@@ -110,7 +120,7 @@ def transcribe(wav_path: str) -> str:
         if line.startswith("["):
             bracket_end = line.find("]")
             if bracket_end != -1:
-                text = line[bracket_end + 1:].strip()
+                text = line[bracket_end + 1 :].strip()
                 if text:
                     text_parts.append(text)
         else:
@@ -167,9 +177,9 @@ def run_once(duration_sec: float, dry_run: bool = False) -> dict:
     Path(wav_path).unlink()
 
     print()
-    print(f"[pipeline] === RESULT ===")
+    print("[pipeline] === RESULT ===")
     print(f"[pipeline] text: {text}")
-    print(f"[pipeline] ================")
+    print("[pipeline] ================")
     print()
 
     stats["text"] = text
@@ -206,13 +216,17 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Full STT pipeline")
-    parser.add_argument("--duration", type=float, default=5.0, help="Recording duration (sec)")
+    parser.add_argument(
+        "--duration", type=float, default=5.0, help="Recording duration (sec)"
+    )
     parser.add_argument("--loop", action="store_true", help="Continuous loop")
     parser.add_argument("--dry-run", action="store_true", help="Skip UART send")
     args = parser.parse_args()
 
     print("[pipeline] dictacode STT sandbox")
-    print(f"[pipeline] mic: hw:{DEVICE_INDEX},0 ({NATIVE_SAMPLE_RATE}Hz stereo -> {WHISPER_SAMPLE_RATE}Hz mono)")
+    print(
+        f"[pipeline] mic: hw:{DEVICE_INDEX},0 ({NATIVE_SAMPLE_RATE}Hz stereo -> {WHISPER_SAMPLE_RATE}Hz mono)"
+    )
     print(f"[pipeline] whisper: {WHISPER_BINARY}")
     print(f"[pipeline] model: {WHISPER_MODEL}")
     print(f"[pipeline] uart: {UART_DEVICE} @ {BAUD_RATE}")

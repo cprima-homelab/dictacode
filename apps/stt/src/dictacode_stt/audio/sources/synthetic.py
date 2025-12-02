@@ -10,13 +10,14 @@ from typing import Optional
 import numpy as np
 
 from dictacode_stt.audio.source import (
+    AudioChunkCallback,
     AudioSource,
     AudioSourceConfig,
-    AudioChunkCallback,
+    PlaybackMode,
     SourceEndCallback,
     SourceType,
-    PlaybackMode,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,9 @@ class SyntheticSource(AudioSource):
 
             # Check if we've delivered enough
             if total_samples and self._samples_delivered >= total_samples:
-                logger.debug(f"Reached duration limit: {self._samples_delivered} samples")
+                logger.debug(
+                    f"Reached duration limit: {self._samples_delivered} samples"
+                )
                 break
 
             # Generate chunk
@@ -142,7 +145,9 @@ class SyntheticSource(AudioSource):
                     time.sleep(sleep_time)
 
         self._active = False
-        logger.info(f"Generation loop ended: {self._samples_delivered} samples delivered")
+        logger.info(
+            f"Generation loop ended: {self._samples_delivered} samples delivered"
+        )
         if self._on_end:
             self._on_end()
 

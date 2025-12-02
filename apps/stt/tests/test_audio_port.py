@@ -1,20 +1,21 @@
 """Tests for audio port abstraction layer."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+
+from dictacode_stt.audio.device_id import (
+    _fallback_alsa_card,
+    _try_device_serial,
+    generate_port_id,
+    sanitize_port_id,
+)
+from dictacode_stt.audio.manager import AudioPortManager
 from dictacode_stt.audio.port import (
     AudioPort,
     AudioPortCapabilities,
     PortStatus,
 )
-from dictacode_stt.audio.device_id import (
-    generate_port_id,
-    sanitize_port_id,
-    _try_device_serial,
-    _try_usb_path,
-    _fallback_alsa_card,
-)
-from dictacode_stt.audio.manager import AudioPortManager
 
 
 class TestDeviceID:
@@ -28,13 +29,17 @@ class TestDeviceID:
 
     def test_device_serial_blue_yeti(self):
         """Test ID generation for Blue Yeti (known device)."""
-        port_id, port_type = _try_device_serial("Yeti Stereo Microphone: USB Audio (hw:1,0)")
+        port_id, port_type = _try_device_serial(
+            "Yeti Stereo Microphone: USB Audio (hw:1,0)"
+        )
         assert port_id == "blue-yeti"
         assert port_type == "usb"
 
     def test_device_serial_generic_usb(self):
         """Test ID generation for generic USB device."""
-        port_id, port_type = _try_device_serial("USB PnP Sound Device: USB Audio (hw:3,0)")
+        port_id, port_type = _try_device_serial(
+            "USB PnP Sound Device: USB Audio (hw:3,0)"
+        )
         # Should create a cleaned-up version of the name
         assert port_id is not None
         assert "usb-pnp-sound-device" in port_id

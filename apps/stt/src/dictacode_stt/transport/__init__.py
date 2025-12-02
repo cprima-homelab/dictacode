@@ -19,30 +19,31 @@ Usage:
 
 # Base classes and types
 from .adapter import (
+    ConnectionStatus,
     TransportAdapter,
     TransportConfig,
     TransportError,
-    ConnectionStatus,
 )
-
-# UART transport (v0.2.8 Phase 1)
-from .uart import UartTransport, UartConfig
-
-# USB-Serial transport (v0.2.8 Phase 2)
-from .usb_serial import UsbSerialTransport, UsbSerialConfig, UsbSerialDevice
-
-# WiFi transport (v0.2.8 Phase 3)
-from .wifi import WifiTransport, WifiConfig
 
 # Factory functions (v0.2.8 Phase 4)
 from .factory import (
     create_transport,
     create_transport_from_config,
-    list_available_transports,
-    get_transport_info,
-    list_usb_serial_devices,
     detect_available_transports,
+    get_transport_info,
+    list_available_transports,
+    list_usb_serial_devices,
 )
+
+# UART transport (v0.2.8 Phase 1)
+from .uart import UartConfig, UartTransport
+
+# USB-Serial transport (v0.2.8 Phase 2)
+from .usb_serial import UsbSerialConfig, UsbSerialDevice, UsbSerialTransport
+
+# WiFi transport (v0.2.8 Phase 3)
+from .wifi import WifiConfig, WifiTransport
+
 
 __all__ = [
     # Base classes

@@ -3,28 +3,29 @@
 __version__ = "0.3.0"
 
 from dictacode_stt.protocol import (
-    Message,
-    TextMessage,
     CommandMessage,
-    ProtocolAdapter,
     JsonProtocol,
+    Message,
     MsgpackProtocol,
+    ProtocolAdapter,
+    TextMessage,
     get_protocol,
+)
+from dictacode_stt.service import (
+    SttService,
 )
 from dictacode_stt.state import (
     SolutionState,
     SttState,
 )
+from dictacode_stt.supervisor import (
+    LinkSupervisor,
+)
 from dictacode_stt.transport import (
     TransportError,
     UartTransport,
 )
-from dictacode_stt.service import (
-    SttService,
-)
-from dictacode_stt.supervisor import (
-    LinkSupervisor,
-)
+
 
 __all__ = [
     # Protocol

@@ -3,10 +3,10 @@
 import pytest
 
 from dictacode_stt import (
-    TextMessage,
     CommandMessage,
     JsonProtocol,
     MsgpackProtocol,
+    TextMessage,
     get_protocol,
 )
 
@@ -87,7 +87,7 @@ class TestJsonProtocol:
         assert msg.payload == "hello world"
 
     def test_decode_text_unicode(self, protocol):
-        data = '{"t": "text", "p": "Hello 世界"}\n'.encode("utf-8")
+        data = '{"t": "text", "p": "Hello 世界"}\n'.encode()
         msg = protocol.decode(data)
         assert isinstance(msg, TextMessage)
         assert msg.payload == "Hello 世界"

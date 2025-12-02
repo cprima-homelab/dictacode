@@ -6,7 +6,9 @@ Fixes word cutoff bug by including overlap from previous segments.
 import logging
 from collections import deque
 from typing import Optional
+
 import numpy as np
+
 
 logger = logging.getLogger(__name__)
 

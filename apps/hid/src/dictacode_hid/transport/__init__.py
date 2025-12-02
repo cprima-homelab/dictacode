@@ -25,23 +25,24 @@ Usage:
 
 # Base classes and types
 from .adapter import (
+    ConnectionStatus,
     TransportAdapter,
     TransportConfig,
     TransportError,
-    ConnectionStatus,
 )
 
-# UART transport (v0.2.8 Phase 1)
-from .uart import UartTransport, UartConfig
-
 # HID transport (v0.2.8 Phase 1)
-from .hid import HidTransport, HidConfig
+from .hid import HidConfig, HidTransport
+
+# UART transport (v0.2.8 Phase 1)
+from .uart import UartConfig, UartTransport
 
 # USB-Serial transport (v0.2.8 Phase 2)
-from .usb_serial import UsbSerialTransport, UsbSerialConfig, UsbSerialDevice
+from .usb_serial import UsbSerialConfig, UsbSerialDevice, UsbSerialTransport
 
 # WiFi transport server (v0.2.8 Phase 3)
-from .wifi import WifiServerTransport, WifiServerConfig
+from .wifi import WifiServerConfig, WifiServerTransport
+
 
 __all__ = [
     # Base classes

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
+
 
 router = APIRouter(tags=["health"])
 
@@ -118,7 +119,10 @@ async def readiness_check() -> ReadinessResponse:
 
         # Check transcriber availability
         try:
-            if hasattr(_service_instance, "transcriber") and _service_instance.transcriber:
+            if (
+                hasattr(_service_instance, "transcriber")
+                and _service_instance.transcriber
+            ):
                 checks["transcriber"] = _service_instance.transcriber.is_available()
             else:
                 checks["transcriber"] = False
@@ -169,7 +173,10 @@ async def detailed_status() -> StatusResponse:
     if _service_instance:
         # Audio component status
         try:
-            if hasattr(_service_instance, "audio_source") and _service_instance.audio_source:
+            if (
+                hasattr(_service_instance, "audio_source")
+                and _service_instance.audio_source
+            ):
                 from dictacode_stt.audio import AudioPortManager
 
                 manager = AudioPortManager()
@@ -179,9 +186,11 @@ async def detailed_status() -> StatusResponse:
                     available=active_port is not None,
                     details={
                         "port": active_port.port_id if active_port else None,
-                        "streaming": _service_instance.audio_source.is_active()
-                        if hasattr(_service_instance.audio_source, "is_active")
-                        else False,
+                        "streaming": (
+                            _service_instance.audio_source.is_active()
+                            if hasattr(_service_instance.audio_source, "is_active")
+                            else False
+                        ),
                     },
                 )
             else:
@@ -197,15 +206,20 @@ async def detailed_status() -> StatusResponse:
 
         # Transcriber component status
         try:
-            if hasattr(_service_instance, "transcriber") and _service_instance.transcriber:
+            if (
+                hasattr(_service_instance, "transcriber")
+                and _service_instance.transcriber
+            ):
                 transcriber = _service_instance.transcriber
                 components["transcriber"] = ComponentStatus(
                     available=transcriber.is_available(),
                     details={
                         "name": transcriber.get_name(),
-                        "streaming": transcriber.is_streaming()
-                        if hasattr(transcriber, "is_streaming")
-                        else False,
+                        "streaming": (
+                            transcriber.is_streaming()
+                            if hasattr(transcriber, "is_streaming")
+                            else False
+                        ),
                     },
                 )
             else:

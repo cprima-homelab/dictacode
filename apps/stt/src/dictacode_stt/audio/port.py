@@ -1,10 +1,12 @@
 """Audio port abstraction - hardware interface layer."""
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, List, Optional
-import logging
+
 import sounddevice as sd
+
 
 logger = logging.getLogger(__name__)
 

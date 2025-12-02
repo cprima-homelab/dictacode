@@ -33,7 +33,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from .adapter import TransportAdapter, TransportConfig, TransportError, ConnectionStatus
+from .adapter import ConnectionStatus, TransportAdapter, TransportConfig, TransportError
+
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class WifiConfig(TransportConfig):
         keepalive: Enable TCP keepalive (default: True)
         nodelay: Disable Nagle's algorithm for lower latency (default: True)
     """
+
     host: str = ""
     port: int = 9876
     connect_timeout: float = 5.0
@@ -157,7 +159,9 @@ class WifiTransport(TransportAdapter):
                 return True
 
             except socket.timeout:
-                last_error = f"Connection timeout to {self.config.host}:{self.config.port}"
+                last_error = (
+                    f"Connection timeout to {self.config.host}:{self.config.port}"
+                )
                 logger.warning(last_error)
 
             except socket.gaierror as e:
@@ -167,7 +171,9 @@ class WifiTransport(TransportAdapter):
                 break
 
             except ConnectionRefusedError:
-                last_error = f"Connection refused by {self.config.host}:{self.config.port}"
+                last_error = (
+                    f"Connection refused by {self.config.host}:{self.config.port}"
+                )
                 logger.warning(last_error)
 
             except Exception as e:

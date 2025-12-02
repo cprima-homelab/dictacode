@@ -4,17 +4,18 @@ v0.2.6: Batch transcription with adapter pattern
 v0.2.7: Streaming transcription support
 """
 
-from .adapter import TranscriptionAdapter, TranscriptionResult, AudioRequirements
-from .whisper import WhisperAdapter
-from .vosk import VoskAdapter
+from .adapter import AudioRequirements, TranscriptionAdapter, TranscriptionResult
 from .streaming import (
-    StreamingTranscriptionAdapter,
-    PartialResult,
+    ErrorCallback,
+    FinalCallback,
     FinalResult,
     PartialCallback,
-    FinalCallback,
-    ErrorCallback,
+    PartialResult,
+    StreamingTranscriptionAdapter,
 )
+from .vosk import VoskAdapter
+from .whisper import WhisperAdapter
+
 
 # Export main types
 __all__ = [

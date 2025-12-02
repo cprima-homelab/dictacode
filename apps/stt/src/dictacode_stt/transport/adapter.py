@@ -15,6 +15,7 @@ from typing import Optional
 
 class ConnectionStatus(Enum):
     """Transport connection status."""
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -30,11 +31,13 @@ class TransportConfig:
     Attributes:
         timeout: Default timeout in seconds for operations
     """
+
     timeout: float = 1.0
 
 
 class TransportError(Exception):
     """Base exception for transport layer errors."""
+
     pass
 
 

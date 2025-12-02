@@ -5,10 +5,11 @@ v0.2.3: Expanded SolutionState covering full lifecycle from install to operation
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
-import logging
+
 
 logger = logging.getLogger(__name__)
 

@@ -9,20 +9,21 @@ Provides driver-like interface for audio hardware:
 - Configuration profiles for known devices
 """
 
-from .port import AudioPort, AudioPortCapabilities, PortStatus
-from .manager import AudioPortManager
 from .buffer import AudioRingBuffer
-from .resampler import Resampler, ResamplerScipy
 from .config import AudioConfig, AudioProfile
+from .manager import AudioPortManager
+from .port import AudioPort, AudioPortCapabilities, PortStatus
+from .resampler import Resampler, ResamplerScipy
+
 
 __all__ = [
+    "AudioConfig",
     "AudioPort",
     "AudioPortCapabilities",
-    "PortStatus",
     "AudioPortManager",
+    "AudioProfile",
     "AudioRingBuffer",
+    "PortStatus",
     "Resampler",
     "ResamplerScipy",
-    "AudioConfig",
-    "AudioProfile",
 ]

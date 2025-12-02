@@ -54,3 +54,60 @@ curl http://localhost:8080/v1/chat/completions \
 If JSON reply returns → ready.
 
 
+
+
+
+sudo apt install libopenblas-dev -y
+
+
+
+You hit this because BLAS/OpenBLAS isn’t installed, but you told CMake to use it.
+
+### 1. Easiest fix: install OpenBLAS, keep BLAS ON
+
+```bash
+sudo apt update
+sudo apt install libopenblas-dev -y
+```
+
+Then re-run CMake **once** (note: use new `GGML_*` option, drop `SERVER_OPENAI_API`):
+
+```bash
+cd ~/llama.cpp
+
+cmake -B build \
+  -DGGML_NATIVE=ON \
+  -DGGML_BLAS=ON \
+  -DGGML_BLAS_VENDOR=OpenBLAS \
+  -DGGML_CPU_KLEIDIAI=ON \
+  -DLLAMA_CURL=OFF
+
+cmake --build build -j4
+```
+
+* `GGML_NATIVE=ON` = optimize for Pi 5 CPU.
+* `GGML_BLAS=ON` + `OpenBLAS` = faster matmul once `libopenblas-dev` is installed.
+
+### 2. Simpler fallback: turn BLAS OFF
+
+If `libopenblas-dev` still gives trouble, just disable BLAS (slightly slower, but works):
+
+```bash
+cmake -B build \
+  -DGGML_NATIVE=ON \
+  -DGGML_BLAS=OFF \
+  -DGGML_CPU_KLEIDIAI=ON \
+  -DLLAMA_CURL=OFF
+
+cmake --build build -j4
+```
+
+### 3. OpenAI API mode
+
+Current `llama.cpp` builds `llama-server` with an OpenAI-compatible API by default, no extra CMake flag needed. Just run:
+
+```bash
+./build/bin/llama-server -m ~/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf --port 8080
+```
+
+and use `/v1/chat/completions` as in the usual examples.

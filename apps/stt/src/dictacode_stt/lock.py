@@ -25,6 +25,7 @@ from typing import Optional
 
 class LockError(Exception):
     """Exception raised when lock acquisition fails."""
+
     pass
 
 
@@ -81,11 +82,7 @@ class SerialLock:
 
         try:
             # Create/open lock file
-            self._lock_fd = os.open(
-                self.lock_path,
-                os.O_CREAT | os.O_RDWR,
-                0o644
-            )
+            self._lock_fd = os.open(self.lock_path, os.O_CREAT | os.O_RDWR, 0o644)
 
             # Try to acquire lock
             flags = fcntl.LOCK_EX
@@ -145,7 +142,7 @@ class SerialLock:
             PID of lock owner, or None if lock file doesn't exist or is invalid.
         """
         try:
-            with open(self.lock_path, "r") as f:
+            with open(self.lock_path) as f:
                 content = f.read().strip()
                 return int(content) if content else None
         except (OSError, ValueError):

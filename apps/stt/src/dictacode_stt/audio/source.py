@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 
 class SourceType(Enum):

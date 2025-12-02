@@ -17,15 +17,20 @@ from typing import List, Optional
 
 import numpy as np
 
-from .protocol import TextMessage, CommandMessage, JsonProtocol, MsgpackProtocol, get_protocol
-from .transport import UartTransport, TransportError
 from .audio import AudioPortManager
+from .protocol import (
+    CommandMessage,
+    TextMessage,
+    get_protocol,
+)
 from .responses import AudioPortsListResponse
+from .transport import TransportError, UartTransport
 
 
 # =============================================================================
 # dictacode-stt-audio
 # =============================================================================
+
 
 def cmd_audio_ports(as_json: bool = False) -> int:
     """List audio input ports with stable IDs and capabilities."""
@@ -71,7 +76,9 @@ def cmd_audio_ports(as_json: bool = False) -> int:
         default_port = manager.get_default_port()
 
         if active_port:
-            print(f"Active: {active_port.port_id} (streaming @ {active_port.capabilities.native_rate}Hz)")
+            print(
+                f"Active: {active_port.port_id} (streaming @ {active_port.capabilities.native_rate}Hz)"
+            )
         else:
             print("Active: None")
 
@@ -79,13 +86,14 @@ def cmd_audio_ports(as_json: bool = False) -> int:
             print(f"Default: {default_port.port_id}")
 
         print()
-        print(f"Pipeline target rate: 16000 Hz (Whisper)")
+        print("Pipeline target rate: 16000 Hz (Whisper)")
 
         return 0
 
     except Exception as e:
         print(f"ERROR: Failed to enumerate audio ports: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -106,8 +114,10 @@ def cmd_audio_list() -> int:
         if device["max_input_channels"] > 0:
             marker = "*" if i == sd.default.device[0] else " "
             print(f"  {marker} [{i}] {device['name']}")
-            print(f"        Channels: {device['max_input_channels']}, "
-                  f"Sample Rate: {device['default_samplerate']:.0f} Hz")
+            print(
+                f"        Channels: {device['max_input_channels']}, "
+                f"Sample Rate: {device['default_samplerate']:.0f} Hz"
+            )
 
     print()
     print(f"Default input device: {sd.default.device[0]}")
@@ -124,9 +134,9 @@ def cmd_audio_test(device: Optional[int], duration: float) -> int:
 
     try:
         # Get device's native sample rate
-        device_info = sd.query_devices(device, 'input')
-        sample_rate = int(device_info['default_samplerate'])
-        device_name = device_info['name']
+        device_info = sd.query_devices(device, "input")
+        sample_rate = int(device_info["default_samplerate"])
+        device_name = device_info["name"]
 
         print(f"Recording {duration} seconds from '{device_name}'...")
         print(f"  Native sample rate: {sample_rate} Hz")
@@ -142,9 +152,9 @@ def cmd_audio_test(device: Optional[int], duration: float) -> int:
 
         # Calculate levels
         max_amplitude = np.max(np.abs(recording))
-        rms = np.sqrt(np.mean(recording ** 2))
+        rms = np.sqrt(np.mean(recording**2))
 
-        print(f"\nRecording complete:")
+        print("\nRecording complete:")
         print(f"  Duration: {duration} seconds")
         print(f"  Sample rate: {sample_rate} Hz")
         print(f"  Samples: {len(recording)}")
@@ -175,9 +185,9 @@ def cmd_audio_record(device: Optional[int], duration: float, output_file: str) -
 
     try:
         # Get device's native sample rate
-        device_info = sd.query_devices(device, 'input')
-        native_rate = int(device_info['default_samplerate'])
-        device_name = device_info['name']
+        device_info = sd.query_devices(device, "input")
+        native_rate = int(device_info["default_samplerate"])
+        device_name = device_info["name"]
 
         print(f"Recording {duration} seconds from '{device_name}'...")
         print(f"  Native sample rate: {native_rate} Hz")
@@ -199,7 +209,9 @@ def cmd_audio_record(device: Optional[int], duration: float, output_file: str) -
             ratio = target_rate / native_rate
             new_length = int(len(recording) * ratio)
             indices = np.linspace(0, len(recording) - 1, new_length)
-            recording = np.interp(indices, np.arange(len(recording)), recording.flatten())
+            recording = np.interp(
+                indices, np.arange(len(recording)), recording.flatten()
+            )
             recording = recording.reshape(-1, 1)
 
         # Convert to int16 for WAV
@@ -230,10 +242,11 @@ def audio_main(args: Optional[List[str]] = None) -> int:
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # ports command (NEW - uses audio port abstraction)
-    ports_parser = subparsers.add_parser("ports", help="List audio ports with stable IDs")
+    ports_parser = subparsers.add_parser(
+        "ports", help="List audio ports with stable IDs"
+    )
     ports_parser.add_argument(
-        "--json", action="store_true",
-        help="Output as JSON (for programmatic use)"
+        "--json", action="store_true", help="Output as JSON (for programmatic use)"
     )
 
     # list command (legacy - uses sounddevice directly)
@@ -248,8 +261,11 @@ def audio_main(args: Optional[List[str]] = None) -> int:
         "--port", "-p", type=str, help="Audio port ID (e.g., rode-videomic-ntg)"
     )
     test_parser.add_argument(
-        "--duration", "-t", type=float, default=3.0,
-        help="Recording duration in seconds (default: 3)"
+        "--duration",
+        "-t",
+        type=float,
+        default=3.0,
+        help="Recording duration in seconds (default: 3)",
     )
 
     # record command
@@ -262,8 +278,11 @@ def audio_main(args: Optional[List[str]] = None) -> int:
         "--port", "-p", type=str, help="Audio port ID (e.g., rode-videomic-ntg)"
     )
     record_parser.add_argument(
-        "--duration", "-t", type=float, default=5.0,
-        help="Recording duration in seconds (default: 5)"
+        "--duration",
+        "-t",
+        type=float,
+        default=5.0,
+        help="Recording duration in seconds (default: 5)",
     )
 
     parsed = parser.parse_args(args)
@@ -277,8 +296,8 @@ def audio_main(args: Optional[List[str]] = None) -> int:
         return cmd_audio_list()
     elif parsed.command == "test":
         # Support both --device (legacy) and --port (new)
-        device = getattr(parsed, 'device', None)
-        port_id = getattr(parsed, 'port', None)
+        device = getattr(parsed, "device", None)
+        port_id = getattr(parsed, "port", None)
         if port_id:
             # Convert port_id to device index
             manager = AudioPortManager()
@@ -291,8 +310,8 @@ def audio_main(args: Optional[List[str]] = None) -> int:
         return cmd_audio_test(device, parsed.duration)
     elif parsed.command == "record":
         # Support both --device (legacy) and --port (new)
-        device = getattr(parsed, 'device', None)
-        port_id = getattr(parsed, 'port', None)
+        device = getattr(parsed, "device", None)
+        port_id = getattr(parsed, "port", None)
         if port_id:
             # Convert port_id to device index
             manager = AudioPortManager()
@@ -311,6 +330,7 @@ def audio_main(args: Optional[List[str]] = None) -> int:
 # =============================================================================
 # dictacode-stt-whisper
 # =============================================================================
+
 
 def _find_whisper_binary() -> Optional[Path]:
     """Find whisper-cli binary in common locations."""
@@ -421,11 +441,15 @@ def cmd_whisper_test(
         result = subprocess.run(
             [
                 str(binary),
-                "-m", str(model),
-                "-f", file,
+                "-m",
+                str(model),
+                "-f",
+                file,
                 "--no-timestamps",
-                "-l", "en",
+                "-l",
+                "en",
             ],
+            check=False,
             capture_output=True,
             text=True,
             timeout=60,
@@ -455,11 +479,15 @@ def whisper_main(args: Optional[List[str]] = None) -> int:
         description="Whisper utilities for dictacode STT",
     )
     parser.add_argument(
-        "--binary", "-b", type=Path,
+        "--binary",
+        "-b",
+        type=Path,
         help="Path to whisper-cli binary",
     )
     parser.add_argument(
-        "--model", "-m", type=Path,
+        "--model",
+        "-m",
+        type=Path,
         help="Path to whisper model file",
     )
 
@@ -495,6 +523,7 @@ def whisper_main(args: Optional[List[str]] = None) -> int:
 # dictacode-stt-send
 # =============================================================================
 
+
 def send_main(args: Optional[List[str]] = None) -> int:
     """CLI entry point for dictacode-stt-send."""
     parser = argparse.ArgumentParser(
@@ -516,28 +545,33 @@ Examples:
         help="Text to send (for text messages)",
     )
     parser.add_argument(
-        "--cmd", "-c",
+        "--cmd",
+        "-c",
         metavar="COMMAND",
         help="Send command message instead of text",
     )
     parser.add_argument(
-        "--arg", "-a",
+        "--arg",
+        "-a",
         metavar="ARGUMENT",
         help="Command argument (used with --cmd)",
     )
     parser.add_argument(
-        "--device", "-d",
+        "--device",
+        "-d",
         default="/dev/serial0",
         help="UART device (default: /dev/serial0)",
     )
     parser.add_argument(
-        "--protocol", "-p",
+        "--protocol",
+        "-p",
         choices=["json", "msgpack"],
         default="json",
         help="Protocol to use (default: json)",
     )
     parser.add_argument(
-        "--dry-run", "-n",
+        "--dry-run",
+        "-n",
         action="store_true",
         help="Show encoded bytes without sending",
     )
@@ -593,6 +627,7 @@ Examples:
 # dictacode-stt-hid (v0.2.8)
 # =============================================================================
 
+
 def cmd_hid_list() -> int:
     """List configured HID devices from registry."""
     try:
@@ -614,7 +649,11 @@ def cmd_hid_list() -> int:
         for device in devices:
             # Truncate name if too long
             name = device.name[:28] + ".." if len(device.name) > 30 else device.name
-            addr = device.address[:16] + ".." if len(device.address) > 18 else device.address
+            addr = (
+                device.address[:16] + ".."
+                if len(device.address) > 18
+                else device.address
+            )
 
             print(
                 f"{device.device_id:<20} {name:<30} "
@@ -626,7 +665,9 @@ def cmd_hid_list() -> int:
         # Show default device
         default_device = registry.get_default_device()
         if default_device:
-            print(f"Default: {default_device.device_id} (priority: {default_device.priority})")
+            print(
+                f"Default: {default_device.device_id} (priority: {default_device.priority})"
+            )
 
         # Show active device
         active_device = registry.get_active_device()
@@ -639,6 +680,7 @@ def cmd_hid_list() -> int:
     except Exception as e:
         print(f"ERROR: Failed to list HID devices: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -660,17 +702,21 @@ def cmd_hid_usb_list() -> int:
 
         for device in devices:
             vid_pid = f"{device.vendor_id:04x}:{device.product_id:04x}"
-            desc = device.description[:28] + ".." if len(device.description) > 30 else device.description
+            desc = (
+                device.description[:28] + ".."
+                if len(device.description) > 30
+                else device.description
+            )
             serial = device.serial_number or "N/A"
             serial = serial[:18] + ".." if len(serial) > 20 else serial
             port = device.port[:18] + ".." if len(device.port) > 20 else device.port
 
-            print(
-                f"{vid_pid:<16} {desc:<30} {serial:<20} {port:<20}"
-            )
+            print(f"{vid_pid:<16} {desc:<30} {serial:<20} {port:<20}")
 
         print(f"\nTotal devices: {len(devices)}")
-        print("\nTo use a USB-serial device, create a config file in /etc/dictacode/hid/devices.d/")
+        print(
+            "\nTo use a USB-serial device, create a config file in /etc/dictacode/hid/devices.d/"
+        )
         print("Example:")
         print("  [device]")
         print("  id = my-usb-device")
@@ -683,6 +729,7 @@ def cmd_hid_usb_list() -> int:
     except Exception as e:
         print(f"ERROR: Failed to list USB devices: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 
@@ -718,6 +765,7 @@ def hid_main(args: Optional[List[str]] = None) -> int:
 # =============================================================================
 # dictacode-stt-log (v0.2.13)
 # =============================================================================
+
 
 def cmd_log_status() -> int:
     """Show current log level and debug mode status."""
@@ -767,7 +815,9 @@ def cmd_log_debug(duration: int = 300, disable: bool = False) -> int:
         else:
             log_controller.enable_debug(duration_seconds=duration)
             minutes, seconds = divmod(duration, 60)
-            print(f"Debug mode enabled for {duration}s ({int(minutes)}m {int(seconds)}s)")
+            print(
+                f"Debug mode enabled for {duration}s ({int(minutes)}m {int(seconds)}s)"
+            )
 
         return 0
 
@@ -843,6 +893,7 @@ Signal Control:
 # dictacode-stt-bugreport (v0.2.9 Phase 5)
 # =============================================================================
 
+
 def cmd_bugreport(
     output: Optional[str],
     device_index: int,
@@ -856,6 +907,7 @@ def cmd_bugreport(
         import json
         import subprocess
         from pathlib import Path
+
         from dictacode_stt.diagnostics.bugreport import BugReportGenerator
 
         print("Generating bug report...")
@@ -909,6 +961,7 @@ def cmd_bugreport(
                 # Check if gh is installed
                 gh_check = subprocess.run(
                     ["gh", "--version"],
+                    check=False,
                     capture_output=True,
                     timeout=5,
                 )
@@ -933,6 +986,7 @@ def cmd_bugreport(
                         "--label",
                         "bug",
                     ],
+                    check=False,
                     capture_output=True,
                     text=True,
                     timeout=30,
@@ -943,9 +997,15 @@ def cmd_bugreport(
                     print(f"\nIssue created: {issue_url}")
                     return 0
                 else:
-                    print(f"ERROR: Failed to create issue: {result.stderr}", file=sys.stderr)
+                    print(
+                        f"ERROR: Failed to create issue: {result.stderr}",
+                        file=sys.stderr,
+                    )
                     print("\nManual submission required:", file=sys.stderr)
-                    print(f"  1. Open: https://github.com/cprima-homelab/dictacode/issues/new", file=sys.stderr)
+                    print(
+                        "  1. Open: https://github.com/cprima-homelab/dictacode/issues/new",
+                        file=sys.stderr,
+                    )
                     print(f"  2. Paste contents of: {md_path}", file=sys.stderr)
                     return 1
 
@@ -955,22 +1015,26 @@ def cmd_bugreport(
             except Exception as e:
                 print(f"ERROR: Failed to submit via gh: {e}", file=sys.stderr)
                 print("\nManual submission required:", file=sys.stderr)
-                print(f"  1. Open: https://github.com/cprima-homelab/dictacode/issues/new", file=sys.stderr)
+                print(
+                    "  1. Open: https://github.com/cprima-homelab/dictacode/issues/new",
+                    file=sys.stderr,
+                )
                 print(f"  2. Paste contents of: {md_path}", file=sys.stderr)
                 return 1
         else:
             print("\nTo submit a bug report:")
-            print(f"  Option 1 (Manual):")
-            print(f"    1. Open: https://github.com/cprima-homelab/dictacode/issues/new")
+            print("  Option 1 (Manual):")
+            print("    1. Open: https://github.com/cprima-homelab/dictacode/issues/new")
             print(f"    2. Paste contents of: {md_path}")
-            print(f"  Option 2 (Automatic):")
-            print(f"    dictacode-stt-bugreport --submit")
+            print("  Option 2 (Automatic):")
+            print("    dictacode-stt-bugreport --submit")
 
         return 0
 
     except Exception as e:
         print(f"ERROR: Failed to generate bug report: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 

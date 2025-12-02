@@ -6,10 +6,10 @@ Port ID hierarchy (preference order):
 3. ALSA card ID - Last resort for built-in devices
 """
 
-import re
 import logging
+import re
 from typing import Optional
-import sounddevice as sd
+
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def _try_usb_path(name: str, index: int) -> tuple[Optional[str], Optional[str]]:
         # Try to read USB path from /proc/asound/card{N}/usbid or similar
         # This is Linux-specific
         try:
-            with open(f"/proc/asound/card{card_num}/id", "r") as f:
+            with open(f"/proc/asound/card{card_num}/id") as f:
                 card_id = f.read().strip()
 
             # Try to get USB bus info from /sys/class/sound/card{N}/device

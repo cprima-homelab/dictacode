@@ -15,9 +15,9 @@ from typing import Optional
 class LogFormat(Enum):
     """Log output format (v0.2.13)."""
 
-    SIMPLE = "simple"      # Human-readable
-    JSON = "json"          # Machine-parseable
-    SYSTEMD = "systemd"    # No timestamp (journald adds it)
+    SIMPLE = "simple"  # Human-readable
+    JSON = "json"  # Machine-parseable
+    SYSTEMD = "systemd"  # No timestamp (journald adds it)
 
 
 @dataclass
@@ -26,19 +26,21 @@ class LogConfig:
 
     level: str = "INFO"
     format: LogFormat = LogFormat.SIMPLE
-    output: str = "console"          # console, file, journald
+    output: str = "console"  # console, file, journald
     file_path: Optional[Path] = None
     file_max_bytes: int = 10_000_000  # 10MB
     file_backup_count: int = 5
     color: bool = True
     include_timestamp: bool = True
-    include_source: bool = True       # module:line
+    include_source: bool = True  # module:line
 
 
 # Format strings
 SIMPLE_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 SIMPLE_FORMAT_NO_TIME = "[%(levelname)s] %(name)s: %(message)s"
-DEBUG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s"
+DEBUG_FORMAT = (
+    "%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s"
+)
 
 
 class JsonFormatter(logging.Formatter):
@@ -62,10 +64,27 @@ class JsonFormatter(logging.Formatter):
         # Add extra fields (any custom fields added to log record)
         for key, value in record.__dict__.items():
             if key not in [
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "message", "pathname", "process", "processName", "relativeCreated",
-                "thread", "threadName", "exc_info", "exc_text", "stack_info",
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
             ] and not key.startswith("_"):
                 log_data[key] = value
 
@@ -76,10 +95,10 @@ class ColorFormatter(logging.Formatter):
     """Colored console formatter (v0.2.13)."""
 
     COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
@@ -130,11 +149,10 @@ def configure_logging(config: LogConfig) -> None:
             formatter = ColorFormatter(DEBUG_FORMAT)
         else:
             formatter = logging.Formatter(DEBUG_FORMAT)
+    elif config.color:
+        formatter = ColorFormatter(SIMPLE_FORMAT)
     else:
-        if config.color:
-            formatter = ColorFormatter(SIMPLE_FORMAT)
-        else:
-            formatter = logging.Formatter(SIMPLE_FORMAT)
+        formatter = logging.Formatter(SIMPLE_FORMAT)
 
     # Configure handler based on output
     if config.output == "console":
@@ -148,6 +166,7 @@ def configure_logging(config: LogConfig) -> None:
     elif config.output == "journald":
         try:
             from systemd.journal import JournalHandler
+
             handler = JournalHandler()
         except ImportError:
             # Fallback to console if systemd not available

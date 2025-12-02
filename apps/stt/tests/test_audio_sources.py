@@ -1,17 +1,15 @@
 """Tests for audio source abstraction (v0.2.11)."""
 
-import pytest
 import time
 from pathlib import Path
 
+import pytest
+
 from dictacode_stt.audio.sources import (
-    create_audio_source,
-    AudioSource,
-    AudioSourceConfig,
-    SourceType,
-    PlaybackMode,
     FileSource,
+    PlaybackMode,
     SyntheticSource,
+    create_audio_source,
 )
 
 
@@ -73,6 +71,7 @@ class TestAudioSourceFactory:
     def _create_dummy_wav(path: Path, duration_seconds: float = 1.0):
         """Create a minimal valid WAV file."""
         import wave
+
         import numpy as np
 
         sample_rate = 16000
@@ -102,6 +101,7 @@ class TestSyntheticSource:
             total_frames += frames
 
         finished = False
+
         def on_end():
             nonlocal finished
             finished = True
@@ -123,6 +123,7 @@ class TestSyntheticSource:
 
         # Verify all samples are zero
         import numpy as np
+
         all_audio = b"".join(chunks)
         samples = np.frombuffer(all_audio, dtype=np.int16)
         assert np.all(samples == 0), "All samples should be zero (silence)"
@@ -166,10 +167,12 @@ class TestFileSource:
         source = create_audio_source(f"file:{wav_path}:fast")
 
         chunks = []
+
         def on_audio(data: bytes, frames: int):
             chunks.append(data)
 
         finished = False
+
         def on_end():
             nonlocal finished
             finished = True
@@ -201,6 +204,7 @@ class TestFileSource:
         source = create_audio_source(f"file:{wav_path}:realtime")
 
         chunks = []
+
         def on_audio(data: bytes, frames: int):
             chunks.append(data)
 
@@ -218,7 +222,9 @@ class TestFileSource:
 
         # Realtime mode should take approximately the audio duration
         # Allow some tolerance for overhead
-        assert elapsed >= duration * 0.8, f"Realtime should take ~{duration}s, got {elapsed}s"
+        assert (
+            elapsed >= duration * 0.8
+        ), f"Realtime should take ~{duration}s, got {elapsed}s"
         assert len(chunks) > 0, "Should have received audio chunks"
 
     def test_file_not_found(self):
@@ -229,9 +235,12 @@ class TestFileSource:
             source.open()
 
     @staticmethod
-    def _create_test_wav(path: Path, duration_seconds: float = 1.0, frequency: float = 440.0):
+    def _create_test_wav(
+        path: Path, duration_seconds: float = 1.0, frequency: float = 440.0
+    ):
         """Create a test WAV file with a tone."""
         import wave
+
         import numpy as np
 
         sample_rate = 16000

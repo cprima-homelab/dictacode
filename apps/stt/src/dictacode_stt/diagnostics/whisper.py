@@ -12,6 +12,7 @@ from typing import Optional
 
 from .base import DiagnosticResult
 
+
 # Default paths
 DEFAULT_WHISPER_BINARY = Path.home() / "whisper.cpp" / "build" / "bin" / "whisper-cli"
 DEFAULT_WHISPER_MODEL = Path.home() / "whisper.cpp" / "models" / "ggml-tiny.bin"
@@ -39,6 +40,7 @@ def find_whisper_binary(custom_path: Optional[Path] = None) -> Optional[Path]:
     try:
         result = subprocess.run(
             ["which", "whisper-cli"],
+            check=False,
             capture_output=True,
             text=True,
             timeout=5,
@@ -61,6 +63,7 @@ def get_whisper_version(binary_path: Path) -> Optional[str]:
     try:
         result = subprocess.run(
             [str(binary_path), "--version"],
+            check=False,
             capture_output=True,
             text=True,
             timeout=5,
@@ -69,6 +72,7 @@ def get_whisper_version(binary_path: Path) -> Optional[str]:
         if result.returncode != 0:
             result = subprocess.run(
                 [str(binary_path), "--help"],
+                check=False,
                 capture_output=True,
                 text=True,
                 timeout=5,

@@ -1,7 +1,8 @@
 """Tests for audio ring buffer and resampler."""
 
-import pytest
 import numpy as np
+import pytest
+
 from dictacode_stt.audio.buffer import AudioRingBuffer
 from dictacode_stt.audio.resampler import Resampler
 
@@ -72,7 +73,9 @@ class TestAudioRingBuffer:
 
         # First overlap_samples should match end of chunk1
         overlap_samples = int(0.5 * 16000)
-        assert np.array_equal(read2_samples[:overlap_samples], chunk1[-overlap_samples:])
+        assert np.array_equal(
+            read2_samples[:overlap_samples], chunk1[-overlap_samples:]
+        )
 
     def test_buffer_no_cutoff(self):
         """Test that audio at boundaries is not lost."""

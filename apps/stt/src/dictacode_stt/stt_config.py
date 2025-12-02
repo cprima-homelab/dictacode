@@ -1,10 +1,11 @@
 """Configuration file loader for dictacode STT."""
 
+import logging
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-import logging
+
 
 logger = logging.getLogger("dictacode.config")
 DEFAULT_CONFIG_PATH = Path("/etc/dictacode/stt.conf")
@@ -90,21 +91,27 @@ def load_stt_config(config_path: Optional[Path] = None) -> SttConfig:
             try:
                 return parser.getboolean(section, key, fallback=default)
             except ValueError as e:
-                logger.warning("Invalid boolean for %s: %s, using default %s", key, e, default)
+                logger.warning(
+                    "Invalid boolean for %s: %s, using default %s", key, e, default
+                )
                 return default
 
         def getint(key: str, default: int) -> int:
             try:
                 return parser.getint(section, key, fallback=default)
             except ValueError as e:
-                logger.warning("Invalid integer for %s: %s, using default %s", key, e, default)
+                logger.warning(
+                    "Invalid integer for %s: %s, using default %s", key, e, default
+                )
                 return default
 
         def getfloat(key: str, default: float) -> float:
             try:
                 return parser.getfloat(section, key, fallback=default)
             except ValueError as e:
-                logger.warning("Invalid float for %s: %s, using default %s", key, e, default)
+                logger.warning(
+                    "Invalid float for %s: %s, using default %s", key, e, default
+                )
                 return default
 
         def getstr(key: str, default: str) -> str:

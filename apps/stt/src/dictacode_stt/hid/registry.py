@@ -27,9 +27,10 @@ Usage:
 import configparser
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import Dict, List, Optional
 
 from .device import HidDevice, HidDeviceStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +79,7 @@ class HidDeviceRegistry:
         self._devices.clear()
 
         if not self.config_dir.exists():
-            logger.warning(
-                f"HID device config directory not found: {self.config_dir}"
-            )
+            logger.warning(f"HID device config directory not found: {self.config_dir}")
             return
 
         if not self.config_dir.is_dir():
@@ -92,9 +91,7 @@ class HidDeviceRegistry:
         # Load all .conf files
         conf_files = list(self.config_dir.glob("*.conf"))
         if not conf_files:
-            logger.warning(
-                f"No device configuration files found in {self.config_dir}"
-            )
+            logger.warning(f"No device configuration files found in {self.config_dir}")
             return
 
         logger.info(f"Loading HID device configurations from {self.config_dir}")
@@ -104,7 +101,9 @@ class HidDeviceRegistry:
                 device = self._parse_device_config(conf_file)
                 if device:
                     self._devices[device.device_id] = device
-                    logger.debug(f"Loaded device: {device.device_id} from {conf_file.name}")
+                    logger.debug(
+                        f"Loaded device: {device.device_id} from {conf_file.name}"
+                    )
             except Exception as e:
                 logger.error(f"Failed to parse {conf_file}: {e}")
 
@@ -185,7 +184,9 @@ class HidDeviceRegistry:
             metadata=metadata,
         )
 
-    def list_devices(self, status_filter: Optional[HidDeviceStatus] = None) -> List[HidDevice]:
+    def list_devices(
+        self, status_filter: Optional[HidDeviceStatus] = None
+    ) -> List[HidDevice]:
         """List all configured devices.
 
         Args:
@@ -302,7 +303,8 @@ class HidDeviceRegistry:
             List of devices with status ONLINE or ACTIVE, sorted by priority
         """
         available = [
-            d for d in self._devices.values()
+            d
+            for d in self._devices.values()
             if d.status in (HidDeviceStatus.ONLINE, HidDeviceStatus.ACTIVE)
         ]
         available.sort(key=lambda d: d.priority)
@@ -331,8 +333,7 @@ class HidDeviceRegistry:
 
         # Highest priority unknown device (not yet health-checked)
         unknown = [
-            d for d in self._devices.values()
-            if d.status == HidDeviceStatus.UNKNOWN
+            d for d in self._devices.values() if d.status == HidDeviceStatus.UNKNOWN
         ]
         if unknown:
             unknown.sort(key=lambda d: d.priority)

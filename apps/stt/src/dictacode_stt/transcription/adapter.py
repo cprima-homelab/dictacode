@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, List
 from pathlib import Path
+from typing import List, Optional
 
 
 @dataclass
@@ -50,9 +50,7 @@ class TranscriptionAdapter(ABC):
         pass
 
     @abstractmethod
-    def transcribe(
-        self, audio_path: Path, language: str = "en"
-    ) -> TranscriptionResult:
+    def transcribe(self, audio_path: Path, language: str = "en") -> TranscriptionResult:
         """Transcribe audio file to text.
 
         Args:

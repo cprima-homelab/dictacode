@@ -6,7 +6,9 @@ Converts audio from native device sample rates (e.g., 48kHz) to target rate
 
 import logging
 from typing import Optional
+
 import numpy as np
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,9 @@ class Resampler:
         self.dtype = dtype
         self._last_source_rate: Optional[int] = None
 
-        logger.info(f"Resampler initialized: target_rate={target_rate}Hz, dtype={dtype}")
+        logger.info(
+            f"Resampler initialized: target_rate={target_rate}Hz, dtype={dtype}"
+        )
 
     def process(self, audio_bytes: bytes, source_rate: int) -> bytes:
         """Resample audio from source rate to target rate.
@@ -160,7 +164,7 @@ class ResamplerScipy(Resampler):
                 "Or use Resampler (linear interpolation) instead."
             )
 
-        logger.info(f"ResamplerScipy initialized (FFT-based, high quality)")
+        logger.info("ResamplerScipy initialized (FFT-based, high quality)")
 
     def _resample_linear(
         self, samples: np.ndarray, source_rate: int, target_rate: int

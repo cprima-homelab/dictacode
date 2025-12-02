@@ -1,7 +1,9 @@
 """Unit tests for STT configuration loader."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from dictacode_stt.stt_config import SttConfig, load_stt_config
 
 
@@ -77,12 +79,14 @@ def test_config_file_missing():
 def test_config_file_with_flat_structure(tmp_path):
     """Test parsing config with flat (DEFAULT section) structure."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 # Flat config (no sections)
 api_port=9000
 metrics_enabled=true
 api_host=192.168.1.100
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     assert config.api_port == 9000
@@ -93,12 +97,14 @@ api_host=192.168.1.100
 def test_config_file_with_sections(tmp_path):
     """Test parsing config with [stt] section."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 [stt]
 api_port=9000
 metrics_enabled=true
 api_metrics_port=9102
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     assert config.api_port == 9000
@@ -109,10 +115,12 @@ api_metrics_port=9102
 def test_invalid_boolean_fallback(tmp_path):
     """Test fallback to defaults on invalid boolean values."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 metrics_enabled=maybe
 api_metrics_enabled=yesno
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     # Should fall back to defaults
@@ -123,10 +131,12 @@ api_metrics_enabled=yesno
 def test_invalid_integer_fallback(tmp_path):
     """Test fallback to defaults on invalid integer values."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 api_port=not_a_number
 metrics_port=abc
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     # Should fall back to defaults
@@ -137,9 +147,11 @@ metrics_port=abc
 def test_invalid_float_fallback(tmp_path):
     """Test fallback to defaults on invalid float values."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 chunk_duration=invalid
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     # Should fall back to default
@@ -149,10 +161,12 @@ chunk_duration=invalid
 def test_partial_config(tmp_path):
     """Test config with only some keys set."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 api_port=9500
 model=base
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     # Set values
@@ -166,7 +180,8 @@ model=base
 def test_all_config_keys(tmp_path):
     """Test loading all configuration keys."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 metrics_enabled=true
 metrics_port=9200
 api_host=0.0.0.0
@@ -179,7 +194,8 @@ language=de
 uart_device=/dev/ttyUSB0
 uart_baud=230400
 chunk_duration=10.5
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     assert config.metrics_enabled is True
@@ -199,11 +215,13 @@ chunk_duration=10.5
 def test_validation_fails_with_bad_config_file(tmp_path):
     """Test that validation errors in config cause fallback to defaults."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 api_port=65536
 uart_baud=12345
 chunk_duration=150
-""")
+"""
+    )
 
     # Should fall back to safe defaults due to validation errors
     config = load_stt_config(config_file)
@@ -217,12 +235,14 @@ chunk_duration=150
 def test_comments_ignored(tmp_path):
     """Test that comments are properly ignored."""
     config_file = tmp_path / "stt.conf"
-    config_file.write_text("""
+    config_file.write_text(
+        """
 # This is a comment
 api_port=9000  # inline comment
 # metrics_enabled=true (commented out)
 metrics_enabled=false
-""")
+"""
+    )
 
     config = load_stt_config(config_file)
     assert config.api_port == 9000
@@ -232,6 +252,7 @@ metrics_enabled=false
 def test_security_warning_on_non_localhost(tmp_path, caplog):
     """Test that warning is logged when API bound to non-localhost."""
     import logging
+
     caplog.set_level(logging.WARNING)
 
     # Should warn on 0.0.0.0

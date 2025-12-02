@@ -2,7 +2,9 @@
 
 import argparse
 import logging
+
 import uvicorn
+
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +84,9 @@ Examples:
     )
 
     # Load configuration file (v0.2.15)
-    from dictacode_stt.stt_config import load_stt_config
     import os
+
+    from dictacode_stt.stt_config import load_stt_config
 
     try:
         config = load_stt_config()
@@ -100,7 +103,9 @@ Examples:
             args.port = int(os.getenv("DICTACODE_API_PORT", str(config.api_port)))
 
         if args.config_dir == "/etc/dictacode/audio":  # Default
-            args.config_dir = os.getenv("DICTACODE_API_CONFIG_DIR", config.api_config_dir)
+            args.config_dir = os.getenv(
+                "DICTACODE_API_CONFIG_DIR", config.api_config_dir
+            )
 
     # Security warning if binding to non-localhost
     if args.host not in ("127.0.0.1", "localhost", "::1"):

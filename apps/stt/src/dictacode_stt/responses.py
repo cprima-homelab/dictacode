@@ -6,14 +6,14 @@ These dataclasses provide a common data format that can be:
 - Used by both without duplication
 """
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import List, Optional
-from enum import Enum
 
 
 @dataclass
 class AudioPortCapabilitiesResponse:
     """Audio port hardware capabilities."""
+
     sample_rates: List[int]
     channels: int
     formats: List[str]
@@ -23,6 +23,7 @@ class AudioPortCapabilitiesResponse:
 @dataclass
 class AudioPortResponse:
     """Single audio port information."""
+
     port_id: str
     port_type: str
     name: str
@@ -45,6 +46,7 @@ class AudioPortResponse:
 @dataclass
 class AudioPortsListResponse:
     """Response for audio port listing (shared by CLI and API)."""
+
     ports: List[AudioPortResponse]
     active_port: Optional[str] = None
     default_port: Optional[str] = None
@@ -69,7 +71,6 @@ class AudioPortsListResponse:
         Returns:
             AudioPortsListResponse with all port data
         """
-        from dictacode_stt.audio import AudioPortManager
 
         ports = manager.list_ports()
         active = manager.get_active_port()
@@ -100,6 +101,7 @@ class AudioPortsListResponse:
 @dataclass
 class ServiceStatusResponse:
     """Service status information (for future API endpoints)."""
+
     state: str
     uptime_seconds: float
     iterations: int
@@ -111,6 +113,7 @@ class ServiceStatusResponse:
 @dataclass
 class TranscriptionResult:
     """Transcription result (for future API endpoints)."""
+
     text: str
     duration_seconds: float
     language: str
@@ -120,6 +123,7 @@ class TranscriptionResult:
 @dataclass
 class ErrorResponse:
     """Error response for API."""
+
     error: str
     detail: Optional[str] = None
     code: Optional[str] = None

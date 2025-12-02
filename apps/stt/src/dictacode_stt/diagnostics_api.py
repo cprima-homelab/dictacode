@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from dictacode_stt.diagnostics import (
-    run_all_checks,
-    DiagnosticResult,
     CheckCategory,
     CheckStatus,
+    run_all_checks,
 )
 from dictacode_stt.diagnostics.registry import get_registry
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ async def list_checks(category: Optional[str] = None, enabled_only: bool = True)
 
     except Exception as e:
         logger.error(f"Failed to list checks: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to list checks: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list checks: {e!s}")
 
 
 @router.post("/run", response_model=DiagnosticRunResponse)
@@ -144,9 +144,7 @@ async def run_diagnostics(request: DiagnosticRunRequest):
 
     except Exception as e:
         logger.error(f"Failed to run diagnostics: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to run diagnostics: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to run diagnostics: {e!s}")
 
 
 @router.get("/status", response_model=DiagnosticStatusResponse)
@@ -175,7 +173,7 @@ async def get_status():
 
     except Exception as e:
         logger.error(f"Failed to get status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get status: {e!s}")
 
 
 @router.get("/categories")

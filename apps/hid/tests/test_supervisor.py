@@ -1,9 +1,6 @@
 """Tests for LinkSupervisor class."""
 
 import time
-from unittest.mock import patch, MagicMock
-
-import pytest
 
 from dictacode_hid.supervisor import LinkSupervisor
 

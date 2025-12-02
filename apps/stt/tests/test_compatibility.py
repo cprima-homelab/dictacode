@@ -8,12 +8,13 @@ Auto-generates test cases from compatibility.json to ensure:
 """
 
 import json
+
 import pytest
-from pathlib import Path
+
 from dictacode_stt.compatibility import (
-    CompatibilityMatrix,
-    CompatibilityChecker,
     MATRIX_SEARCH_PATHS,
+    CompatibilityChecker,
+    CompatibilityMatrix,
 )
 
 
@@ -72,9 +73,7 @@ class TestPassEntries:
         "entry_index",
         range(10),  # Support up to 10 pass entries (adjust if needed)
     )
-    def test_pass_entry_accepted(
-        self, compatibility_matrix, pass_entries, entry_index
-    ):
+    def test_pass_entry_accepted(self, compatibility_matrix, pass_entries, entry_index):
         """Test that all pass entries are accepted."""
         if entry_index >= len(pass_entries):
             pytest.skip(f"Only {len(pass_entries)} pass entries exist")
@@ -114,9 +113,7 @@ class TestFailEntries:
         "entry_index",
         range(10),  # Support up to 10 fail entries (adjust if needed)
     )
-    def test_fail_entry_rejected(
-        self, compatibility_matrix, fail_entries, entry_index
-    ):
+    def test_fail_entry_rejected(self, compatibility_matrix, fail_entries, entry_index):
         """Test that all fail entries are rejected."""
         if entry_index >= len(fail_entries):
             pytest.skip(f"Only {len(fail_entries)} fail entries exist")
@@ -134,14 +131,14 @@ class TestFailEntries:
                 f"Expected STT {stt_ver} + HID {hid_ver} to be rejected "
                 f"(status: fail), but was accepted"
             )
-            assert "KNOWN INCOMPATIBLE PAIR" in error_msg, (
-                f"Expected explicit fail message, got: {error_msg}"
-            )
+            assert (
+                "KNOWN INCOMPATIBLE PAIR" in error_msg
+            ), f"Expected explicit fail message, got: {error_msg}"
             # Verify the notes field is included in error message
             if entry.get("notes"):
-                assert entry["notes"] in error_msg, (
-                    f"Expected fail reason '{entry['notes']}' in error message"
-                )
+                assert (
+                    entry["notes"] in error_msg
+                ), f"Expected fail reason '{entry['notes']}' in error message"
 
 
 class TestUnknownVersions:
@@ -187,10 +184,14 @@ class TestProtocolVersionChecking:
         assert compatibility_matrix.protocol_version
 
         # Expected protocol should be in the matrix
-        assert compatibility_matrix.protocol_version in [
-            "1.0.0",
-            "0.0.0",
-        ] or compatibility_matrix.protocol_version.count(".") == 2
+        assert (
+            compatibility_matrix.protocol_version
+            in [
+                "1.0.0",
+                "0.0.0",
+            ]
+            or compatibility_matrix.protocol_version.count(".") == 2
+        )
 
 
 class TestMatrixCoverage:
@@ -203,9 +204,10 @@ class TestMatrixCoverage:
             assert "hid" in entry, f"Entry missing 'hid' field: {entry}"
             assert "protocol" in entry, f"Entry missing 'protocol' field: {entry}"
             assert "status" in entry, f"Entry missing 'status' field: {entry}"
-            assert entry["status"] in ["pass", "fail"], (
-                f"Invalid status '{entry['status']}' in entry: {entry}"
-            )
+            assert entry["status"] in [
+                "pass",
+                "fail",
+            ], f"Invalid status '{entry['status']}' in entry: {entry}"
 
     def test_protocol_field_matches_protocol_version(self, compatibility_json):
         """Verify protocol fields reference valid protocol versions."""
@@ -214,14 +216,15 @@ class TestMatrixCoverage:
         ]
 
         for entry in compatibility_json["compatibility"]:
-            assert entry["protocol"] in protocol_versions, (
-                f"Entry references unknown protocol {entry['protocol']}: {entry}"
-            )
+            assert (
+                entry["protocol"] in protocol_versions
+            ), f"Entry references unknown protocol {entry['protocol']}: {entry}"
 
     def test_matrix_covers_current_version(self, compatibility_json):
         """Verify matrix includes the current release version."""
         # Get current version from package metadata
         import dictacode_stt
+
         current_version = dictacode_stt.__version__
 
         # Check if current version is in the matrix

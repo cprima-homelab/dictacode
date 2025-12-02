@@ -1,12 +1,14 @@
 """Audio port manager - device discovery and lifecycle management."""
 
 import logging
-from typing import List, Optional, Callable
+from typing import Callable, List, Optional
+
 import sounddevice as sd
 
-from .port import AudioPort, AudioPortCapabilities, PortStatus
-from .device_id import generate_port_id
 from .config import AudioConfig, AudioProfile
+from .device_id import generate_port_id
+from .port import AudioPort, AudioPortCapabilities, PortStatus
+
 
 logger = logging.getLogger(__name__)
 

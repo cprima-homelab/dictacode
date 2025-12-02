@@ -1,12 +1,10 @@
 """Tests for CLI entry points."""
 
-import sys
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dictacode_stt.cli import audio_main, whisper_main, send_main
+from dictacode_stt.cli import audio_main, send_main, whisper_main
 
 
 class TestAudioMain:
@@ -70,11 +68,7 @@ class TestWhisperMain:
         model = tmp_path / "model.bin"
         model.write_bytes(b"fake model data")
 
-        result = whisper_main([
-            "--binary", str(binary),
-            "--model", str(model),
-            "check"
-        ])
+        result = whisper_main(["--binary", str(binary), "--model", str(model), "check"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -89,11 +83,7 @@ class TestWhisperMain:
         model = tmp_path / "model.bin"
         model.write_bytes(b"x" * 1024 * 1024)  # 1 MB
 
-        result = whisper_main([
-            "--binary", str(binary),
-            "--model", str(model),
-            "info"
-        ])
+        result = whisper_main(["--binary", str(binary), "--model", str(model), "info"])
 
         assert result == 0
         captured = capsys.readouterr()

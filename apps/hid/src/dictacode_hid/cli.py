@@ -3,7 +3,12 @@
 import argparse
 import sys
 
-from .keymaps import get_available_keymaps, get_current_keymap, set_current_keymap, load_keymap
+from .keymaps import (
+    get_available_keymaps,
+    get_current_keymap,
+    load_keymap,
+    set_current_keymap,
+)
 
 
 def cmd_list() -> int:
@@ -39,7 +44,10 @@ def cmd_set(name: str) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     except PermissionError:
-        print("ERROR: Permission denied. Run with sudo to change system keymap.", file=sys.stderr)
+        print(
+            "ERROR: Permission denied. Run with sudo to change system keymap.",
+            file=sys.stderr,
+        )
         return 1
 
 
@@ -59,8 +67,7 @@ def cmd_info(name: str) -> int:
 def main() -> int:
     """Main entry point for dictacode-keymap CLI."""
     parser = argparse.ArgumentParser(
-        prog="dictacode-keymap",
-        description="Manage dictacode keyboard layouts"
+        prog="dictacode-keymap", description="Manage dictacode keyboard layouts"
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 

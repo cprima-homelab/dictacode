@@ -23,11 +23,11 @@ Usage:
 
 import logging
 import socket
-import select
 from dataclasses import dataclass
 from typing import Optional
 
-from .adapter import TransportAdapter, TransportConfig, TransportError, ConnectionStatus
+from .adapter import ConnectionStatus, TransportAdapter, TransportConfig, TransportError
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ class WifiServerConfig(TransportConfig):
         nodelay: Disable Nagle's algorithm for lower latency (default: True)
         backlog: Socket listen backlog (default: 1)
     """
+
     port: int = 9876
     bind_address: str = "0.0.0.0"
     socket_timeout: float = 1.0
@@ -469,6 +470,8 @@ class WifiServerTransport(TransportAdapter):
                 pass
 
         if self._client_address:
-            info["client_address"] = f"{self._client_address[0]}:{self._client_address[1]}"
+            info["client_address"] = (
+                f"{self._client_address[0]}:{self._client_address[1]}"
+            )
 
         return info

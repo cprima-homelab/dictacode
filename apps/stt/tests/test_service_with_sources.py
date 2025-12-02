@@ -1,12 +1,11 @@
 """Integration tests for SttService with audio sources (v0.2.11)."""
 
-import pytest
-import time
 from pathlib import Path
-from unittest.mock import Mock, MagicMock
 
-from dictacode_stt.service import SttService
+import pytest
+
 from dictacode_stt.audio.sources import create_audio_source
+from dictacode_stt.service import SttService
 from dictacode_stt.transcription import TranscriptionAdapter, TranscriptionResult
 
 
@@ -30,6 +29,7 @@ class MockTranscriber(TranscriptionAdapter):
 
     def get_audio_requirements(self):
         from dictacode_stt.transcription import AudioRequirements
+
         return AudioRequirements(sample_rate=16000, channels=1, format="wav")
 
     def supports_streaming(self) -> bool:
@@ -136,7 +136,13 @@ class TestSttServiceWithAudioSource:
         self._create_test_wav(wav_path, duration_seconds=0.5)
 
         # Create looping source
-        from dictacode_stt.audio.sources import FileSource, AudioSourceConfig, SourceType, PlaybackMode
+        from dictacode_stt.audio.sources import (
+            AudioSourceConfig,
+            FileSource,
+            PlaybackMode,
+            SourceType,
+        )
+
         config = AudioSourceConfig(
             source_type=SourceType.FILE,
             file_path=wav_path,
@@ -169,6 +175,7 @@ class TestSttServiceWithAudioSource:
     def _create_test_wav(path: Path, duration_seconds: float = 1.0):
         """Create a minimal test WAV file."""
         import wave
+
         import numpy as np
 
         sample_rate = 16000

@@ -9,7 +9,6 @@ delayed "final" results to maintain API compatibility with streaming.
 """
 
 import logging
-import struct
 import subprocess
 import tempfile
 import time
@@ -17,13 +16,14 @@ import wave
 from pathlib import Path
 from typing import Optional
 
-from .adapter import TranscriptionAdapter, TranscriptionResult, AudioRequirements
+from .adapter import AudioRequirements, TranscriptionAdapter, TranscriptionResult
 from .streaming import (
+    ErrorCallback,
+    FinalCallback,
     FinalResult,
     PartialCallback,
-    FinalCallback,
-    ErrorCallback,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +99,7 @@ class WhisperAdapter(TranscriptionAdapter):
             formats=["wav"],
         )
 
-    def transcribe(
-        self, audio_path: Path, language: str = "en"
-    ) -> TranscriptionResult:
+    def transcribe(self, audio_path: Path, language: str = "en") -> TranscriptionResult:
         """Transcribe audio file using whisper-cli subprocess.
 
         Args:
@@ -127,6 +125,7 @@ class WhisperAdapter(TranscriptionAdapter):
         try:
             result = subprocess.run(
                 cmd,
+                check=False,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -267,9 +266,7 @@ class WhisperAdapter(TranscriptionAdapter):
         temp_path = None
         try:
             # Write buffer to temp WAV file
-            with tempfile.NamedTemporaryFile(
-                suffix=".wav", delete=False
-            ) as f:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 self._write_wav(f, bytes(self._chunk_buffer))
                 temp_path = Path(f.name)
 
@@ -287,9 +284,7 @@ class WhisperAdapter(TranscriptionAdapter):
             elif not result.success:
                 logger.error(f"Chunk transcription failed: {result.error}")
                 if self._callbacks.get("on_error"):
-                    self._callbacks["on_error"](
-                        RuntimeError(result.error)
-                    )
+                    self._callbacks["on_error"](RuntimeError(result.error))
 
             # Clear buffer
             self._chunk_buffer = bytearray()

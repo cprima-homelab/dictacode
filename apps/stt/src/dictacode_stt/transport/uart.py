@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..lock import SerialLock
-from .adapter import TransportAdapter, TransportConfig, TransportError, ConnectionStatus
+from .adapter import ConnectionStatus, TransportAdapter, TransportConfig, TransportError
 
 
 @dataclass
@@ -34,6 +34,7 @@ class UartConfig(TransportConfig):
         timeout: Read timeout in seconds (default: 1.0)
         lock_dir: Optional lock directory override (for testing)
     """
+
     device: str = "/dev/serial0"
     baud_rate: int = 115200
     timeout: float = 1.0

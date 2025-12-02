@@ -28,8 +28,9 @@ Usage:
 from .device import HidDevice, HidDeviceStatus
 from .registry import HidDeviceRegistry
 
+
 __all__ = [
     "HidDevice",
-    "HidDeviceStatus",
     "HidDeviceRegistry",
+    "HidDeviceStatus",
 ]

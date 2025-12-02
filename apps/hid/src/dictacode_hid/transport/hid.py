@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from .adapter import TransportAdapter, TransportConfig, TransportError, ConnectionStatus
+from .adapter import ConnectionStatus, TransportAdapter, TransportConfig, TransportError
 
 
 @dataclass
@@ -34,6 +34,7 @@ class HidConfig(TransportConfig):
         report_size: HID report size in bytes (default: 8 for keyboard)
         key_delay: Delay between key press and release in seconds (default: 0.02)
     """
+
     device: str = "/dev/hidg0"
     report_size: int = 8
     key_delay: float = 0.02
@@ -168,7 +169,9 @@ class HidTransport(TransportAdapter):
         """
         self.send(report)
 
-    def send_key(self, keycode: int, modifier: int = 0, delay: Optional[float] = None) -> None:
+    def send_key(
+        self, keycode: int, modifier: int = 0, delay: Optional[float] = None
+    ) -> None:
         """Send a single key press and release.
 
         Args:

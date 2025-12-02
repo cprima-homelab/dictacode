@@ -3,33 +3,34 @@
 __version__ = "0.3.0"
 
 from dictacode_hid.protocol import (
-    Message,
-    TextMessage,
     CommandMessage,
-    ProbeMessage,
-    ProbeAckMessage,
-    ProtocolAdapter,
     JsonProtocol,
+    Message,
     MsgpackProtocol,
-    get_protocol,
+    ProbeAckMessage,
+    ProbeMessage,
+    ProtocolAdapter,
+    TextMessage,
     detect_protocol,
+    get_protocol,
     try_decode,
+)
+from dictacode_hid.service import (
+    HidService,
 )
 from dictacode_hid.state import (
     DeviceMode,
     HidState,
 )
-from dictacode_hid.transport import (
-    TransportError,
-    UartTransport,
-    HidTransport,
-)
-from dictacode_hid.service import (
-    HidService,
-)
 from dictacode_hid.supervisor import (
     LinkSupervisor,
 )
+from dictacode_hid.transport import (
+    HidTransport,
+    TransportError,
+    UartTransport,
+)
+
 
 __all__ = [
     # Protocol

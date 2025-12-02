@@ -1,6 +1,7 @@
 """Tests for transport layer (UART)."""
 
 import pytest
+
 from dictacode_stt import TransportError, UartTransport
 
 

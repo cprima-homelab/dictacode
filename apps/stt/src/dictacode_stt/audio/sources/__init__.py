@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from dictacode_stt.audio.source import (
     AudioSource,
     AudioSourceConfig,
-    SourceType,
     PlaybackMode,
+    SourceType,
 )
 from dictacode_stt.audio.sources.file import FileSource
 from dictacode_stt.audio.sources.synthetic import SyntheticSource
+
 
 if TYPE_CHECKING:
     from dictacode_stt.audio.manager import AudioPortManager
@@ -20,9 +21,9 @@ if TYPE_CHECKING:
 __all__ = [
     "AudioSource",
     "AudioSourceConfig",
-    "SourceType",
-    "PlaybackMode",
     "FileSource",
+    "PlaybackMode",
+    "SourceType",
     "SyntheticSource",
     "create_audio_source",
 ]
@@ -30,7 +31,7 @@ __all__ = [
 
 def create_audio_source(
     source_spec: str,
-    port_manager: Optional["AudioPortManager"] = None,
+    port_manager: Optional[AudioPortManager] = None,
     **kwargs,
 ) -> AudioSource:
     """Create audio source from specification string.
@@ -112,6 +113,5 @@ def create_audio_source(
 
     else:
         raise ValueError(
-            f"Unknown source type: {parts[0]}. "
-            f"Use: mic, file, or synthetic"
+            f"Unknown source type: {parts[0]}. " f"Use: mic, file, or synthetic"
         )

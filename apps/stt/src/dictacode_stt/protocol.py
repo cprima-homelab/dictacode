@@ -69,7 +69,9 @@ class ResponseMessage:
     message: str | None = None
 
 
-Message = Union[TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage, ResponseMessage]
+Message = Union[
+    TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage, ResponseMessage
+]
 
 
 class ProtocolAdapter(ABC):
@@ -139,7 +141,9 @@ class JsonProtocol(ProtocolAdapter):
         if msg_type == "text":
             return TextMessage(payload=obj["p"], request_id=obj.get("id"))
         elif msg_type == "cmd":
-            return CommandMessage(command=obj["c"], argument=obj.get("a"), request_id=obj.get("id"))
+            return CommandMessage(
+                command=obj["c"], argument=obj.get("a"), request_id=obj.get("id")
+            )
         elif msg_type == "probe":
             return ProbeMessage(
                 timestamp=obj["ts"],
@@ -224,7 +228,9 @@ class MsgpackProtocol(ProtocolAdapter):
         if msg_type == "text":
             return TextMessage(payload=obj["p"], request_id=obj.get("id"))
         elif msg_type == "cmd":
-            return CommandMessage(command=obj["c"], argument=obj.get("a"), request_id=obj.get("id"))
+            return CommandMessage(
+                command=obj["c"], argument=obj.get("a"), request_id=obj.get("id")
+            )
         elif msg_type == "probe":
             return ProbeMessage(
                 timestamp=obj["ts"],

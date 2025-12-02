@@ -8,6 +8,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Optional
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -148,6 +149,7 @@ class LogLevelController:
             >>> controller.setup_signal_handler()
             # Then from shell: kill -SIGUSR1 <pid>
         """
+
         def handler(signum, frame):
             if self.get_level() == "DEBUG":
                 self.disable_debug()
