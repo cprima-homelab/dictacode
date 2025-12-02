@@ -103,3 +103,47 @@
         }
     };
 })();
+
+/**
+ * Badge Display - fetch and show license badge status (v0.3.11)
+ */
+(function() {
+    'use strict';
+
+    const ALL_TIERS = ['free', 'supporter', 'donor', 'contributor', 'multiplicator'];
+
+    /**
+     * Fetch badge state from API and update display
+     */
+    async function loadBadges() {
+        try {
+            const response = await fetch('/v1/api/license');
+            if (!response.ok) {
+                console.warn('Failed to fetch badge state:', response.status);
+                return;
+            }
+
+            const data = await response.json();
+            const activeTiers = data.tiers || [];
+
+            // Update each tier display
+            ALL_TIERS.forEach(tier => {
+                const span = document.getElementById('badge-' + tier);
+                if (span) {
+                    const hasIt = activeTiers.includes(tier) || (tier === 'free' && activeTiers.length === 0);
+                    span.textContent = hasIt ? 'y' : 'n';
+                    span.style.color = hasIt ? 'var(--green, #859900)' : 'var(--base01, #586e75)';
+                }
+            });
+
+        } catch (e) {
+            console.warn('Badge load failed:', e);
+        }
+    }
+
+    // Load badges when DOM ready
+    document.addEventListener('DOMContentLoaded', loadBadges);
+
+    // Expose for debugging
+    window.dictacodeBadges = { refresh: loadBadges };
+})();
