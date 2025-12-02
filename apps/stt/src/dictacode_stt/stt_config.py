@@ -33,6 +33,17 @@ class SttConfig:
     uart_baud: int = 115200
     chunk_duration: float = 5.0
 
+    # LLM post-processing (v0.2.14)
+    llm_enabled: bool = False
+    llm_provider: str = "ollama"  # "ollama", "openai", "openrouter"
+    llm_model: str = "llama3.2"
+    llm_profile: str = (
+        "passthrough"  # "grammar", "punctuation", "formal", "casual", "code", "passthrough"
+    )
+    llm_fallback: bool = True  # Return original text on error
+    llm_base_url: Optional[str] = None  # Override provider default URL
+    llm_api_key: Optional[str] = None  # API key for openai/openrouter
+
     def __post_init__(self):
         """Validate configuration values."""
         # Validate ports
@@ -131,6 +142,14 @@ def load_stt_config(config_path: Optional[Path] = None) -> SttConfig:
             uart_device=getstr("uart_device", "/dev/serial0"),
             uart_baud=getint("uart_baud", 115200),
             chunk_duration=getfloat("chunk_duration", 5.0),
+            # LLM post-processing (v0.2.14)
+            llm_enabled=getbool("llm_enabled", False),
+            llm_provider=getstr("llm_provider", "ollama"),
+            llm_model=getstr("llm_model", "llama3.2"),
+            llm_profile=getstr("llm_profile", "passthrough"),
+            llm_fallback=getbool("llm_fallback", True),
+            llm_base_url=parser.get(section, "llm_base_url", fallback=None) or None,
+            llm_api_key=parser.get(section, "llm_api_key", fallback=None) or None,
         )
 
         logger.info("Loaded configuration from %s", config_path)

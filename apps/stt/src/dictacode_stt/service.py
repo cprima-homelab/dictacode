@@ -37,6 +37,13 @@ from dictacode_stt.audio import (
 from dictacode_stt.audio.source import AudioSource
 from dictacode_stt.compatibility import CompatibilityChecker
 from dictacode_stt.hid import HidDevice, HidDeviceRegistry
+from dictacode_stt.llm import (
+    BUILTIN_PROFILES,
+    LlmConfig,
+    LlmProvider,
+    PostProcessor,
+    create_llm_adapter,
+)
 from dictacode_stt.protocol import (
     CommandMessage,
     ProbeAckMessage,
@@ -103,6 +110,14 @@ class SttService:
         hid_registry: Optional[HidDeviceRegistry] = None,
         audio_source: Optional[AudioSource] = None,
         websocket_manager: Optional[any] = None,
+        llm_enabled: bool = False,
+        llm_provider: str = "ollama",
+        llm_model: str = "llama3.2",
+        llm_profile: str = "passthrough",
+        llm_fallback: bool = True,
+        llm_base_url: Optional[str] = None,
+        llm_api_key: Optional[str] = None,
+        post_processor: Optional[PostProcessor] = None,
     ):
         """
         Initialize STT service.
@@ -134,6 +149,14 @@ class SttService:
             hid_registry: HID device registry (v0.2.8, default: None = create new)
             audio_source: Audio source for testing (v0.2.11, default: None = use microphone)
             websocket_manager: WebSocket manager for broadcasting updates (v0.3.0, default: None = no broadcast)
+            llm_enabled: Enable LLM post-processing (v0.2.14, default: False)
+            llm_provider: LLM provider ("ollama", "openai", "openrouter", default: "ollama")
+            llm_model: LLM model identifier (default: "llama3.2")
+            llm_profile: Processing profile ("grammar", "punctuation", "formal", "casual", "code", "passthrough", default: "passthrough")
+            llm_fallback: Return original text on LLM error (default: True)
+            llm_base_url: Override LLM provider base URL (default: None = use provider default)
+            llm_api_key: API key for cloud LLM providers (default: None)
+            post_processor: Pre-configured PostProcessor instance (v0.2.14, default: None = auto-create)
         """
         # v0.2.8: HID device registry and selection
         self.hid_registry = hid_registry or HidDeviceRegistry()
@@ -195,6 +218,48 @@ class SttService:
             )
         if self.streaming_mode:
             logger.info("Streaming transcription mode enabled")
+
+        # v0.2.14: LLM post-processing
+        if post_processor is not None:
+            # Use provided PostProcessor instance
+            self.post_processor = post_processor
+            logger.info(f"Using provided PostProcessor: {post_processor.get_info()}")
+        elif llm_enabled:
+            # Auto-create PostProcessor from config
+            try:
+                # Create LLM adapter
+                llm_config = LlmConfig(
+                    provider=LlmProvider(llm_provider),
+                    model=llm_model,
+                    base_url=llm_base_url,
+                    api_key=llm_api_key,
+                )
+                adapter = create_llm_adapter(llm_config)
+
+                # Get profile
+                profile = BUILTIN_PROFILES.get(llm_profile)
+                if profile is None:
+                    logger.warning(
+                        f"Unknown LLM profile '{llm_profile}', using passthrough"
+                    )
+                    profile = BUILTIN_PROFILES["passthrough"]
+
+                # Create PostProcessor
+                self.post_processor = PostProcessor(
+                    adapter=adapter,
+                    profile=profile,
+                    fallback_on_error=llm_fallback,
+                )
+                logger.info(
+                    f"LLM post-processing enabled: "
+                    f"{llm_provider}/{llm_model} + {llm_profile}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize LLM post-processor: {e}")
+                self.post_processor = None
+        else:
+            self.post_processor = None
+            logger.debug("LLM post-processing disabled")
 
         # Initialize layers
         self.protocol: ProtocolAdapter = get_protocol(protocol_name)
@@ -454,14 +519,30 @@ class SttService:
         """
         Handle final transcription result (v0.2.7 streaming).
 
-        Final results are sent to HID immediately.
+        Final results are sent to HID immediately, optionally after
+        LLM post-processing (v0.2.14).
 
         Args:
             result: Final transcription result
         """
         if result.text:
-            logger.info(f"Final: {result.text}")
-            self.send_text(result.text)
+            text = result.text
+            logger.info(f"Final (raw): {text}")
+
+            # v0.2.14: LLM post-processing
+            if self.post_processor is not None:
+                try:
+                    processed = self.post_processor.process(text)
+                    if processed != text:
+                        logger.info(f"Final (processed): {processed}")
+                        text = processed
+                    else:
+                        logger.debug("Text unchanged after LLM processing")
+                except Exception as e:
+                    logger.error(f"LLM post-processing failed: {e}")
+                    # Keep original text (fallback handled by PostProcessor)
+
+            self.send_text(text)
 
     def _on_transcription_error(self, error: Exception) -> None:
         """
