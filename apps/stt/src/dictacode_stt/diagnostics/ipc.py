@@ -170,6 +170,7 @@ class DiagnosticsIpcServer:
         socket_path: str | None = None,
         state_provider: Callable[[], dict] | None = None,
         history_provider: Callable[[], list] | None = None,
+        aggregator: Any | None = None,  # v0.3.13: DiagnosticsAggregator
     ):
         """Initialize IPC server.
 
@@ -178,14 +179,38 @@ class DiagnosticsIpcServer:
             socket_path: Path to socket (default: from env or DEFAULT_SOCKET_PATH)
             state_provider: Callable returning current state dict (v0.3.5)
             history_provider: Callable returning state history list (v0.3.5)
+            aggregator: DiagnosticsAggregator instance for status.live (v0.3.13)
         """
         self.service = service
         self.socket_path = socket_path or get_socket_path()
         self._get_state = state_provider
         self._get_history = history_provider
+        self._aggregator = aggregator  # v0.3.13
         self._server_socket: socket.socket | None = None
         self._running = False
         self._thread: threading.Thread | None = None
+
+    # v0.3.13: Live status for DiagnosticsAggregator
+    def status(self) -> dict:
+        """Return live status for diagnostics aggregator.
+
+        Returns:
+            Dict with socket_path and available flag.
+        """
+        return {
+            "socket_path": self.socket_path,
+            "available": self._running,
+        }
+
+    def set_aggregator(self, aggregator: Any) -> None:
+        """Set the aggregator reference (v0.3.13).
+
+        Allows late-binding of aggregator after server creation.
+
+        Args:
+            aggregator: DiagnosticsAggregator instance
+        """
+        self._aggregator = aggregator
 
     def start(self) -> bool:
         """Start the IPC server in a background thread.
@@ -400,6 +425,22 @@ class DiagnosticsIpcServer:
             history = self._get_history()
             return _make_response({"history": history}, request_id)
 
+        # v0.3.13: Live status aggregator
+        elif method == "status.live":
+            if self._aggregator is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "Aggregator not configured - service may be starting",
+                    request_id,
+                )
+            try:
+                result = self._aggregator.get_status()
+                return _make_response(result, request_id)
+            except Exception as e:
+                return _make_error(
+                    ERROR_INTERNAL, f"Aggregator error: {e}", request_id
+                )
+
         else:
             return _make_error(
                 ERROR_METHOD_NOT_FOUND, f"Method not found: {method}", request_id
@@ -589,3 +630,12 @@ class DiagnosticsIpcClient:
             Response with 'history' list of transitions
         """
         return self._call("state.history")
+
+    # v0.3.13: Live status
+    def get_live_status(self) -> dict[str, Any]:
+        """Get live status from all components (v0.3.13).
+
+        Returns:
+            Aggregated status with components and flow staleness info
+        """
+        return self._call("status.live")
