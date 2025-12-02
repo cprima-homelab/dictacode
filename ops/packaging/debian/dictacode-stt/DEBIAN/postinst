@@ -12,7 +12,8 @@ case "$1" in
         mkdir -p /etc/dictacode/stt.d
         chmod 755 /etc/dictacode/stt.d
 
-        # Set ownership
+        # NOTE: During development we assume the dictacode user already exists.
+        # For production packaging, add a user-creation step before chown.
         if id dictacode > /dev/null 2>&1; then
             chown -R dictacode:dictacode /opt/dictacode/stt
             chown dictacode:dictacode /etc/dictacode/stt.d 2>/dev/null || true

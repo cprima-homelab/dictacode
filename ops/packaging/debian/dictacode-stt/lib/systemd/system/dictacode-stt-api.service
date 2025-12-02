@@ -13,7 +13,7 @@ Group=dictacode
 
 # systemd-managed state/log dirs
 StateDirectory=dictacode
-RuntimeDirectory=dictacode-stt-api
+RuntimeDirectory=dictacode
 LogsDirectory=dictacode
 
 # v0.2.15 DEV: Use development paths (matches dictacode-stt.service)

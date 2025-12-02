@@ -13,10 +13,10 @@ Group=dictacode
 
 # systemd-managed state/log dirs
 StateDirectory=dictacode
-RuntimeDirectory=dictacode-stt
+RuntimeDirectory=dictacode
 LogsDirectory=dictacode
 
-# v0.2.3 DEV: Use development paths
+# v0.2.3 DEV: Use development paths (toggle to packaged paths when building release)
 WorkingDirectory=/home/dictacode/dictacode/apps/stt
 
 # STT pipeline executable (v0.2.3: service always starts, state machine handles lifecycle)
@@ -32,6 +32,8 @@ RestartSec=3
 Environment=DICTACODE_PREREQUISITE_POLL=30
 Environment=DICTACODE_LINK_POLL=5
 Environment=DICTACODE_HANDSHAKE_TIMEOUT=10
+# v0.3.7: IPC socket path (matches code default)
+# Environment=DICTACODE_IPC_SOCKET=/run/dictacode/diag.sock
 
 EnvironmentFile=-/etc/dictacode/stt.env
 Environment=PYTHONUNBUFFERED=1
