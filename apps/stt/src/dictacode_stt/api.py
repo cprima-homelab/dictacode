@@ -803,6 +803,21 @@ async def metrics_page(request: Request):
     )
 
 
+@web_router.get("/scratch", response_class=HTMLResponse)
+async def scratch_page(request: Request):
+    """Scratch page for dumping raw API-visible data."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "scratch.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
 # =============================================================================
 # v0.3.9: App Factory Functions
 # =============================================================================

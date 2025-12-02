@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Scratch{% endblock %}
+{% block nav_scratch %}active{% endblock %}
+{% block breadcrumb %}Scratch{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <div>
+      <div class="card-title">Scratchpad</div>
+      <div class="card-subtitle">Raw dumps from IPC-backed API endpoints</div>
+    </div>
+    <button class="primary" id="refresh-btn">⟳ Refresh</button>
+  </div>
+  <div class="card-body scratch-grid">
+    <div class="scratch-panel">
+      <div class="panel-title">Service State</div>
+      <pre id="state-dump">Loading...</pre>
+    </div>
+    <div class="scratch-panel">
+      <div class="panel-title">State History</div>
+      <pre id="history-dump">Loading...</pre>
+    </div>
+    <div class="scratch-panel">
+      <div class="panel-title">Diagnostics Status</div>
+      <pre id="diag-dump">Loading...</pre>
+    </div>
+    <div class="scratch-panel">
+      <div class="panel-title">License</div>
+      <pre id="license-dump">Loading...</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/scratch.js"></script>
+{% endblock %}
