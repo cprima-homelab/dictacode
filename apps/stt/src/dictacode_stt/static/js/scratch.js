@@ -9,6 +9,7 @@
     { id: 'history-dump', url: '/v1/api/service/state/history' },
     { id: 'diag-dump', url: '/v1/api/diagnostics/status' },
     { id: 'license-dump', url: '/v1/api/license' },
+    { id: 'live-dump', url: '/v1/api/status/live' },  // v0.3.13
   ];
 
   async function fetchAndRender(target) {
