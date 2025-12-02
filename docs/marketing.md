@@ -9,6 +9,7 @@ No cloud. Less lag. No leakage.
 Plug anywhere. Types anywhere.
 Built for pair-programming with coding agents.
 
+Dictate ideas, ship logic.
 
 ## Value Props
 
