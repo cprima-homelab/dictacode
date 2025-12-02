@@ -24,11 +24,13 @@
 - [x] Jinja2 templates with 3 switchable themes
 - [x] Pause/Resume service control (Phase 3.4)
 
-### Phase 4: Bidirectional Protocol
-- [ ] Add `ResponseMessage` to protocol.py
-- [ ] Update HID to send responses
-- [ ] Update STT to receive/handle responses
-- [ ] Add request ID tracking
+### Phase 4: Bidirectional Protocol ⏸️ PARTIAL
+- [x] Add `ResponseMessage` to protocol.py (Part 1 complete)
+- [x] Add request ID tracking to TextMessage and CommandMessage
+- [x] Update JsonProtocol and MsgpackProtocol encoders/decoders
+- [ ] Update HID to send responses (Part 2 - see implementation guide)
+- [ ] Update STT to receive/handle responses (Part 2 - see implementation guide)
+- [ ] Add unit tests for bidirectional flow
 
 ### Phase 5: Streaming (Optional)
 - [ ] Evaluate whisper.cpp streaming support
@@ -36,7 +38,9 @@
 - [ ] Implement partial result handling
 - [ ] Update web panel for partial display
 
-**v0.3.0 PHASE 3 COMPLETE** - Web control panel fully implemented with pause/resume, live transcription feed, diagnostics, and metrics.
+**v0.3.0 STATUS:**
+- ✅ **Phase 3 COMPLETE** - Web control panel fully implemented
+- ⏸️ **Phase 4 PARTIAL** - Protocol foundation complete, service integration deferred (see implementation guide)
 
 ---
 
