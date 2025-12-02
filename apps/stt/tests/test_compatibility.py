@@ -12,10 +12,10 @@ import json
 import pytest
 
 from dictacode_stt.compatibility import (
-    MATRIX_SEARCH_PATHS,
     CompatibilityChecker,
     CompatibilityMatrix,
 )
+from dictacode_stt.paths import find_compatibility_matrix
 
 
 @pytest.fixture
@@ -27,12 +27,12 @@ def compatibility_matrix():
 @pytest.fixture
 def compatibility_json():
     """Load the raw compatibility JSON for test generation."""
-    # Find the matrix file using the same search paths
-    for path in MATRIX_SEARCH_PATHS:
-        if path.exists():
-            with open(path) as f:
-                return json.load(f)
-    pytest.fail(f"Compatibility matrix not found in {MATRIX_SEARCH_PATHS}")
+    try:
+        matrix_path = find_compatibility_matrix()
+        with open(matrix_path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        pytest.fail("Compatibility matrix not found")
 
 
 def test_matrix_loads_successfully(compatibility_matrix):
