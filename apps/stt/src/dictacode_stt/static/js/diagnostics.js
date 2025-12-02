@@ -20,14 +20,17 @@
         tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">Running diagnostics...</td></tr>';
 
         try {
-            // v0.3.4: API versioning - fetch diagnostics from /v1
-            const response = await fetch('/v1/api/diagnostics');
+            // v0.3.4: API versioning - run diagnostics via POST /v1/api/diagnostics/run
+            const response = await fetch('/v1/api/diagnostics/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
             const data = await response.json();
 
-            diagnosticsData = data;
+            diagnosticsData = data || {};
 
             // Render results
-            renderDiagnostics(data.checks || []);
+            renderDiagnostics(diagnosticsData.checks || []);
 
         } catch (error) {
             console.error('Failed to run diagnostics:', error);
@@ -68,8 +71,8 @@
             const badge = document.createElement('span');
             badge.className = 'badge';
 
-            const status = check.status || check.result;
-            if (status === 'ok' || status === 'pass' || status === 'healthy') {
+            const status = (check.status || check.result || '').toString().toLowerCase();
+            if (status === 'ok' || status === 'pass' || status === 'passed' || status === 'healthy') {
                 badge.classList.add('badge-ok');
                 badge.textContent = '✓ OK';
             } else if (status === 'warning' || status === 'degraded') {
