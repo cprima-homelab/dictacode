@@ -1,0 +1,158 @@
+# Architecture Plan v0.3.99 — Diagnostics Data Structure (YAML)
+version: 0.3.99
+summary:
+  goal: "Enumerate diagnostics surfaces and data to implement (IPC-first)"
+  scope:
+    ipc_methods: ["diag.list", "diag.run", "diag.status", "diag.history"]
+    api_endpoints: ["/v1/api/diagnostics/run", "/v1/api/diagnostics/status", "/v1/api/diagnostics/checks", "/v1/api/diagnostics/history"]
+    cli_tools: ["dictacode-stt-diagnose", "dictacode-stt-check", "dictacode-stt-state"]
+    cp_pages: ["/cp/diagnostics", "/cp/scratch"]
+
+ipc:
+  methods:
+    diag.list:
+      request: {method: "diag.list", params: {category: optional, enabled_only: bool}}
+      response: {checks: [check_id, name, category, description, enabled, severity, depends_on]}
+    diag.run:
+      request: {method: "diag.run"}
+      response: {status: str, passed: int, failed: int, warnings: int, checks: list}
+    diag.status:
+      request: {method: "diag.status"}
+      response: {overall: str, passed: int, failed: int, warnings: int, total: int}
+    diag.history:
+      request: {method: "diag.history"}
+      response: {history: list}
+
+api:
+  endpoints:
+    - path: "/v1/api/diagnostics/run"
+      method: POST
+      payload: {}
+      returns: diag.run response
+    - path: "/v1/api/diagnostics/status"
+      method: GET
+      returns: diag.status response
+    - path: "/v1/api/diagnostics/checks"
+      method: GET
+      query: {category: optional, enabled_only: bool}
+      returns: diag.list checks
+    - path: "/v1/api/diagnostics/history"
+      method: GET
+      returns: diag.history history
+
+cli:
+  tools:
+    dictacode-stt-diagnose:
+      default: IPC diag.run
+      standalone: run_all_checks()
+    dictacode-stt-check:
+      default: IPC diag.run
+      standalone: run_all_checks()
+
+cp:
+  pages:
+    diagnostics:
+      action: POST /v1/api/diagnostics/run
+      display: checks with status/warning/fail
+    scratch:
+      display: diagnostics status from /v1/api/diagnostics/status
+
+notes:
+  - IPC is the primary path; fallback only when explicitly in standalone/local mode.
+  - Align CP JS to correct endpoints and response shapes.
+
+devices_inventory:
+  summary: "Inventory across 1 STT and N HID devices; aggregate via STT"
+  roles:
+    - stt
+    - hid
+  fields_per_device:
+    core: [id, role, hostname, ip, uptime, os_name, os_version, kernel, arch, cpu_count, mem_total, fs_root_free]
+    hardware: [rpi_model, rpi_revision, rpi_serial, soc, board_temp, cpu_temps, voltages]
+    metrics: [cpu_load, mem_used, disk_usage, psutil_stats, lm_sensors]
+    network: [primary_interface, mac, ip_addrs, wifi_ssid]
+    services:
+      stt: [SttState, link_health, last_activity, process_info]
+      hid: [transport_status (UART/WiFi), device_path, link_status, process_info]
+    audio (stt only): [audio_devices, active_port, ports_capabilities, profiles_matched]
+    versions: [app_version, protocol_version, compatibility_matrix_path, compatibility_matrix_hash]
+  transport:
+    stt_local: "STT gathers local info directly (psutil, lm-sensors if present)."
+    hid_report: "HID reports its slice via protocol message (host_info/sensors) to STT; requires HID protocol extension."
+  api_surface:
+    - path: "/v1/api/inventory"
+      method: GET
+      returns: { devices: [ {role, ...fields...} ] }
+  cp_usage:
+    - page: "/cp/scratch" (raw dump)
+    - future: "/cp/inventory" (formatted view)
+
+inspection_candidates:
+  service:
+    - state: current SolutionState, failure_reason, history
+    - pipeline_config: transcriber name/model, whisper paths, LLM enabled/provider/model/profile, transport type, hid_device_id, audio device/port, sample rates/channels, dry_run
+    - config: current config object (audio, api, logging, diagnostics) with source (env/config/default) where feasible
+    - audio: selected audio_port, buffer status, resampler config, audio source mode (test vs mic)
+    - transport: type, device/host, baud, connected?, last error, supervisor settings (timeouts/polls), link stats
+    - hid_registry: chosen device, registry size, transports available
+    - supervisor: enabled?, timeout/ping intervals
+    - metrics: transcription counts/errors (if available)
+  transport:
+    - active type (uart/usb_serial/wifi), device path/host/port
+    - connection status: connected?, last error, lock path (SerialLock)
+    - usb_serial: detected port/serial/vid/pid
+    - wifi: host/port, socket status
+    - hid transport: fd open?, write errors
+  transcription:
+    - transcriber type (whisper/vosk/...), model path, language, sample rate/channels
+    - streaming vs batch mode
+    - availability/health, last result/error
+  llm:
+    - enabled?, provider, model, profile, base_url, api_key set?, fallback behavior
+    - adapter in use (ollama/openai/openrouter), health/ping, last postproc status/error
+  compatibility:
+    - matrix_path: resolved path
+    - matrix_hash: checksum/version of matrix file
+    - app_versions: stt_version, hid_version, protocol_version, api_version
+    - matrix_entries: stt↔hid compatibility ranges (if needed for display)
+  profiles:
+    - available_profiles: name, description, source (packaged/drop-in), asr_backend (whisper|vosk), model path/name, llm_enabled, llm_provider/model/base_url/api_key (presence)
+    - current_profile: name, source, applied flag
+    - validation: schema validation status per profile
+    - persistence: stored selection path/file
+    - apply_status: last apply success/failure, reason
+
+observability_hardening:
+  ipc:
+    - clear logs when IPC unavailable or errors; expose IPC health check
+    - keep API returning 5xx when IPC is down (no silent fallback)
+    - socket perms 0660, correct path/runtime dir
+  diagnostics_coverage:
+    - os/resources: cpu/mem/disk, temps (psutil/lm-sensors)
+    - network/interfaces status
+    - audio: device presence, active port validation
+    - transport: UART/WiFi link status
+    - config/profile validation: paths readable, models present
+    - protocol version mismatch warnings (stt/hid)
+  endpoints:
+    - ensure /v1/api/diagnostics/status|run|history are IPC-backed and tested
+    - add simple health summary for CP
+  state_visibility:
+    - expose current state, history, current profile, link health, last errors via IPC/API
+    - CP scratch shows errors clearly when unreachable
+  metrics:
+    - state_current, state_transition_counter
+    - link reconnects/failures
+    - diagnostics runs/pass/fail counters
+  logging:
+    - structured errors for IPC/diagnostics; warn on standalone fallbacks
+  route_validation:
+    - keep versioning guard; prevent CP routes from leaking into OpenAPI
+  config_paths:
+    - validate config/profile directories on startup; log missing paths/models with remediation hints
+  protocol_hid:
+    - add HID link status/protocol version checks; optional HID host info via protocol
+  tests:
+    - IPC round-trip for diagnostics/state; diagnostics endpoints; CP JS hitting correct routes; mock hardware deps
+  security:
+    - API warns on non-localhost bind; IPC socket not world-readable
