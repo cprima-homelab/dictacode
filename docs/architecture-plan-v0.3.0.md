@@ -139,34 +139,45 @@ Final:    "Hello world"
 
 ## Implementation Phases
 
-### Phase 1: HTTP API
-1. Create `api.py` in dictacode_stt
-2. Implement REST endpoints for status/control
-3. Wire API to service layer
-4. Tests for API
+### Phase 1: HTTP API ✅
+1. ✅ Create `api.py` in dictacode_stt
+2. ✅ Implement REST endpoints for status/control
+3. ✅ Wire API to service layer
+4. ✅ Tests for API
+5. ✅ systemd unit `dictacode-stt-api.service`
+6. ✅ Config file support for API settings
 
-### Phase 2: WebSocket
-1. Add WebSocket endpoint for live updates
-2. Broadcast transcription results
-3. Client-side reconnection logic
+### Phase 2: WebSocket ✅
+1. ✅ Add WebSocket endpoint for live updates
+2. ✅ Broadcast transcription results
+3. ✅ Client-side reconnection logic with exponential backoff
+4. ✅ Test client implementation
 
-### Phase 3: Web Panel
-1. Create `web/` directory with static files
-2. HTML structure with status, controls, log
-3. JavaScript for API calls and WebSocket
-4. Serve static files from Python
+### Phase 3: Web Panel ✅
+1. ✅ Create `templates/` and `static/` directories
+2. ✅ HTML structure with multiple pages (control panel, config, diagnostics, metrics)
+3. ✅ JavaScript for API calls and WebSocket with live updates
+4. ✅ Serve static files and templates from FastAPI with Jinja2
+5. ✅ Implement 3 switchable themes (Solarized Light/Dark, Work)
+6. ✅ Add pause/resume service control (Phase 3.4)
+7. ✅ Integrate diagnostics API
+8. ✅ Integrate Prometheus metrics
 
-### Phase 4: Bidirectional Protocol
-1. Add `ResponseMessage` to protocol.py
-2. Update HID to send responses
-3. Update STT to receive/handle responses
-4. Add request ID tracking
+### Phase 4: Bidirectional Protocol ⏸️
+1. ✅ Add `ResponseMessage` to protocol.py
+2. ✅ Add request ID tracking to TextMessage and CommandMessage
+3. ✅ Update JsonProtocol and MsgpackProtocol encoders/decoders
+4. ⏸️ Update HID to send responses (deferred - see implementation guide)
+5. ⏸️ Update STT to receive/handle responses (deferred - see implementation guide)
+6. ⏸️ Add unit tests for bidirectional flow
 
-### Phase 5: Streaming (Optional)
-1. Evaluate whisper.cpp streaming support
-2. Or evaluate Vosk for streaming STT
-3. Implement partial result handling
-4. Update web panel for partial display
+**Note:** Protocol foundation complete and backward compatible. Service integration deferred with comprehensive implementation guide in `docs/phase-4-bidirectional-implementation-guide.md`.
+
+### Phase 5: Streaming (Optional) ⏳
+1. ⏳ Evaluate whisper.cpp streaming support
+2. ⏳ Or evaluate Vosk for streaming STT
+3. ⏳ Implement partial result handling
+4. ⏳ Update web panel for partial display
 
 ---
 
