@@ -1,11 +1,25 @@
 # dictacode Architecture Plan v0.3.13 — Diagnostics Refactor (Component Visitor + Live Status)
 
 ## Status / ToDo
-- [ ] Replace “check” registry with component-based diagnostics/status.
-- [ ] Implement a visitor/aggregator that pulls live status from components.
+- [x] Replace "check" registry with component-based diagnostics/status.
+- [x] Implement a visitor/aggregator that pulls live status from components.
 - [ ] Keep a lightweight probe runner for point-in-time snapshots (optional).
-- [ ] Update IPC/API/CLI/CP to consume the new status structure.
+- [x] Update IPC/API/CLI/CP to consume the new status structure.
 - [ ] Tests for live status, IPC/API round-trips, and CP rendering.
+
+### Completed (v0.3.9-v0.3.13)
+- **Phase 1**: Component `status()` methods implemented (SttState, audio, ASR, transport, IPC)
+- **Phase 2**: `DiagnosticsAggregator` in `diagnostics/aggregator.py` with flow/staleness detection
+- **Phase 3**: IPC `status.live` method + API `GET /v1/api/status/live` (IPC-backed, 503 fallback)
+- **Phase 4**: CP `/cp/live` page with pipeline flow visualization, health summary, auto-refresh
+- **Phase 5**: Metrics counters wired (audio_chunks, asr_success/error, send_success/error)
+
+### Remaining
+- [ ] CLI command `dictacode-stt-status` to print live status via IPC
+- [ ] Unit tests for aggregator staleness logic
+- [ ] IPC/API round-trip tests
+- [ ] LLM postproc status() (when LLM feature enabled)
+- [ ] Profile loader status() (when profiles feature implemented)
 
 ---
 
