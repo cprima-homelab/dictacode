@@ -98,6 +98,10 @@ set_permissions() {
     # Make setup script executable
     chmod 755 /opt/dictacode/hid/setup_hid_gadget.sh
 
+    # Ensure drop-in directory exists and has correct permissions (v0.3.2)
+    mkdir -p /etc/dictacode/hid.d
+    chmod 755 /etc/dictacode/hid.d
+
     # Ensure dictacode group exists for udev rule
     if ! getent group dictacode > /dev/null 2>&1; then
         groupadd --system dictacode

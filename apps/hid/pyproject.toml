@@ -1,6 +1,6 @@
 [project]
 name = "dictacode-hid"
-version = "0.3.0"
+version = "0.3.2"
 description = "dictacode Zero HID bridge (stub)"
 requires-python = ">=3.9"
 dependencies = [

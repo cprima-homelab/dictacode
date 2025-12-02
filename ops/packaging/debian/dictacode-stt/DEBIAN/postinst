@@ -8,9 +8,14 @@ case "$1" in
         # Set permissions on scripts
         chmod 755 /opt/dictacode/stt/install-whisper.sh
 
+        # Ensure drop-in directory exists and has correct permissions (v0.3.2)
+        mkdir -p /etc/dictacode/stt.d
+        chmod 755 /etc/dictacode/stt.d
+
         # Set ownership
         if id dictacode > /dev/null 2>&1; then
             chown -R dictacode:dictacode /opt/dictacode/stt
+            chown dictacode:dictacode /etc/dictacode/stt.d 2>/dev/null || true
         fi
 
         # Reload systemd

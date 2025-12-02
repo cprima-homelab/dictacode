@@ -194,6 +194,227 @@ validate_config_structure() {
     trap - EXIT
 }
 
+validate_template_checksums() {
+    local deb_file="$1"
+    local temp_dir=$(mktemp -d)
+    trap "rm -rf '$temp_dir'" EXIT
+
+    echo ""
+    info "=== Validating template checksums ==="
+
+    dpkg-deb -x "$deb_file" "$temp_dir"
+
+    local config_dir="$temp_dir/etc/dictacode"
+    if [ ! -d "$config_dir" ]; then
+        warn "No config directory in package (may be OK for core package)"
+        rm -rf "$temp_dir"
+        trap - EXIT
+        return 0
+    fi
+
+    templates_dir="$REPO_ROOT/ops/packaging/templates"
+    failed=0
+
+    # Check each .conf file against canonical template
+    for installed_conf in "$config_dir"/*.conf; do
+        # Skip if glob didn't match (literal *.conf)
+        [ -f "$installed_conf" ] || continue
+
+        template_name=$(basename "$installed_conf")
+        canonical="$templates_dir/$template_name"
+
+        if [ -f "$canonical" ]; then
+            installed_sha=$(sha256sum "$installed_conf" | awk '{print $1}')
+            canonical_sha=$(sha256sum "$canonical" | awk '{print $1}')
+
+            if [ "$installed_sha" = "$canonical_sha" ]; then
+                info "✓ $template_name matches canonical"
+            else
+                warn "✗ $template_name differs from canonical"
+                echo "  Canonical: $canonical_sha"
+                echo "  Installed: $installed_sha"
+                failed=$((failed + 1))
+            fi
+        else
+            warn "No canonical template found for $template_name"
+        fi
+    done
+
+    rm -rf "$temp_dir"
+    trap - EXIT
+
+    if [ $failed -gt 0 ]; then
+        warn "$failed template(s) differ from canonical source"
+    else
+        info "✓ All templates match canonical source"
+    fi
+}
+
+# === macOS Package Validation ===
+
+validate_macos_pkg() {
+    local pkg_file="$1"
+    local pkg_name=$(basename "$pkg_file" .pkg)
+
+    echo ""
+    info "=== Validating macOS package: $pkg_name ==="
+
+    if [ ! -f "$pkg_file" ]; then
+        fatal "Package not found: $pkg_file"
+    fi
+
+    # Only works on macOS
+    if [ "$(uname)" != "Darwin" ]; then
+        warn "macOS .pkg validation requires macOS (skipping detailed check)"
+        return 0
+    fi
+
+    # Extract to temp directory
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf '$TEMP_DIR'" EXIT
+
+    # Expand the package
+    pkgutil --expand "$pkg_file" "$TEMP_DIR/expanded"
+
+    # Find and extract payload
+    if [ -f "$TEMP_DIR/expanded/Payload" ]; then
+        mkdir -p "$TEMP_DIR/payload"
+        cd "$TEMP_DIR/payload"
+        cpio -idm < "$TEMP_DIR/expanded/Payload" 2>/dev/null
+        cd - > /dev/null
+    fi
+
+    # Check for compatibility.json
+    EXTRACTED_MATRIX=$(find "$TEMP_DIR/payload" -name "compatibility.json" -type f 2>/dev/null)
+
+    if [ -n "$EXTRACTED_MATRIX" ]; then
+        info "Found matrix in package: $(echo "$EXTRACTED_MATRIX" | sed "s|$TEMP_DIR/payload||")"
+
+        SOURCE_SHA=$(shasum -a 256 "$SOURCE_MATRIX" | cut -d' ' -f1)
+        EXTRACTED_SHA=$(shasum -a 256 "$EXTRACTED_MATRIX" | cut -d' ' -f1)
+
+        echo "Source checksum:    $SOURCE_SHA"
+        echo "Extracted checksum: $EXTRACTED_SHA"
+
+        if [ "$SOURCE_SHA" != "$EXTRACTED_SHA" ]; then
+            fatal "Checksum mismatch! Package contains different compatibility.json"
+        fi
+
+        info "✓ Checksum validated successfully"
+    else
+        warn "Package does not contain compatibility.json (may be OK for non-core packages)"
+    fi
+
+    rm -rf "$TEMP_DIR"
+    trap - EXIT
+}
+
+validate_macos_payload_tarball() {
+    local tarball="$1"
+    local pkg_name=$(basename "$tarball" | sed 's/-macos-payload.tar.gz$//')
+
+    echo ""
+    info "=== Validating macOS payload: $pkg_name ==="
+
+    if [ ! -f "$tarball" ]; then
+        fatal "Payload tarball not found: $tarball"
+    fi
+
+    # Extract to temp directory
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf '$TEMP_DIR'" EXIT
+
+    tar -xzf "$tarball" -C "$TEMP_DIR"
+
+    # macOS install root
+    local macos_root="Library/Application Support/dictacode"
+
+    # Validate expected paths based on package
+    case "$pkg_name" in
+        dictacode-core*)
+            if [ -f "$TEMP_DIR/$macos_root/shared/compatibility.json" ]; then
+                info "✓ Found shared/compatibility.json"
+
+                SOURCE_SHA=$(sha256sum "$SOURCE_MATRIX" | awk '{print $1}')
+                EXTRACTED_SHA=$(sha256sum "$TEMP_DIR/$macos_root/shared/compatibility.json" | awk '{print $1}')
+
+                if [ "$SOURCE_SHA" = "$EXTRACTED_SHA" ]; then
+                    info "✓ Checksum validated successfully"
+                else
+                    fatal "Checksum mismatch!"
+                fi
+            else
+                fatal "Missing shared/compatibility.json"
+            fi
+            ;;
+
+        dictacode-stt*)
+            if [ -f "$TEMP_DIR/$macos_root/stt.conf" ]; then
+                info "✓ Found stt.conf"
+            else
+                fatal "Missing stt.conf"
+            fi
+            if [ -d "$TEMP_DIR/$macos_root/stt.d" ]; then
+                info "✓ Found stt.d/ drop-in directory"
+            else
+                fatal "Missing stt.d/ drop-in directory"
+            fi
+            ;;
+
+        dictacode-hid*)
+            if [ -f "$TEMP_DIR/$macos_root/hid.conf" ]; then
+                info "✓ Found hid.conf"
+            else
+                fatal "Missing hid.conf"
+            fi
+            if [ -f "$TEMP_DIR/$macos_root/keymap.conf" ]; then
+                info "✓ Found keymap.conf"
+            else
+                fatal "Missing keymap.conf"
+            fi
+            if [ -d "$TEMP_DIR/$macos_root/hid.d" ]; then
+                info "✓ Found hid.d/ drop-in directory"
+            else
+                fatal "Missing hid.d/ drop-in directory"
+            fi
+            ;;
+    esac
+
+    rm -rf "$TEMP_DIR"
+    trap - EXIT
+
+    info "✓ macOS payload validation complete"
+}
+
+validate_paths_alignment() {
+    echo ""
+    info "=== Validating paths.py alignment with packaging ==="
+
+    local stt_paths="$REPO_ROOT/apps/stt/src/dictacode_stt/paths.py"
+    local hid_paths="$REPO_ROOT/apps/hid/src/dictacode_hid/paths.py"
+
+    # Check macOS paths in paths.py
+    for paths_file in "$stt_paths" "$hid_paths"; do
+        if [ -f "$paths_file" ]; then
+            local app_name=$(basename "$(dirname "$(dirname "$paths_file")")")
+
+            # Check for darwin paths
+            if grep -q '"/Library/Application Support/dictacode"' "$paths_file"; then
+                info "✓ $app_name paths.py has macOS paths"
+            else
+                warn "$app_name paths.py missing macOS paths"
+            fi
+
+            # Check for linux paths
+            if grep -q '"/etc/dictacode"' "$paths_file"; then
+                info "✓ $app_name paths.py has Linux paths"
+            else
+                warn "$app_name paths.py missing Linux paths"
+            fi
+        fi
+    done
+}
+
 # Main
 if [ ! -f "$SOURCE_MATRIX" ]; then
     fatal "Source compatibility.json not found: $SOURCE_MATRIX"
@@ -202,19 +423,33 @@ fi
 info "Source matrix: $SOURCE_MATRIX"
 info "Source SHA256: $(sha256sum "$SOURCE_MATRIX" | awk '{print $1}')"
 
+MACOS_OUT_DIR="$SCRIPT_DIR/macos/dist"
+
 if [ -n "$1" ]; then
     # Validate specific package
     if [ -f "$OUT_DIR/$1.deb" ]; then
         validate_deb_package "$OUT_DIR/$1.deb"
         validate_systemd_units "$OUT_DIR/$1.deb"
         validate_config_structure "$OUT_DIR/$1.deb"
+        validate_template_checksums "$OUT_DIR/$1.deb"
     elif [ -f "$OUT_DIR/$1" ]; then
         if echo "$1" | grep -q '\.whl$'; then
             validate_wheel "$OUT_DIR/$1"
+        elif echo "$1" | grep -q '\.pkg$'; then
+            validate_macos_pkg "$OUT_DIR/$1"
+        elif echo "$1" | grep -q 'macos-payload.tar.gz$'; then
+            validate_macos_payload_tarball "$OUT_DIR/$1"
         else
             validate_deb_package "$OUT_DIR/$1"
             validate_systemd_units "$OUT_DIR/$1"
             validate_config_structure "$OUT_DIR/$1"
+            validate_template_checksums "$OUT_DIR/$1"
+        fi
+    elif [ -f "$MACOS_OUT_DIR/$1" ]; then
+        if echo "$1" | grep -q '\.pkg$'; then
+            validate_macos_pkg "$MACOS_OUT_DIR/$1"
+        elif echo "$1" | grep -q 'macos-payload.tar.gz$'; then
+            validate_macos_payload_tarball "$MACOS_OUT_DIR/$1"
         fi
     else
         fatal "Package not found: $OUT_DIR/$1 or $OUT_DIR/$1.deb"
@@ -224,14 +459,34 @@ else
     VALIDATED=0
     SKIPPED=0
 
-    # Check for .deb files
+    # Check for .deb files (Linux)
     if ls "$OUT_DIR"/*.deb >/dev/null 2>&1; then
+        info "=== Linux Packages (.deb) ==="
         for deb_file in "$OUT_DIR"/*.deb; do
             if validate_deb_package "$deb_file" 2>&1 | grep -q "skipping"; then
                 SKIPPED=$((SKIPPED + 1))
             else
+                validate_template_checksums "$deb_file"
                 VALIDATED=$((VALIDATED + 1))
             fi
+        done
+    fi
+
+    # Check for .pkg files (macOS)
+    if ls "$MACOS_OUT_DIR"/*.pkg >/dev/null 2>&1; then
+        info "=== macOS Packages (.pkg) ==="
+        for pkg_file in "$MACOS_OUT_DIR"/*.pkg; do
+            validate_macos_pkg "$pkg_file"
+            VALIDATED=$((VALIDATED + 1))
+        done
+    fi
+
+    # Check for macOS payload tarballs (built on non-macOS)
+    if ls "$MACOS_OUT_DIR"/*-macos-payload.tar.gz >/dev/null 2>&1; then
+        info "=== macOS Payload Tarballs ==="
+        for tarball in "$MACOS_OUT_DIR"/*-macos-payload.tar.gz; do
+            validate_macos_payload_tarball "$tarball"
+            VALIDATED=$((VALIDATED + 1))
         done
     fi
 
@@ -249,6 +504,9 @@ else
             done
         fi
     done
+
+    # Validate paths.py alignment
+    validate_paths_alignment
 
     echo ""
     info "==================================="
