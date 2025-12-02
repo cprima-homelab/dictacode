@@ -1,4 +1,4 @@
-"""CLI entrypoint for dictacode STT API server (v0.2.4 Phase 6)."""
+"""CLI entrypoint for dictacode STT API server (v0.2.4 Phase 6, v0.3.9 split)."""
 
 import argparse
 import logging
@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 def api_main():
     """Main entrypoint for dictacode-stt-api command."""
     parser = argparse.ArgumentParser(
-        description="dictacode STT REST API Server (v0.2.4)",
+        description="dictacode STT REST API Server (v0.3.9)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Start API server on default port
+  # Start combined server (API + Web CP) on default port
   dictacode-stt-api
 
   # Start on custom port
@@ -27,6 +27,12 @@ Examples:
 
   # Bind to all interfaces
   dictacode-stt-api --host 0.0.0.0
+
+  # API-only mode (no web control panel)
+  dictacode-stt-api --api-only
+
+  # Web CP only mode (no API)
+  dictacode-stt-api --web-only
 """,
     )
 
@@ -73,6 +79,19 @@ Examples:
         type=int,
         default=9100,
         help="Prometheus metrics port (v0.2.13, default: 9100)",
+    )
+
+    # v0.3.9: Deployment mode options
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--api-only",
+        action="store_true",
+        help="Run API server only (no web control panel) - v0.3.9",
+    )
+    mode_group.add_argument(
+        "--web-only",
+        action="store_true",
+        help="Run web control panel only (no API) - v0.3.9",
     )
 
     args = parser.parse_args()
@@ -137,13 +156,28 @@ Examples:
         init_metrics(enabled=True, port=api_metrics_port)
         logger.info(f"API Prometheus metrics enabled on port {api_metrics_port}")
 
-    # Initialize app with config
-    from dictacode_stt.api import create_app
+    # Initialize app with config (v0.3.9: select app factory based on mode)
+    if args.api_only:
+        from dictacode_stt.api import create_api_app
 
-    app = create_app(config_dir=args.config_dir)
+        app = create_api_app(config_dir=args.config_dir)
+        mode_name = "API-only"
+    elif args.web_only:
+        from dictacode_stt.api import create_web_app
 
-    logger.info(f"Starting dictacode STT API server on {args.host}:{args.port}")
-    logger.info(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
+        app = create_web_app()
+        mode_name = "Web CP only"
+    else:
+        from dictacode_stt.api import create_combined_app
+
+        app = create_combined_app(config_dir=args.config_dir)
+        mode_name = "combined (API + Web CP)"
+
+    logger.info(f"Starting dictacode STT server ({mode_name}) on {args.host}:{args.port}")
+    if not args.web_only:
+        logger.info(f"OpenAPI docs: http://{args.host}:{args.port}/v1/docs")
+    if not args.api_only:
+        logger.info(f"Control panel: http://{args.host}:{args.port}/cp")
     logger.info(f"Audio config: {args.config_dir}")
     if api_metrics_enabled:
         logger.info(f"Metrics endpoint: http://{args.host}:{api_metrics_port}/metrics")

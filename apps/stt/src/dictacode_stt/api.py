@@ -1,4 +1,4 @@
-"""FastAPI server for audio port management (v0.3.4 API versioning)."""
+"""FastAPI server for audio port management (v0.3.9 API/CP split)."""
 
 import asyncio
 import logging
@@ -18,7 +18,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Mount
 
 from dictacode_stt.audio import AudioPort, AudioPortManager
 from dictacode_stt.paths import AUDIO_CONFIG_DIR
@@ -28,7 +30,10 @@ from dictacode_stt.responses import AudioPortsListResponse
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
 # Pydantic models for API
+# =============================================================================
+
 class AudioPortCapabilitiesModel(BaseModel):
     """Audio port capabilities."""
 
@@ -71,13 +76,24 @@ class SelectPortResponse(BaseModel):
     selected_port: Optional[AudioPortModel] = None
 
 
-# Global port manager (initialized by create_app)
+class LicenseSetRequest(BaseModel):
+    """Request body for POST /api/license."""
+
+    token: str
+    scope: str = "user"  # "user" or "system"
+
+
+# =============================================================================
+# Global state (shared across apps)
+# =============================================================================
+
+# Global port manager (initialized by create_api_app)
 _port_manager: Optional[AudioPortManager] = None
 
 # Global service reference (v0.3.0: for WebSocket integration)
 _stt_service: Optional[any] = None
 
-# Global Jinja2 templates (v0.3.0 Phase 3)
+# Global Jinja2 templates (v0.3.9: initialized by create_web_app)
 templates: Optional[Jinja2Templates] = None
 
 # Global badge state (v0.3.3: cosmetic license system)
@@ -110,12 +126,66 @@ def register_service(service: any) -> None:
         logger.info("WebSocket manager wired to STT service")
 
 
-# v0.3.4: Versioned API router - all routes under /v1 prefix
-router = APIRouter(prefix="/v1")
+# =============================================================================
+# v0.3.0 Phase 2: WebSocket support (shared across apps)
+# =============================================================================
 
+class WebSocketConnectionManager:
+    """Manages active WebSocket connections for live updates."""
+
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        """Accept and register a new WebSocket connection."""
+        await websocket.accept()
+        async with self._lock:
+            self.active_connections.add(websocket)
+        logger.info(f"WebSocket connected, total: {len(self.active_connections)}")
+
+    async def disconnect(self, websocket: WebSocket):
+        """Unregister a WebSocket connection."""
+        async with self._lock:
+            self.active_connections.discard(websocket)
+        logger.info(f"WebSocket disconnected, total: {len(self.active_connections)}")
+
+    async def broadcast(self, message: dict):
+        """Broadcast a message to all connected clients."""
+        if not self.active_connections:
+            return
+
+        async with self._lock:
+            disconnected = set()
+            for connection in self.active_connections:
+                try:
+                    await connection.send_json(message)
+                except Exception as e:
+                    logger.error(f"Error sending to WebSocket: {e}")
+                    disconnected.add(connection)
+
+            # Remove disconnected clients
+            self.active_connections -= disconnected
+
+    async def send_to(self, websocket: WebSocket, message: dict):
+        """Send a message to a specific WebSocket client."""
+        try:
+            await websocket.send_json(message)
+        except Exception as e:
+            logger.error(f"Error sending to WebSocket: {e}")
+            await self.disconnect(websocket)
+
+
+# Global WebSocket manager
+ws_manager = WebSocketConnectionManager()
+
+
+# =============================================================================
+# v0.3.4: Version header middleware (API only)
+# =============================================================================
 
 class VersionHeaderMiddleware(BaseHTTPMiddleware):
-    """v0.3.4: Add X-Dictacode-API-Version header to all /v1 responses."""
+    """Add X-Dictacode-API-Version header to all /v1 responses."""
 
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -124,96 +194,9 @@ class VersionHeaderMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def create_app(config_dir: Optional[str] = None) -> FastAPI:
-    """Create FastAPI application.
-
-    Args:
-        config_dir: Audio configuration directory. Defaults to AUDIO_CONFIG_DIR.
-
-    Returns:
-        FastAPI application instance
-    """
-    global _port_manager
-
-    # Use paths.py constant if not explicitly provided
-    effective_config_dir = config_dir or str(AUDIO_CONFIG_DIR)
-
-    # v0.3.4: API versioning - docs under /v1
-    app = FastAPI(
-        title="dictacode STT API",
-        description="REST API for speech-to-text service (v0.3.4)",
-        version="0.3.4",
-        docs_url="/v1/docs",
-        redoc_url=None,
-        openapi_url="/v1/openapi.json",
-    )
-
-    # v0.3.4: Add version header middleware
-    app.add_middleware(VersionHeaderMiddleware)
-
-    # CORS for web console
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],  # TODO: Configure for production
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Initialize port manager
-    _port_manager = AudioPortManager(config_dir=effective_config_dir)
-    logger.info(
-        f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports"
-    )
-
-    # v0.3.0 Phase 2: Mount static files for WebSocket test client
-    static_dir = Path(__file__).parent / "static"
-    if static_dir.exists():
-        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-        logger.info(f"Static files mounted from {static_dir}")
-
-    # v0.3.0 Phase 3: Configure Jinja2 templates
-    templates_dir = Path(__file__).parent / "templates"
-    if templates_dir.exists():
-        global templates
-        templates = Jinja2Templates(directory=str(templates_dir))
-        logger.info(f"Jinja2 templates configured from {templates_dir}")
-
-    # v0.3.4: Include all routers under /v1 prefix
-    from dictacode_stt import diagnostics_api, health
-
-    # Include health and diagnostics into the v1 router
-    router.include_router(health.router)
-    router.include_router(diagnostics_api.router)
-
-    # Include the v1 router in the app
-    app.include_router(router)
-
-    # v0.3.4: Startup route validation guard
-    @app.on_event("startup")
-    async def validate_routes():
-        """Assert all routes are versioned (except static mounts)."""
-        for route in app.routes:
-            if hasattr(route, "path"):
-                path = route.path
-                # Allow: /v1/*, /static/*, /docs/* (oauth2-redirect), / (root)
-                if (
-                    path.startswith("/v1")
-                    or path.startswith("/static")
-                    or path.startswith("/docs")  # FastAPI oauth2-redirect
-                    or path == "/"
-                ):
-                    continue
-                # Fail loudly if unversioned route detected
-                raise RuntimeError(f"Unversioned route detected: {path}")
-        logger.info("v0.3.4: Route validation passed - all routes under /v1")
-
-    return app
-
-
-# Create default app instance (routes defined below will use this)
-app = create_app()
-
+# =============================================================================
+# Helper functions
+# =============================================================================
 
 def _port_to_model(port: AudioPort) -> AudioPortModel:
     """Convert AudioPort to Pydantic model."""
@@ -232,7 +215,34 @@ def _port_to_model(port: AudioPort) -> AudioPortModel:
     )
 
 
-@router.get("/api/audio/ports", response_model=AudioPortsResponse)
+def _try_state_ipc_call(method: str) -> dict | None:
+    """Try to get state via IPC (v0.3.5).
+
+    Args:
+        method: IPC method name ("state.get" or "state.history")
+
+    Returns:
+        Result dict if successful, None if IPC unavailable
+    """
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+        if client.is_available():
+            return client._call(method)
+    except Exception as e:
+        logger.debug(f"IPC call {method} failed: {e}")
+    return None
+
+
+# =============================================================================
+# v0.3.9: API Router (versioned under /v1, appears in OpenAPI)
+# =============================================================================
+
+api_router = APIRouter(prefix="/v1")
+
+
+@api_router.get("/api/audio/ports", response_model=AudioPortsResponse)
 async def list_audio_ports(refresh: bool = False):
     """List all available audio input ports.
 
@@ -271,7 +281,7 @@ async def list_audio_ports(refresh: bool = False):
         raise HTTPException(status_code=500, detail=f"Failed to list ports: {e!s}")
 
 
-@router.post("/api/audio/select", response_model=SelectPortResponse)
+@api_router.post("/api/audio/select", response_model=SelectPortResponse)
 async def select_audio_port(request: SelectPortRequest):
     """Select an audio port for recording.
 
@@ -313,7 +323,7 @@ async def select_audio_port(request: SelectPortRequest):
         raise HTTPException(status_code=500, detail=f"Failed to select port: {e!s}")
 
 
-@router.get("/api/audio/ports/{port_id}", response_model=AudioPortModel)
+@api_router.get("/api/audio/ports/{port_id}", response_model=AudioPortModel)
 async def get_audio_port(port_id: str):
     """Get details for a specific audio port.
 
@@ -341,93 +351,8 @@ async def get_audio_port(port_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get port: {e!s}")
 
 
-# v0.3.0 Phase 3: Web Panel Routes
-@router.get("/cp", response_class=HTMLResponse)
-async def control_panel(request: Request):
-    """Control panel page (v0.3.0 Phase 3)."""
-    if not templates:
-        raise HTTPException(status_code=500, detail="Templates not initialized")
-
-    try:
-        from dictacode_stt import __version__
-    except ImportError:
-        __version__ = "unknown"
-
-    return templates.TemplateResponse(
-        "control-panel.html",
-        {
-            "request": request,
-            "version": __version__,
-        },
-    )
-
-
-@router.get("/cp/config", response_class=HTMLResponse)
-async def config_page(request: Request):
-    """Configuration page (v0.3.0 Phase 3)."""
-    if not templates:
-        raise HTTPException(status_code=500, detail="Templates not initialized")
-
-    try:
-        from dictacode_stt import __version__
-    except ImportError:
-        __version__ = "unknown"
-
-    return templates.TemplateResponse(
-        "config.html",
-        {
-            "request": request,
-            "version": __version__,
-        },
-    )
-
-
-@router.get("/cp/diagnostics", response_class=HTMLResponse)
-async def diagnostics_page(request: Request):
-    """Diagnostics page (v0.3.0 Phase 3)."""
-    if not templates:
-        raise HTTPException(status_code=500, detail="Templates not initialized")
-
-    try:
-        from dictacode_stt import __version__
-    except ImportError:
-        __version__ = "unknown"
-
-    return templates.TemplateResponse(
-        "diagnostics.html",
-        {
-            "request": request,
-            "version": __version__,
-        },
-    )
-
-
-@router.get("/cp/metrics", response_class=HTMLResponse)
-async def metrics_page(request: Request):
-    """Metrics page (v0.3.0 Phase 3)."""
-    if not templates:
-        raise HTTPException(status_code=500, detail="Templates not initialized")
-
-    try:
-        from dictacode_stt import __version__
-    except ImportError:
-        __version__ = "unknown"
-
-    return templates.TemplateResponse(
-        "metrics.html",
-        {
-            "request": request,
-            "version": __version__,
-        },
-    )
-
-
-# v0.2.13: Health endpoints moved to health.py module (routers now included in _register_routes)
-# v0.2.9: Diagnostics API endpoints (routers now included in _register_routes)
-
-
 # v0.2.13 Phase 4: Prometheus metrics endpoint
-@router.get("/metrics")
+@api_router.get("/metrics")
 async def prometheus_metrics():
     """Prometheus metrics endpoint (v0.2.13).
 
@@ -453,7 +378,7 @@ async def prometheus_metrics():
 
 
 # v0.3.0 Phase 3.4: Service state control endpoints
-@router.post("/api/service/pause")
+@api_router.post("/api/service/pause")
 async def pause_service():
     """Pause transcription service.
 
@@ -489,7 +414,7 @@ async def pause_service():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/api/service/resume")
+@api_router.post("/api/service/resume")
 async def resume_service():
     """Resume transcription service.
 
@@ -525,32 +450,84 @@ async def resume_service():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/api/service/state")
+@api_router.get("/api/service/state")
 async def get_service_state():
-    """Get current service state.
+    """Get current service state (v0.3.5: via IPC).
+
+    Returns full state info including model, language, and hid_keymap.
 
     Returns:
-        {"state": "listening|paused|degraded|...", "timestamp": "..."}
-    """
-    from datetime import datetime
-
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        return {
-            "state": _service_instance.get_state(),
-            "timestamp": datetime.utcnow().isoformat(),
+        {
+            "state": "listening|paused|degraded|...",
+            "failure_reason": null or string,
+            "model": "tiny|base|...",
+            "language": "en|...",
+            "hid_keymap": "en_us|..."
         }
-    except Exception as e:
-        logger.error(f"Failed to get service state: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    """
+    # v0.3.5: Try IPC first (for cross-process access)
+    result = _try_state_ipc_call("state.get")
+    if result is not None:
+        return result
+
+    # Fallback to local (same-process mode) - DEPRECATED for cross-process use
+    # This should only happen in embedded/test scenarios where API runs in same process
+    from dictacode_stt.health import get_service_instance
+
+    service = get_service_instance()  # Logs deprecation warning
+    if service:
+        logger.warning(
+            "state.get falling back to _service_instance (IPC unavailable). "
+            "This is expected only in same-process mode."
+        )
+        return service.state.to_dict()
+
+    raise HTTPException(status_code=503, detail="Service not available")
+
+
+@api_router.get("/api/service/state/history")
+async def get_service_state_history():
+    """Get state transition history (v0.3.5).
+
+    Returns recent state transitions from the service's ring buffer.
+    Size configured via DICTACODE_STATE_HISTORY_SIZE (default 20).
+
+    Returns:
+        {
+            "history": [
+                {
+                    "timestamp": "ISO8601",
+                    "old_state": "unconfigured",
+                    "new_state": "listening",
+                    "reason": null or string,
+                    "source": "service|api|supervisor"
+                },
+                ...
+            ]
+        }
+    """
+    # v0.3.5: Try IPC first (for cross-process access)
+    result = _try_state_ipc_call("state.history")
+    if result is not None:
+        return result
+
+    # Fallback to local (same-process mode) - DEPRECATED for cross-process use
+    # This should only happen in embedded/test scenarios where API runs in same process
+    from dictacode_stt.health import get_service_instance
+
+    service = get_service_instance()  # Logs deprecation warning
+    if service:
+        logger.warning(
+            "state.history falling back to _service_instance (IPC unavailable). "
+            "This is expected only in same-process mode."
+        )
+        return {"history": service.state.get_history()}
+
+    raise HTTPException(status_code=503, detail="Service not available")
 
 
 # v0.3.3: License badge endpoints (cosmetic, never gates features)
-@router.get("/api/license")
+@api_router.get("/api/license")
 async def get_license_state():
     """Get badge license state (v0.3.3).
 
@@ -574,14 +551,7 @@ async def get_license_state():
     return _badge_state.to_dict()
 
 
-class LicenseSetRequest(BaseModel):
-    """Request body for POST /api/license."""
-
-    token: str
-    scope: str = "user"  # "user" or "system"
-
-
-@router.post("/api/license")
+@api_router.post("/api/license")
 async def set_license_token(request: LicenseSetRequest):
     """Save license token and update badge state (v0.3.3).
 
@@ -652,7 +622,7 @@ async def set_license_token(request: LicenseSetRequest):
         }
 
 
-@router.delete("/api/license")
+@api_router.delete("/api/license")
 async def delete_license_token():
     """Remove license token and reset to free tier (v0.3.3).
 
@@ -694,58 +664,7 @@ async def delete_license_token():
     }
 
 
-# v0.3.0 Phase 2: WebSocket support
-class WebSocketConnectionManager:
-    """Manages active WebSocket connections for live updates."""
-
-    def __init__(self):
-        self.active_connections: Set[WebSocket] = set()
-        self._lock = asyncio.Lock()
-
-    async def connect(self, websocket: WebSocket):
-        """Accept and register a new WebSocket connection."""
-        await websocket.accept()
-        async with self._lock:
-            self.active_connections.add(websocket)
-        logger.info(f"WebSocket connected, total: {len(self.active_connections)}")
-
-    async def disconnect(self, websocket: WebSocket):
-        """Unregister a WebSocket connection."""
-        async with self._lock:
-            self.active_connections.discard(websocket)
-        logger.info(f"WebSocket disconnected, total: {len(self.active_connections)}")
-
-    async def broadcast(self, message: dict):
-        """Broadcast a message to all connected clients."""
-        if not self.active_connections:
-            return
-
-        async with self._lock:
-            disconnected = set()
-            for connection in self.active_connections:
-                try:
-                    await connection.send_json(message)
-                except Exception as e:
-                    logger.error(f"Error sending to WebSocket: {e}")
-                    disconnected.add(connection)
-
-            # Remove disconnected clients
-            self.active_connections -= disconnected
-
-    async def send_to(self, websocket: WebSocket, message: dict):
-        """Send a message to a specific WebSocket client."""
-        try:
-            await websocket.send_json(message)
-        except Exception as e:
-            logger.error(f"Error sending to WebSocket: {e}")
-            await self.disconnect(websocket)
-
-
-# Global WebSocket manager
-ws_manager = WebSocketConnectionManager()
-
-
-@router.websocket("/api/ws")
+@api_router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for live updates (v0.3.0).
 
@@ -777,7 +696,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "type": "status",
                 "data": {
                     "connected": True,
-                    "api_version": "0.3.0",
+                    "api_version": "0.3.9",
                     "message": "WebSocket connected",
                     "state": current_state,
                 },
@@ -805,3 +724,247 @@ async def websocket_endpoint(websocket: WebSocket):
 
     finally:
         await ws_manager.disconnect(websocket)
+
+
+# =============================================================================
+# v0.3.9: Web Router (unversioned at /cp, NOT in OpenAPI)
+# =============================================================================
+
+web_router = APIRouter()  # No prefix - mounted at /cp by Starlette
+
+
+def _get_version() -> str:
+    """Get current package version."""
+    try:
+        from dictacode_stt import __version__
+        return __version__
+    except ImportError:
+        return "unknown"
+
+
+@web_router.get("/", response_class=HTMLResponse)
+async def control_panel(request: Request):
+    """Control panel page (v0.3.9: moved from /v1/cp to /cp)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "control-panel.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
+@web_router.get("/config", response_class=HTMLResponse)
+async def config_page(request: Request):
+    """Configuration page (v0.3.9: moved from /v1/cp/config to /cp/config)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "config.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
+@web_router.get("/diagnostics", response_class=HTMLResponse)
+async def diagnostics_page(request: Request):
+    """Diagnostics page (v0.3.9: moved from /v1/cp/diagnostics to /cp/diagnostics)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "diagnostics.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
+@web_router.get("/metrics", response_class=HTMLResponse)
+async def metrics_page(request: Request):
+    """Metrics page (v0.3.9: moved from /v1/cp/metrics to /cp/metrics)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "metrics.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
+# =============================================================================
+# v0.3.9: App Factory Functions
+# =============================================================================
+
+def create_api_app(config_dir: Optional[str] = None) -> FastAPI:
+    """Create API-only FastAPI app with OpenAPI docs.
+
+    This app contains only versioned API routes (/v1/*) and appears in OpenAPI.
+    CP routes are NOT included.
+
+    Args:
+        config_dir: Audio configuration directory. Defaults to AUDIO_CONFIG_DIR.
+
+    Returns:
+        FastAPI application instance with API routes only
+    """
+    global _port_manager
+
+    # Use paths.py constant if not explicitly provided
+    effective_config_dir = config_dir or str(AUDIO_CONFIG_DIR)
+
+    app = FastAPI(
+        title="dictacode STT API",
+        description="REST API for speech-to-text service (v0.3.9)",
+        version="0.3.9",
+        docs_url="/v1/docs",
+        redoc_url=None,
+        openapi_url="/v1/openapi.json",
+    )
+
+    # v0.3.4: Add version header middleware
+    app.add_middleware(VersionHeaderMiddleware)
+
+    # CORS for web console
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # TODO: Configure for production
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Initialize port manager
+    _port_manager = AudioPortManager(config_dir=effective_config_dir)
+    logger.info(
+        f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports"
+    )
+
+    # Include API routes
+    from dictacode_stt import health
+    from dictacode_stt.diagnostics import routes as diagnostics_routes
+
+    app.include_router(api_router)
+    app.include_router(health.router, prefix="/v1")
+    app.include_router(diagnostics_routes.router, prefix="/v1")
+
+    # v0.3.9: Route validation - API only, no CP routes
+    @app.on_event("startup")
+    async def validate_api_routes():
+        """Assert API routes are versioned and no CP routes leaked in."""
+        for route in app.routes:
+            if hasattr(route, "path"):
+                path = route.path
+                # Allow: /v1/*, / (root), internal FastAPI routes
+                if (
+                    path.startswith("/v1")
+                    or path == "/"
+                    or path.startswith("/docs")
+                    or path.startswith("/openapi")
+                ):
+                    continue
+                # Fail if CP or unversioned routes leaked in
+                if "/cp" in path:
+                    raise RuntimeError(f"CP route leaked into API app: {path}")
+                raise RuntimeError(f"Unversioned API route: {path}")
+        logger.info("v0.3.9: API route validation passed - no CP routes in OpenAPI")
+
+    return app
+
+
+def create_web_app() -> FastAPI:
+    """Create Web Control Panel app - completely separate, no OpenAPI.
+
+    This app contains only CP routes and does NOT appear in any OpenAPI schema.
+    Routes are served at /cp/* via Starlette mount.
+
+    Returns:
+        FastAPI application instance with CP routes only
+    """
+    global templates
+
+    app = FastAPI(
+        title="dictacode Control Panel",
+        docs_url=None,       # NO Swagger UI
+        redoc_url=None,      # NO ReDoc
+        openapi_url=None,    # NO OpenAPI spec - prevents schema generation
+    )
+
+    # Configure templates (static is mounted at root level by create_combined_app)
+    templates_dir = Path(__file__).parent / "templates"
+    if templates_dir.exists():
+        templates = Jinja2Templates(directory=str(templates_dir))
+        logger.info(f"Jinja2 templates configured from {templates_dir}")
+
+    # Include CP routes
+    app.include_router(web_router)
+
+    return app
+
+
+def create_combined_app(config_dir: Optional[str] = None) -> Starlette:
+    """Create root ASGI app that routes by path prefix.
+
+    This is the default app that serves both API and CP on a single port.
+
+    URL routing:
+      /v1/*      → api_app (FastAPI with OpenAPI)
+      /cp/*      → web_app (FastAPI without OpenAPI)
+      /static/*  → static files
+
+    Args:
+        config_dir: Audio configuration directory for API app.
+
+    Returns:
+        Starlette application instance
+    """
+    api_app = create_api_app(config_dir)
+    web_app = create_web_app()
+
+    static_dir = Path(__file__).parent / "static"
+
+    routes = [
+        # Order matters: more specific paths first
+        Mount("/cp", app=web_app, name="web"),
+    ]
+
+    # Mount static files if directory exists
+    if static_dir.exists():
+        routes.append(Mount("/static", app=StaticFiles(directory=str(static_dir)), name="static"))
+        logger.info(f"Static files mounted from {static_dir}")
+
+    # Catch-all for /v1/* routes
+    routes.append(Mount("/", app=api_app, name="api"))
+
+    combined = Starlette(routes=routes)
+
+    logger.info("v0.3.9: Combined app created - API at /v1/*, CP at /cp/*, static at /static/*")
+
+    return combined
+
+
+# =============================================================================
+# Module-level exports
+# =============================================================================
+
+# Default: combined app (single port serves both API and CP)
+# This is what api_server.py uses by default
+app = create_combined_app()
+
+# Legacy create_app for backward compatibility
+def create_app(config_dir: Optional[str] = None) -> Starlette:
+    """Create combined app (legacy name for backward compatibility).
+
+    Use create_combined_app() for new code.
+    """
+    return create_combined_app(config_dir)

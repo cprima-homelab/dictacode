@@ -1,8 +1,9 @@
-"""Tests for API versioning (v0.3.4).
+"""Tests for API versioning (v0.3.4, updated for v0.3.9).
 
 These tests ensure:
-- All routes are under /v1 prefix
-- X-Dictacode-API-Version header is present on responses
+- API routes are under /v1 prefix
+- CP routes are under /cp prefix (unversioned - v0.3.9)
+- X-Dictacode-API-Version header is present on API responses
 - Old unversioned paths return 404
 """
 
@@ -10,13 +11,17 @@ import pytest
 
 
 class TestAPIVersioning:
-    """Tests for v0.3.4 API versioning."""
+    """Tests for API versioning."""
 
-    def test_all_routes_versioned(self):
-        """All API routes must be under /v1 prefix."""
-        from dictacode_stt.api import create_app
+    def test_api_routes_versioned(self):
+        """API routes must be under /v1 prefix (v0.3.9).
 
-        app = create_app()
+        Note: CP routes at /cp are intentionally unversioned per v0.3.9.
+        This test validates only the API app routes.
+        """
+        from dictacode_stt.api import create_api_app
+
+        app = create_api_app()
 
         unversioned_routes = []
         for route in app.routes:
@@ -32,15 +37,15 @@ class TestAPIVersioning:
                     continue
                 unversioned_routes.append(path)
 
-        assert not unversioned_routes, f"Unversioned routes found: {unversioned_routes}"
+        assert not unversioned_routes, f"Unversioned API routes found: {unversioned_routes}"
 
     def test_version_header_on_v1_health(self):
         """v1/health should return X-Dictacode-API-Version header."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/health")
 
         assert response.status_code == 200
@@ -48,11 +53,11 @@ class TestAPIVersioning:
 
     def test_version_header_on_v1_ready(self):
         """v1/ready should return X-Dictacode-API-Version header."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/ready")
 
         assert response.status_code == 200
@@ -60,11 +65,11 @@ class TestAPIVersioning:
 
     def test_openapi_at_v1_path(self):
         """OpenAPI JSON should be available at /v1/openapi.json."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/openapi.json")
 
         assert response.status_code == 200
@@ -74,11 +79,11 @@ class TestAPIVersioning:
 
     def test_docs_at_v1_path(self):
         """Swagger docs should be available at /v1/docs."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/docs")
 
         assert response.status_code == 200
@@ -90,44 +95,44 @@ class TestOldPathsReturn404:
 
     def test_old_health_returns_404(self):
         """Old /health path should return 404."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/health")
 
         assert response.status_code == 404
 
     def test_old_ready_returns_404(self):
         """Old /ready path should return 404."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/ready")
 
         assert response.status_code == 404
 
     def test_old_api_audio_ports_returns_404(self):
         """Old /api/audio/ports path should return 404."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/api/audio/ports")
 
         assert response.status_code == 404
 
     def test_old_api_diagnostics_returns_404(self):
         """Old /api/diagnostics/status path should return 404."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/api/diagnostics/status")
 
         assert response.status_code == 404
@@ -138,11 +143,11 @@ class TestVersionedEndpointsWork:
 
     def test_v1_health_returns_ok(self):
         """/v1/health should return healthy status."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/health")
 
         assert response.status_code == 200
@@ -151,11 +156,11 @@ class TestVersionedEndpointsWork:
 
     def test_v1_api_audio_ports_returns_list(self):
         """/v1/api/audio/ports should return ports list."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/api/audio/ports")
 
         assert response.status_code == 200
@@ -164,11 +169,11 @@ class TestVersionedEndpointsWork:
 
     def test_v1_api_license_returns_state(self):
         """/v1/api/license should return badge state."""
-        from fastapi.testclient import TestClient
+        from starlette.testclient import TestClient
 
-        from dictacode_stt.api import create_app
+        from dictacode_stt.api import create_combined_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_combined_app())
         response = client.get("/v1/api/license")
 
         assert response.status_code == 200
