@@ -1,6 +1,6 @@
 [project]
 name = "dictacode-stt"
-version = "0.3.0"
+version = "0.3.2"
 description = "dictacode Pi5 STT sidecar"
 requires-python = ">=3.9"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
     "jinja2>=3.1",
     "httpx>=0.27",
     "pyyaml>=6.0",
+    "cryptography>=41.0",  # v0.3.3: Ed25519 license token verification
 ]
 
 [project.scripts]
@@ -28,6 +29,7 @@ dictacode-stt-hid = "dictacode_stt.cli:hid_main"
 dictacode-stt-log = "dictacode_stt.cli:log_main"
 dictacode-stt-bugreport = "dictacode_stt.cli:bugreport_main"
 dictacode-stt-api = "dictacode_stt.api_server:api_main"
+dictacode-license = "dictacode_stt.license_cli:main"  # v0.3.3: license management CLI
 
 [dependency-groups]
 dev = [

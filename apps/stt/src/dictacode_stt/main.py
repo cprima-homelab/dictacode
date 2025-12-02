@@ -424,6 +424,19 @@ Examples:
         logger.info("Run mode: CONTINUOUS")
     logger.info("=" * 60)
 
+    # v0.3.3: Load badge state (cosmetic only, never blocks)
+    try:
+        from dictacode_stt.api import set_badge_state
+        from dictacode_stt.license import load_badge_state
+
+        badge_state = load_badge_state()
+        set_badge_state(badge_state)
+        if badge_state.tier != "free":
+            logger.info(f"License: {badge_state.tier} ({badge_state.badge})")
+    except Exception as e:
+        # License is cosmetic only - never block startup
+        logger.debug(f"Badge state not loaded: {e}")
+
     # Get supervisor configuration from environment (fallback to args)
     supervisor_timeout = float(
         os.environ.get("DICTACODE_SUPERVISOR_TIMEOUT", args.supervisor_timeout)

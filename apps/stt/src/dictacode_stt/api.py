@@ -20,6 +20,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from dictacode_stt.audio import AudioPort, AudioPortManager
+from dictacode_stt.paths import AUDIO_CONFIG_DIR
 from dictacode_stt.responses import AudioPortsListResponse
 
 
@@ -78,6 +79,20 @@ _stt_service: Optional[any] = None
 # Global Jinja2 templates (v0.3.0 Phase 3)
 templates: Optional[Jinja2Templates] = None
 
+# Global badge state (v0.3.3: cosmetic license system)
+_badge_state: Optional["BadgeState"] = None
+
+
+def set_badge_state(state: "BadgeState") -> None:
+    """Set badge state (called from main.py at startup).
+
+    Args:
+        state: BadgeState from license validation
+    """
+    global _badge_state
+    _badge_state = state
+    logger.info(f"Badge state set: tier={state.tier}, badge={state.badge}")
+
 
 def register_service(service: any) -> None:
     """Register STT service for WebSocket integration (v0.3.0).
@@ -98,16 +113,19 @@ def register_service(service: any) -> None:
 router = APIRouter()
 
 
-def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
+def create_app(config_dir: Optional[str] = None) -> FastAPI:
     """Create FastAPI application.
 
     Args:
-        config_dir: Audio configuration directory
+        config_dir: Audio configuration directory. Defaults to AUDIO_CONFIG_DIR.
 
     Returns:
         FastAPI application instance
     """
     global _port_manager
+
+    # Use paths.py constant if not explicitly provided
+    effective_config_dir = config_dir or str(AUDIO_CONFIG_DIR)
 
     app = FastAPI(
         title="dictacode STT Audio API",
@@ -125,7 +143,7 @@ def create_app(config_dir: str = "/etc/dictacode/audio") -> FastAPI:
     )
 
     # Initialize port manager
-    _port_manager = AudioPortManager(config_dir=config_dir)
+    _port_manager = AudioPortManager(config_dir=effective_config_dir)
     logger.info(
         f"AudioPortManager initialized with {len(_port_manager.list_ports())} ports"
     )
@@ -489,6 +507,151 @@ async def get_service_state():
     except Exception as e:
         logger.error(f"Failed to get service state: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# v0.3.3: License badge endpoints (cosmetic, never gates features)
+@router.get("/api/license")
+async def get_license_state():
+    """Get badge license state (v0.3.3).
+
+    Returns the current badge state from license validation.
+    This is purely cosmetic and never gates features.
+
+    Returns:
+        {
+            "tier": "free|supporter|donor|contributor|multiplicator",
+            "badge": "Name or null",
+            "name": "Name or null",
+            "issued_at": "YYYY-MM-DD or null"
+        }
+    """
+    from dictacode_stt.license import BadgeState
+
+    if _badge_state is None:
+        # Return default free state if not initialized
+        return BadgeState().to_dict()
+
+    return _badge_state.to_dict()
+
+
+class LicenseSetRequest(BaseModel):
+    """Request body for POST /api/license."""
+
+    token: str
+    scope: str = "user"  # "user" or "system"
+
+
+@router.post("/api/license")
+async def set_license_token(request: LicenseSetRequest):
+    """Save license token and update badge state (v0.3.3).
+
+    Saves the token to the appropriate location and validates it.
+    This is purely cosmetic and never gates features.
+
+    Args:
+        request: LicenseSetRequest with token and optional scope
+
+    Returns:
+        {
+            "status": "ok|error",
+            "message": "...",
+            "state": {...}  # Current badge state after update
+        }
+    """
+    from pathlib import Path
+
+    from dictacode_stt.license import BadgeState, load_badge_state
+
+    global _badge_state
+
+    # Determine save path based on scope
+    if request.scope == "system":
+        save_path = Path("/etc/dictacode/license.key")
+    else:
+        save_path = Path.home() / ".config/dictacode/license.key"
+
+    try:
+        # Create parent directory if needed
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save token
+        save_path.write_text(request.token.strip() + "\n")
+        logger.info(f"License token saved to: {save_path}")
+
+        # Validate and update badge state
+        new_state = load_badge_state(token=request.token)
+        _badge_state = new_state
+
+        if new_state.tier == "free":
+            return {
+                "status": "warning",
+                "message": "Token saved but validation failed. Check token format.",
+                "path": str(save_path),
+                "state": new_state.to_dict(),
+            }
+
+        return {
+            "status": "ok",
+            "message": f"License saved and validated: {new_state.tier}",
+            "path": str(save_path),
+            "state": new_state.to_dict(),
+        }
+
+    except PermissionError:
+        return {
+            "status": "error",
+            "message": f"Permission denied writing to {save_path}. Use scope='user' or run with elevated privileges.",
+            "state": (_badge_state.to_dict() if _badge_state else BadgeState().to_dict()),
+        }
+    except Exception as e:
+        logger.error(f"Failed to save license: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": str(e),
+            "state": (_badge_state.to_dict() if _badge_state else BadgeState().to_dict()),
+        }
+
+
+@router.delete("/api/license")
+async def delete_license_token():
+    """Remove license token and reset to free tier (v0.3.3).
+
+    Removes license files from both user and system locations.
+
+    Returns:
+        {
+            "status": "ok",
+            "message": "...",
+            "state": {...}  # Badge state after deletion (free)
+        }
+    """
+    from pathlib import Path
+
+    from dictacode_stt.license import BadgeState, LICENSE_PATHS
+
+    global _badge_state
+
+    removed = []
+    for path in LICENSE_PATHS:
+        if path.exists():
+            try:
+                path.unlink()
+                removed.append(str(path))
+                logger.info(f"Removed license file: {path}")
+            except PermissionError:
+                logger.warning(f"Permission denied removing {path}")
+            except Exception as e:
+                logger.warning(f"Failed to remove {path}: {e}")
+
+    # Reset to free state
+    _badge_state = BadgeState()
+
+    return {
+        "status": "ok",
+        "message": f"License removed from: {', '.join(removed)}" if removed else "No license files found",
+        "removed": removed,
+        "state": _badge_state.to_dict(),
+    }
 
 
 # v0.3.0 Phase 2: WebSocket support
