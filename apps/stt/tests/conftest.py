@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -174,3 +175,52 @@ def collect_audio_from_source(source: AudioSource, max_duration: float = 10.0) -
     source.close()
 
     return b"".join(chunks)
+
+
+# === Canonical Templates Fixtures ===
+
+def _get_repo_root() -> Path:
+    """Find repository root by walking up from this file."""
+    current = Path(__file__).resolve().parent
+    while current != current.parent:
+        if (current / "compatibility.json").exists() or (current / ".git").exists():
+            return current
+        current = current.parent
+    raise RuntimeError("Could not find repository root")
+
+
+CANONICAL_TEMPLATES_DIR = _get_repo_root() / "ops" / "packaging" / "templates"
+
+
+@pytest.fixture
+def canonical_templates_dir() -> Path:
+    """Return path to canonical templates directory."""
+    if not CANONICAL_TEMPLATES_DIR.exists():
+        pytest.skip(f"Canonical templates directory not found: {CANONICAL_TEMPLATES_DIR}")
+    return CANONICAL_TEMPLATES_DIR
+
+
+@pytest.fixture
+def canonical_stt_conf() -> Path:
+    """Return path to canonical stt.conf template."""
+    conf_path = CANONICAL_TEMPLATES_DIR / "stt.conf"
+    if not conf_path.exists():
+        pytest.skip(f"Canonical stt.conf not found: {conf_path}")
+    return conf_path
+
+
+@pytest.fixture
+def get_canonical_template() -> Callable[[str], Path]:
+    """Return function to get path to any canonical template.
+
+    Usage:
+        def test_something(get_canonical_template):
+            stt_conf = get_canonical_template("stt.conf")
+            hid_conf = get_canonical_template("hid.conf")
+    """
+    def _get(template_name: str) -> Path:
+        path = CANONICAL_TEMPLATES_DIR / template_name
+        if not path.exists():
+            pytest.skip(f"Canonical template not found: {path}")
+        return path
+    return _get
