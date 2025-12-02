@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Live Status{% endblock %}
+{% block nav_live %}active{% endblock %}
+{% block breadcrumb %}Live Status{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Live Status Page Styles (v0.3.13) */
+.status-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.status-card {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+}
+
+.status-card.healthy {
+  border-left: 4px solid var(--success);
+}
+
+.status-card.stale {
+  border-left: 4px solid var(--warning);
+}
+
+.status-card.error {
+  border-left: 4px solid var(--error);
+}
+
+.status-card h3 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fg-dim);
+  margin-bottom: 8px;
+}
+
+.status-card .value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.status-card .sub {
+  font-size: 11px;
+  color: var(--fg-dim);
+  margin-top: 4px;
+}
+
+/* Pipeline Flow Diagram */
+.pipeline-flow {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.pipeline-flow h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.flow-stages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flow-stage {
+  flex: 1;
+  text-align: center;
+  padding: 16px 12px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  position: relative;
+}
+
+.flow-stage.fresh {
+  border-color: var(--success);
+  background: var(--success-bg);
+}
+
+.flow-stage.stale {
+  border-color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.flow-stage.error {
+  border-color: var(--error);
+  background: var(--error-bg);
+}
+
+.flow-stage .stage-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.flow-stage .stage-name {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.flow-stage .stage-time {
+  font-size: 11px;
+  color: var(--fg-dim);
+  margin-top: 4px;
+}
+
+.flow-arrow {
+  font-size: 20px;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.flow-arrow.active {
+  color: var(--success);
+}
+
+/* Component Details Grid */
+.component-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.component-panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.component-header {
+  padding: 12px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.component-header h4 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.component-header .indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+}
+
+.component-header .indicator.ok { background: var(--success); }
+.component-header .indicator.warning { background: var(--warning); }
+.component-header .indicator.error { background: var(--error); }
+
+.component-body {
+  padding: 12px 16px;
+}
+
+.component-body dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  font-size: 12px;
+}
+
+.component-body dt {
+  color: var(--fg-dim);
+}
+
+.component-body dd {
+  text-align: right;
+  font-family: 'Monaco', 'Courier New', monospace;
+}
+
+/* Health Summary Bar */
+.health-summary {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.health-summary .health-icon {
+  font-size: 32px;
+}
+
+.health-summary .health-text {
+  flex: 1;
+}
+
+.health-summary .health-text h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.health-summary .health-text p {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.health-summary.healthy { border-left: 4px solid var(--success); }
+.health-summary.degraded { border-left: 4px solid var(--warning); }
+.health-summary.error { border-left: 4px solid var(--error); }
+
+/* Refresh controls */
+.refresh-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.refresh-controls .auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.refresh-controls .last-update {
+  font-size: 11px;
+  color: var(--fg-dim);
+  margin-left: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="refresh-controls">
+  <button class="primary" id="refresh-btn">Refresh</button>
+  <label class="auto-refresh">
+    <input type="checkbox" id="auto-refresh" checked>
+    Auto-refresh (5s)
+  </label>
+  <span class="last-update">Last update: <span id="last-update">-</span></span>
+</div>
+
+<div class="health-summary healthy" id="health-summary">
+  <span class="health-icon" id="health-icon">&#9989;</span>
+  <div class="health-text">
+    <h2 id="health-title">System Healthy</h2>
+    <p id="health-desc">All pipeline stages are operating normally</p>
+  </div>
+</div>
+
+<div class="pipeline-flow">
+  <h3>Pipeline Flow</h3>
+  <div class="flow-stages">
+    <div class="flow-stage" id="stage-audio">
+      <div class="stage-icon">&#127908;</div>
+      <div class="stage-name">Audio</div>
+      <div class="stage-time" id="audio-time">-</div>
+    </div>
+    <div class="flow-arrow" id="arrow-1">&#10140;</div>
+    <div class="flow-stage" id="stage-asr">
+      <div class="stage-icon">&#128172;</div>
+      <div class="stage-name">ASR</div>
+      <div class="stage-time" id="asr-time">-</div>
+    </div>
+    <div class="flow-arrow" id="arrow-2">&#10140;</div>
+    <div class="flow-stage" id="stage-send">
+      <div class="stage-icon">&#128228;</div>
+      <div class="stage-name">Send</div>
+      <div class="stage-time" id="send-time">-</div>
+    </div>
+  </div>
+</div>
+
+<section class="status-overview">
+  <div class="status-card" id="card-state">
+    <h3>Service State</h3>
+    <div class="value" id="state-value">-</div>
+    <div class="sub" id="state-sub">-</div>
+  </div>
+  <div class="status-card" id="card-mic">
+    <h3>Microphone</h3>
+    <div class="value" id="mic-value">-</div>
+    <div class="sub" id="mic-sub">-</div>
+  </div>
+  <div class="status-card" id="card-asr">
+    <h3>ASR Backend</h3>
+    <div class="value" id="asr-value">-</div>
+    <div class="sub" id="asr-sub">-</div>
+  </div>
+  <div class="status-card" id="card-transport">
+    <h3>Transport</h3>
+    <div class="value" id="transport-value">-</div>
+    <div class="sub" id="transport-sub">-</div>
+  </div>
+</section>
+
+<section class="component-grid">
+  <div class="component-panel">
+    <div class="component-header">
+      <h4>Audio Component</h4>
+      <span class="indicator" id="audio-indicator"></span>
+    </div>
+    <div class="component-body">
+      <dl>
+        <dt>Active Port</dt>
+        <dd id="audio-port">-</dd>
+        <dt>Mic Present</dt>
+        <dd id="audio-mic-present">-</dd>
+        <dt>Chunks Total</dt>
+        <dd id="audio-chunks">-</dd>
+        <dt>Last Activity</dt>
+        <dd id="audio-last-ts">-</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="component-panel">
+    <div class="component-header">
+      <h4>ASR/Transcription</h4>
+      <span class="indicator" id="asr-indicator"></span>
+    </div>
+    <div class="component-body">
+      <dl>
+        <dt>Backend</dt>
+        <dd id="asr-backend">-</dd>
+        <dt>Available</dt>
+        <dd id="asr-available">-</dd>
+        <dt>Success Count</dt>
+        <dd id="asr-success">-</dd>
+        <dt>Error Count</dt>
+        <dd id="asr-errors">-</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="component-panel">
+    <div class="component-header">
+      <h4>Transport</h4>
+      <span class="indicator" id="transport-indicator"></span>
+    </div>
+    <div class="component-body">
+      <dl>
+        <dt>Type</dt>
+        <dd id="transport-type">-</dd>
+        <dt>Connected</dt>
+        <dd id="transport-connected">-</dd>
+        <dt>Send Success</dt>
+        <dd id="transport-success">-</dd>
+        <dt>Send Errors</dt>
+        <dd id="transport-errors">-</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="component-panel">
+    <div class="component-header">
+      <h4>IPC Server</h4>
+      <span class="indicator" id="ipc-indicator"></span>
+    </div>
+    <div class="component-body">
+      <dl>
+        <dt>Available</dt>
+        <dd id="ipc-available">-</dd>
+        <dt>Socket</dt>
+        <dd id="ipc-socket">-</dd>
+        <dt>Running</dt>
+        <dd id="ipc-running">-</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/live.js"></script>
+{% endblock %}

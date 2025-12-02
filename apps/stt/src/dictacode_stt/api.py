@@ -818,6 +818,21 @@ async def scratch_page(request: Request):
     )
 
 
+@web_router.get("/live", response_class=HTMLResponse)
+async def live_page(request: Request):
+    """Live status page with pipeline flow visualization (v0.3.13)."""
+    if not templates:
+        raise HTTPException(status_code=500, detail="Templates not initialized")
+
+    return templates.TemplateResponse(
+        "live.html",
+        {
+            "request": request,
+            "version": _get_version(),
+        },
+    )
+
+
 # =============================================================================
 # v0.3.9: App Factory Functions
 # =============================================================================
