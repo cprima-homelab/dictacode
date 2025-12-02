@@ -24,7 +24,7 @@ from .protocol import (
     get_protocol,
 )
 from .responses import AudioPortsListResponse
-from .transport import TransportError, UartTransport
+from .transport import TransportError, UartTransport, UartConfig
 
 
 # =============================================================================
@@ -610,14 +610,15 @@ Examples:
 
     # Send via UART
     try:
-        transport = UartTransport(parsed.device)
-        transport.open()
+        config = UartConfig(device=parsed.device)
+        transport = UartTransport(config)
+        transport.connect()
         try:
-            transport.write(encoded)
+            transport.send(encoded)
             print(f"\nSent to {parsed.device}")
             return 0
         finally:
-            transport.close()
+            transport.disconnect()
     except TransportError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
