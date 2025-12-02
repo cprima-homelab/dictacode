@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -405,6 +406,11 @@ def run_all_checks(
 
     Used by service for runtime diagnostics.
     """
+    warnings.warn(
+        "run_all_checks is legacy and will be replaced by component status/aggregator flow in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     result = DiagnosticResult(component="stt")
 
     audio_result = run_audio_checks(device_index)
