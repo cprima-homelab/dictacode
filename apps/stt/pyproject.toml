@@ -1,6 +1,6 @@
 [project]
 name = "dictacode-stt"
-version = "0.3.2"
+version = "0.3.9"
 description = "dictacode Pi5 STT sidecar"
 requires-python = ">=3.9"
 dependencies = [
@@ -22,6 +22,7 @@ dependencies = [
 dictacode-stt = "dictacode_stt.main:main"
 dictacode-stt-check = "dictacode_stt.diagnostics:check_main"
 dictacode-stt-diagnose = "dictacode_stt.diagnostics:diagnose_main"
+dictacode-stt-state = "dictacode_stt.diagnostics:state_main"
 dictacode-stt-audio = "dictacode_stt.cli:audio_main"
 dictacode-stt-whisper = "dictacode_stt.cli:whisper_main"
 dictacode-stt-send = "dictacode_stt.cli:send_main"

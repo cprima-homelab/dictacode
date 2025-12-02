@@ -1,9 +1,9 @@
 Package: dictacode-stt
-Version: 0.3.2
+Version: 0.3.9
 Section: utils
 Priority: optional
 Architecture: all
-Pre-Depends: dictacode-core
+Pre-Depends: dictacode-core, adduser
 Depends: python3 (>= 3.9), python3-venv, python3-systemd, alsa-utils, libportaudio2, libsystemd-dev, pkg-config
 Build-Depends: libsystemd-dev, pkg-config
 Recommends: build-essential, cmake, git, portaudio19-dev
