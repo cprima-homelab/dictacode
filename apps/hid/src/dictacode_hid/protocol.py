@@ -20,6 +20,7 @@ class TextMessage:
     """Text to be typed as keyboard input."""
 
     payload: str
+    request_id: str | None = None  # v0.3.0: Optional request ID for tracking
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class CommandMessage:
 
     command: str
     argument: str | None = None
+    request_id: str | None = None  # v0.3.0: Optional request ID for tracking
 
 
 @dataclass(frozen=True)
@@ -50,7 +52,24 @@ class ProbeAckMessage:
     component_version: str
 
 
-Message = Union[TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage]
+@dataclass(frozen=True)
+class ResponseMessage:
+    """Response from HID to STT (v0.3.0 Phase 4).
+
+    Acknowledges receipt and processing status of TextMessage or CommandMessage.
+
+    Attributes:
+        request_id: ID from original TextMessage/CommandMessage
+        status: "ok", "error", or "buffered"
+        message: Optional human-readable status message
+    """
+
+    request_id: str
+    status: str  # "ok", "error", "buffered"
+    message: str | None = None
+
+
+Message = Union[TextMessage, CommandMessage, ProbeMessage, ProbeAckMessage, ResponseMessage]
 
 
 class ProtocolAdapter(ABC):
@@ -81,10 +100,14 @@ class JsonProtocol(ProtocolAdapter):
     def encode(self, msg: Message) -> bytes:
         if isinstance(msg, TextMessage):
             obj = {"t": "text", "p": msg.payload}
+            if msg.request_id is not None:
+                obj["id"] = msg.request_id
         elif isinstance(msg, CommandMessage):
             obj = {"t": "cmd", "c": msg.command}
             if msg.argument is not None:
                 obj["a"] = msg.argument
+            if msg.request_id is not None:
+                obj["id"] = msg.request_id
         elif isinstance(msg, ProbeMessage):
             obj = {
                 "t": "probe",
@@ -101,6 +124,10 @@ class JsonProtocol(ProtocolAdapter):
                 "cmp": msg.component,
                 "cv": msg.component_version,
             }
+        elif isinstance(msg, ResponseMessage):
+            obj = {"t": "rsp", "id": msg.request_id, "s": msg.status}
+            if msg.message is not None:
+                obj["m"] = msg.message
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
         return (json.dumps(obj, ensure_ascii=False) + "\n").encode("utf-8")
@@ -110,9 +137,9 @@ class JsonProtocol(ProtocolAdapter):
         obj = json.loads(line)
         msg_type = obj.get("t")
         if msg_type == "text":
-            return TextMessage(payload=obj["p"])
+            return TextMessage(payload=obj["p"], request_id=obj.get("id"))
         elif msg_type == "cmd":
-            return CommandMessage(command=obj["c"], argument=obj.get("a"))
+            return CommandMessage(command=obj["c"], argument=obj.get("a"), request_id=obj.get("id"))
         elif msg_type == "probe":
             return ProbeMessage(
                 timestamp=obj["ts"],
@@ -126,6 +153,12 @@ class JsonProtocol(ProtocolAdapter):
                 protocol_version=obj.get("pv", "0.0.0"),
                 component=obj.get("cmp", "unknown"),
                 component_version=obj.get("cv", "0.0.0"),
+            )
+        elif msg_type == "rsp":
+            return ResponseMessage(
+                request_id=obj["id"],
+                status=obj["s"],
+                message=obj.get("m"),
             )
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
@@ -143,10 +176,14 @@ class MsgpackProtocol(ProtocolAdapter):
     def encode(self, msg: Message) -> bytes:
         if isinstance(msg, TextMessage):
             obj = {"t": "text", "p": msg.payload}
+            if msg.request_id is not None:
+                obj["id"] = msg.request_id
         elif isinstance(msg, CommandMessage):
             obj = {"t": "cmd", "c": msg.command}
             if msg.argument is not None:
                 obj["a"] = msg.argument
+            if msg.request_id is not None:
+                obj["id"] = msg.request_id
         elif isinstance(msg, ProbeMessage):
             obj = {
                 "t": "probe",
@@ -163,6 +200,10 @@ class MsgpackProtocol(ProtocolAdapter):
                 "cmp": msg.component,
                 "cv": msg.component_version,
             }
+        elif isinstance(msg, ResponseMessage):
+            obj = {"t": "rsp", "id": msg.request_id, "s": msg.status}
+            if msg.message is not None:
+                obj["m"] = msg.message
         else:
             raise TypeError(f"Unknown message type: {type(msg)}")
 
@@ -181,9 +222,9 @@ class MsgpackProtocol(ProtocolAdapter):
         obj = msgpack.unpackb(data, raw=False)
         msg_type = obj.get("t")
         if msg_type == "text":
-            return TextMessage(payload=obj["p"])
+            return TextMessage(payload=obj["p"], request_id=obj.get("id"))
         elif msg_type == "cmd":
-            return CommandMessage(command=obj["c"], argument=obj.get("a"))
+            return CommandMessage(command=obj["c"], argument=obj.get("a"), request_id=obj.get("id"))
         elif msg_type == "probe":
             return ProbeMessage(
                 timestamp=obj["ts"],
@@ -197,6 +238,12 @@ class MsgpackProtocol(ProtocolAdapter):
                 protocol_version=obj.get("pv", "0.0.0"),
                 component=obj.get("cmp", "unknown"),
                 component_version=obj.get("cv", "0.0.0"),
+            )
+        elif msg_type == "rsp":
+            return ResponseMessage(
+                request_id=obj["id"],
+                status=obj["s"],
+                message=obj.get("m"),
             )
         else:
             raise ValueError(f"Unknown message type: {msg_type}")
@@ -222,70 +269,3 @@ def get_protocol(name: str) -> ProtocolAdapter:
         available = ", ".join(protocols.keys())
         raise ValueError(f"Unknown protocol: {name}. Available: {available}")
     return protocols[name]()
-
-
-def detect_protocol(data: bytes) -> str:
-    """Auto-detect protocol from first bytes of data.
-
-    Useful for HID to detect garbled communication and auto-switch.
-
-    Args:
-        data: First few bytes of incoming data
-
-    Returns:
-        Protocol name: "json" or "msgpack"
-
-    Detection logic:
-    - JSON messages start with '{' (0x7b)
-    - Msgpack messages start with 2-byte length prefix (unlikely to be '{')
-    """
-    if not data:
-        return "json"  # default
-
-    first_byte = data[0]
-
-    # JSON always starts with '{'
-    if first_byte == 0x7B:  # '{'
-        return "json"
-
-    # Msgpack has length prefix - first byte is high byte of length
-    # Typical messages are small, so high byte is usually 0x00
-    # If first byte looks like a msgpack length prefix, assume msgpack
-    if first_byte == 0x00 and len(data) >= 2:
-        return "msgpack"
-
-    # If starts with printable ASCII that's not '{', likely garbled JSON
-    if 0x20 <= first_byte <= 0x7E:
-        return "json"
-
-    # Default to msgpack for binary-looking data
-    return "msgpack"
-
-
-def try_decode(data: bytes, preferred: str = "json") -> tuple[Message | None, str]:
-    """Try to decode data, auto-detecting protocol on failure.
-
-    Args:
-        data: Raw bytes to decode
-        preferred: Preferred protocol to try first
-
-    Returns:
-        Tuple of (decoded message or None, detected protocol name)
-    """
-    protocols_to_try = [preferred]
-    other = "msgpack" if preferred == "json" else "json"
-    protocols_to_try.append(other)
-
-    for protocol_name in protocols_to_try:
-        try:
-            protocol = get_protocol(protocol_name)
-            if protocol_name == "msgpack" and len(data) > 2:
-                # Skip length prefix for msgpack
-                msg = protocol.decode(data[2:])
-            else:
-                msg = protocol.decode(data)
-            return msg, protocol_name
-        except Exception:
-            continue
-
-    return None, preferred
