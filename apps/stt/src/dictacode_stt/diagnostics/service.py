@@ -38,6 +38,8 @@ class DiagnosticsService:
     Wraps existing run_all_checks() and registry for consistency.
 
     v0.3.7: History size configurable via DICTACODE_DIAG_HISTORY_SIZE env.
+    Deprecated: legacy registry-based diagnostics; prefer live status via
+    DiagnosticsAggregator and IPC status.live (v0.3.13+).
     """
 
     # Default check parameters
@@ -97,6 +99,13 @@ class DiagnosticsService:
         Returns:
             DiagnosticResult with all check results
         """
+        import warnings
+
+        warnings.warn(
+            "DiagnosticsService.run_all is deprecated; prefer live status via DiagnosticsAggregator.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Import here to avoid circular import
         from . import run_all_checks
 

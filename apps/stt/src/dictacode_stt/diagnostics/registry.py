@@ -41,6 +41,15 @@ class DiagnosticCheck:
         """Allow DiagnosticCheck to be used in sets."""
         return hash(self.check_id)
 
+    def __post_init__(self):
+        import warnings
+
+        warnings.warn(
+            "DiagnosticCheck/registry is deprecated; prefer component status and live diagnostics (v0.3.13+).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
 
 class DiagnosticRegistry:
     """Registry for diagnostic checks (v0.2.9 Phase 2).
