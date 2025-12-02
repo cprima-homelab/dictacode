@@ -20,7 +20,8 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.routing import Mount
+from starlette.responses import RedirectResponse
+from starlette.routing import Mount, Route
 
 from dictacode_stt.audio import AudioPort, AudioPortManager
 from dictacode_stt.paths import AUDIO_CONFIG_DIR
@@ -933,8 +934,13 @@ def create_combined_app(config_dir: Optional[str] = None) -> Starlette:
 
     static_dir = Path(__file__).parent / "static"
 
+    # Redirect /cp to /cp/ (Starlette Mount requires trailing slash for index)
+    async def cp_redirect(request):
+        return RedirectResponse(url="/cp/", status_code=307)
+
     routes = [
         # Order matters: more specific paths first
+        Route("/cp", cp_redirect),  # Redirect /cp → /cp/
         Mount("/cp", app=web_app, name="web"),
     ]
 
