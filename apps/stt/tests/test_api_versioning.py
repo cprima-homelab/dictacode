@@ -22,10 +22,11 @@ class TestAPIVersioning:
         for route in app.routes:
             if hasattr(route, "path"):
                 path = route.path
-                # Allow: /v1/*, /static/*, / (root)
+                # Allow: /v1/*, /static/*, /docs/* (oauth2-redirect), / (root)
                 if (
                     path.startswith("/v1")
                     or path.startswith("/static")
+                    or path.startswith("/docs")  # FastAPI oauth2-redirect
                     or path == "/"
                 ):
                     continue
