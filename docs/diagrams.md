@@ -1,360 +1,490 @@
-# dictacode Architecture Diagrams
+# dictacode Architecture Diagrams (Solarized Light)
 
-Solarized Light palette:
+Palette (Solarized Light):
 - Background: `#fdf6e3` (base3), `#eee8d5` (base2)
-- Text: `#657b83` (base00), `#073642` (base02)
+- Text: `#073642` (base02), `#657b83` (base00)
 - Accents: `#268bd2` (blue), `#2aa198` (cyan), `#859900` (green), `#b58900` (yellow), `#cb4b16` (orange), `#dc322f` (red), `#d33682` (magenta), `#6c71c4` (violet)
 
 ---
 
-## 1. System Overview
+## 1. System Overview (STT ↔ HID with IPC/API/CP)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'secondaryColor': '#eee8d5', 'tertiaryColor': '#fdf6e3'}}}%%
 flowchart LR
-    subgraph Pi5["Pi5 (STT Node)"]
-        MIC[/"🎤 Mic"/]
-        STT["STT Engine"]
+    subgraph STT["Pi5 / STT Service"]
+      MIC[/"🎤 Mic"/]
+      SVC["SttService\n(audio+ASR+LLM+transport)"]
+      IPC["IPC Server\n(diag+state)"]
+      API["FastAPI (API)"]
+      CP["FastAPI (CP)"]
     end
-    subgraph Pi0["Pi Zero (HID Node)"]
-        HID["HID Bridge"]
+    subgraph HID["Pi0 / HID Service"]
+      HIDB["HID Bridge\n(UART/WiFi → USB HID)"]
     end
     PC[/"💻 Target PC"/]
 
-    MIC --> STT
-    STT -->|UART| HID
-    HID -->|USB HID| PC
+    MIC --> SVC
+    SVC -->|UART/WiFi| HIDB
+    HIDB -->|USB HID| PC
+    API <-->|UDS IPC| IPC
+    CP --> API
+    CLI[CLI tools] -->|UDS IPC| IPC
 
-    style Pi5 fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style Pi0 fill:#fdf6e3,stroke:#2aa198,color:#073642
+    style STT fill:#fdf6e3,stroke:#268bd2,color:#073642
+    style HID fill:#fdf6e3,stroke:#2aa198,color:#073642
     style MIC fill:#eee8d5,stroke:#b58900,color:#073642
-    style STT fill:#eee8d5,stroke:#859900,color:#073642
-    style HID fill:#eee8d5,stroke:#2aa198,color:#073642
+    style SVC fill:#eee8d5,stroke:#859900,color:#073642
+    style IPC fill:#eee8d5,stroke:#268bd2,color:#073642
+    style API fill:#eee8d5,stroke:#268bd2,color:#073642
+    style CP fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style HIDB fill:#eee8d5,stroke:#2aa198,color:#073642
     style PC fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style CLI fill:#eee8d5,stroke:#cb4b16,color:#073642
 ```
 
 ---
 
-## 2. Audio Pipeline
+## 2. Audio/ASR/LLM Pipeline
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
 flowchart LR
-    MIC["USB Mic<br/>hw:0,0"]
-    ALSA["ALSA<br/>sounddevice"]
-    BUF["Audio Buffer<br/>16kHz mono"]
-    STT["STT Engine"]
+    MIC["Mic (ALSA)"]
+    PORTS["AudioPortManager\n+ profiles"]
+    BUF["RingBuffer\n16kHz mono"]
+    RESAMPLE["Resampler"]
+    ASR["ASR Adapter\nWhisper/Vosk"]
+    LLM["LLM Postproc\n(optional)"]
+    PROTO["Protocol\n(cmd/text messages)"]
+    TX["Transport\nUART/WiFi/USB-serial"]
 
-    MIC -->|PCM| ALSA
-    ALSA -->|chunks| BUF
-    BUF -->|stream| STT
+    MIC --> PORTS --> BUF --> RESAMPLE --> ASR --> LLM --> PROTO --> TX
 
     style MIC fill:#fdf6e3,stroke:#b58900,color:#073642
-    style ALSA fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style BUF fill:#fdf6e3,stroke:#2aa198,color:#073642
-    style STT fill:#fdf6e3,stroke:#859900,color:#073642
+    style PORTS fill:#eee8d5,stroke:#268bd2,color:#073642
+    style BUF fill:#eee8d5,stroke:#2aa198,color:#073642
+    style RESAMPLE fill:#eee8d5,stroke:#2aa198,color:#073642
+    style ASR fill:#eee8d5,stroke:#859900,color:#073642
+    style LLM fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style PROTO fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style TX fill:#eee8d5,stroke:#2aa198,color:#073642
 ```
 
 ---
 
-## 3. STT Engine Adapters
+## 3. Components (Service + IPC + API/CP)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'classText': '#073642'}}}%%
 classDiagram
-    class STTEngine {
-        <<abstract>>
-        +transcribe_stream(audio) Iterator~str~
-        +transcribe_file(path) str
+    class SttService {
+        +state: SttState
+        +diagnostics: DiagnosticsService
+        +audio_manager: AudioPortManager
+        +transcriber
+        +llm_postprocessor
+        +transport
+        +run_continuous()
+        +apply_profile(cfg)
     }
-    class WhisperCpp {
-        -binary_path: str
-        -model_path: str
-        +transcribe_stream()
-        +transcribe_file()
+    class IPCServer {
+        +diag.list/run/status/history
+        +state.get/history
     }
-    class Vosk {
-        -model_path: str
-        +transcribe_stream()
-        +transcribe_file()
+    class APIApp {
+        +/v1/api/* routes
+        +/v1/docs OpenAPI
     }
-    class CloudSTT {
-        -provider: str
-        -credentials: str
-        +transcribe_stream()
-        +transcribe_file()
+    class CPApp {
+        +/v1/cp* HTML
+        +Static/templates
     }
+    class DiagnosticsService
+    class SttState
+    class AudioPortManager
+    class Transport
+    class Transcriber
+    class LlmPostProcessor
 
-    STTEngine <|-- WhisperCpp : implements
-    STTEngine <|-- Vosk : implements
-    STTEngine <|-- CloudSTT : implements
+    SttService --> IPCServer
+    APIApp --> IPCServer : IPC client
+    CPApp --> APIApp : HTTP
+    SttService --> DiagnosticsService
+    SttService --> SttState
+    SttService --> AudioPortManager
+    SttService --> Transport
+    SttService --> Transcriber
+    SttService --> LlmPostProcessor
 
-    style STTEngine fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style WhisperCpp fill:#eee8d5,stroke:#859900,color:#073642
-    style Vosk fill:#eee8d5,stroke:#2aa198,color:#073642
-    style CloudSTT fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style SttService fill:#eee8d5,stroke:#268bd2,color:#073642
+    style IPCServer fill:#eee8d5,stroke:#268bd2,color:#073642
+    style APIApp fill:#eee8d5,stroke:#268bd2,color:#073642
+    style CPApp fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style DiagnosticsService fill:#eee8d5,stroke:#2aa198,color:#073642
+    style SttState fill:#eee8d5,stroke:#859900,color:#073642
+    style AudioPortManager fill:#eee8d5,stroke:#b58900,color:#073642
+    style Transport fill:#eee8d5,stroke:#2aa198,color:#073642
+    style Transcriber fill:#eee8d5,stroke:#859900,color:#073642
+    style LlmPostProcessor fill:#eee8d5,stroke:#6c71c4,color:#073642
 ```
 
 ---
 
-## 4. Transport Adapters
+## 4. Observability Surfaces (Diagnostics + State)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
-classDiagram
-    class Transport {
-        <<abstract>>
-        +connect() void
-        +send(text: str) void
-        +close() void
-    }
-    class UARTTransport {
-        -device: str
-        -baud_rate: int
-        +connect()
-        +send()
-        +close()
-    }
-    class WiFiTransport {
-        -host: str
-        -port: int
-        +connect()
-        +send()
-        +close()
-    }
+flowchart LR
+    subgraph Service["SttService"]
+      DIAG["DiagnosticsService"]
+      STATE["SttState\n+history\n+metrics"]
+      IPC["IPC Server\n(diag.*, state.*)"]
+    end
 
-    Transport <|-- UARTTransport : implements
-    Transport <|-- WiFiTransport : implements
+    API["API /v1/api/diagnostics/*\n/v1/api/service/state*"] -->|IPC client| IPC
+    CLI["CLI (diag/state)"] -->|IPC client| IPC
+    CP["Control Panel"] --> API
+    MET["Prometheus\n/metrics"] --> STATE
 
-    style Transport fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style UARTTransport fill:#eee8d5,stroke:#b58900,color:#073642
-    style WiFiTransport fill:#eee8d5,stroke:#2aa198,color:#073642
+    style Service fill:#fdf6e3,stroke:#268bd2,color:#073642
+    style DIAG fill:#eee8d5,stroke:#2aa198,color:#073642
+    style STATE fill:#eee8d5,stroke:#859900,color:#073642
+    style IPC fill:#eee8d5,stroke:#268bd2,color:#073642
+    style API fill:#eee8d5,stroke:#268bd2,color:#073642
+    style CLI fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style CP fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style MET fill:#eee8d5,stroke:#b58900,color:#073642
 ```
 
 ---
 
-## 5. CLI Command Structure
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
-flowchart TB
-    CLI["dictacode-stt"]
-    RUN["run"]
-    STATUS["status"]
-    DISCOVER["discover"]
-    TEST["test-*"]
-    TESTMIC["test-mic"]
-    TESTSTT["test-stt"]
-    TESTUART["test-uart"]
-
-    CLI --> RUN
-    CLI --> STATUS
-    CLI --> DISCOVER
-    CLI --> TEST
-    TEST --> TESTMIC
-    TEST --> TESTSTT
-    TEST --> TESTUART
-
-    style CLI fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style RUN fill:#eee8d5,stroke:#859900,color:#073642
-    style STATUS fill:#eee8d5,stroke:#2aa198,color:#073642
-    style DISCOVER fill:#eee8d5,stroke:#b58900,color:#073642
-    style TEST fill:#eee8d5,stroke:#cb4b16,color:#073642
-    style TESTMIC fill:#eee8d5,stroke:#d33682,color:#073642
-    style TESTSTT fill:#eee8d5,stroke:#d33682,color:#073642
-    style TESTUART fill:#eee8d5,stroke:#d33682,color:#073642
-```
-
----
-
-## 6. Configuration Loading
+## 5. API vs Control Panel (Split Apps)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
 flowchart TB
-    ENV["$DICTACODE_INVENTORY"]
-    ETC["/etc/dictacode/inventory.yaml"]
-    LOADER["Config Loader"]
-    ROLE["Find by role<br/>(stt or hid)"]
-    CONFIG["Device Config"]
+    API["API App\n/v1/api/*\n/v1/docs\nOpenAPI only"]
+    WEB["CP App\n/v1/cp*\nHTML + Static\nno OpenAPI"]
+    COMB["Combined ASGI\n(mount WEB into API)"]
+    BROWSER[/"Browser"/]
+    IPC["IPC client\n(state/diag)"]
 
-    ENV -->|if set| LOADER
-    ETC -->|default| LOADER
-    LOADER --> ROLE
-    ROLE --> CONFIG
+    COMB --> API
+    COMB --> WEB
+    WEB -->|HTTP| API
+    API -->|IPC calls| IPC
+    BROWSER --> WEB
 
-    style ENV fill:#fdf6e3,stroke:#b58900,color:#073642
-    style ETC fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style LOADER fill:#fdf6e3,stroke:#2aa198,color:#073642
-    style ROLE fill:#fdf6e3,stroke:#859900,color:#073642
-    style CONFIG fill:#fdf6e3,stroke:#6c71c4,color:#073642
+    style API fill:#eee8d5,stroke:#268bd2,color:#073642
+    style WEB fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style COMB fill:#fdf6e3,stroke:#b58900,color:#073642
+    style BROWSER fill:#eee8d5,stroke:#b58900,color:#073642
+    style IPC fill:#eee8d5,stroke:#2aa198,color:#073642
 ```
 
 ---
 
-## 7. Message Flow (Sequence)
+## 6. Config & Profiles
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorLineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorBorder': '#268bd2', 'actorTextColor': '#073642', 'noteBkgColor': '#eee8d5', 'noteTextColor': '#073642', 'noteBorderColor': '#b58900', 'signalColor': '#657b83', 'signalTextColor': '#073642'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
+flowchart TB
+    DEF["Packaged profiles\n/opt/dictacode/profiles"]
+    DROP["Drop-ins\n/etc/dictacode/stt.d/profiles/"]
+    LOADER["Profile Loader\n+ validation"]
+    CFG["PipelineConfig\n(ASR, LLM, transport)"]
+    SVC["SttService\napply_profile()"]
+
+    DEF --> LOADER
+    DROP --> LOADER
+    LOADER --> CFG --> SVC
+
+    style DEF fill:#eee8d5,stroke:#268bd2,color:#073642
+    style DROP fill:#eee8d5,stroke:#b58900,color:#073642
+    style LOADER fill:#eee8d5,stroke:#2aa198,color:#073642
+    style CFG fill:#eee8d5,stroke:#859900,color:#073642
+    style SVC fill:#eee8d5,stroke:#268bd2,color:#073642
+```
+
+---
+
+## 7. Diagnostics Flow (IPC)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorLineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorBorder': '#268bd2', 'actorTextColor': '#073642'}}}%%
 sequenceDiagram
-    participant M as Mic
-    participant S as STT Engine
-    participant U as UART TX
-    participant H as HID Bridge
-    participant P as Target PC
+    participant CLI as CLI/API
+    participant IPC as IPC Server
+    participant DIAG as DiagnosticsService
 
-    M->>S: audio chunks
-    S->>S: transcribe
-    S->>U: text
-    U->>H: send over serial
-    H->>H: text → keycodes
-    H->>P: HID report
-
-    Note over M,S: Pi5
-    Note over H,P: Pi Zero
+    CLI->>IPC: diag.run (JSON-RPC over UDS)
+    IPC->>DIAG: run_all()
+    DIAG-->>IPC: result (checks, status, history++)
+    IPC-->>CLI: response {status, checks, history}
 ```
 
 ---
 
-## 8. Boot Sequence
+## 8. State Flow (Transitions + IPC)
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorLineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorBorder': '#268bd2', 'actorTextColor': '#073642', 'noteBkgColor': '#eee8d5', 'noteTextColor': '#073642', 'noteBorderColor': '#859900', 'signalColor': '#657b83', 'signalTextColor': '#073642'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorLineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorBorder': '#268bd2', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant SVC as SttService
+    participant STATE as SttState
+    participant MET as Metrics
+    participant IPC as IPC Server
+    participant API as API/CLI
+
+    SVC->>STATE: transition_to(new_state, reason, source)
+    STATE-->>STATE: record history (ring buffer)
+    STATE-->>MET: record_state_transition
+    API->>IPC: state.get / state.history
+    IPC-->>API: {state...} / {history: [...]}
+```
+
+---
+
+## 9. Deployment (Packages)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
+flowchart LR
+    REPO["Repo"]
+    BUILD["build-deb.sh"]
+    DEB["dictacode-*.deb"]
+    SCP["Copy to device"]
+    DPKG["dpkg -i"]
+    SERVICES["systemd services\n(dictacode-stt, dictacode-stt-api)"]
+
+    REPO --> BUILD --> DEB --> SCP --> DPKG --> SERVICES
+
+    style REPO fill:#eee8d5,stroke:#268bd2,color:#073642
+    style BUILD fill:#eee8d5,stroke:#859900,color:#073642
+    style DEB fill:#eee8d5,stroke:#2aa198,color:#073642
+    style SCP fill:#eee8d5,stroke:#b58900,color:#073642
+    style DPKG fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style SERVICES fill:#eee8d5,stroke:#268bd2,color:#073642
+```
+
+---
+
+## 10. Directory Structure (Key Paths)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
+flowchart TB
+    ROOT["repo/"]
+    APPS["apps/"]
+    STT["stt/"]
+    HID["hid/"]
+    OPS["ops/packaging/"]
+    TEMPL["profiles/ (default)"]
+    ETC["/etc/dictacode/stt.d/profiles/"]
+    RUN["/run/dictacode/diag.sock"]
+
+    ROOT --> APPS --> STT
+    APPS --> HID
+    ROOT --> OPS
+    ROOT --> TEMPL
+    ROOT --> RUN
+    ETC --> STT
+
+    style ROOT fill:#eee8d5,stroke:#268bd2,color:#073642
+    style APPS fill:#eee8d5,stroke:#2aa198,color:#073642
+    style STT fill:#eee8d5,stroke:#859900,color:#073642
+    style HID fill:#eee8d5,stroke:#2aa198,color:#073642
+    style OPS fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style TEMPL fill:#eee8d5,stroke:#b58900,color:#073642
+    style ETC fill:#eee8d5,stroke:#b58900,color:#073642
+    style RUN fill:#eee8d5,stroke:#cb4b16,color:#073642
+```
+
+---
+
+## 11. Boot Sequence (Systemd)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorLineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorBorder': '#268bd2', 'actorTextColor': '#073642'}}}%%
 sequenceDiagram
     participant SYS as systemd
     participant STT as dictacode-stt
-    participant CFG as Config
-    participant MIC as Mic
-    participant UART as UART
+    participant CFG as Profiles/Config
+    participant IPC as IPC Server
+    participant API as dictacode-stt-api
 
     SYS->>STT: start service
-    STT->>CFG: load inventory.yaml
-    CFG-->>STT: device config (role=stt)
-    STT->>MIC: open hw:0,0
-    STT->>UART: open /dev/serial0
-    STT->>STT: enter main loop
-    Note over STT: ready for dictation
+    STT->>CFG: load config + profile
+    STT->>STT: init audio/ASR/LLM/transport
+    STT->>IPC: start IPC (diag+state)
+    SYS->>API: start API (optional unit)
+    API->>IPC: connect for diag/state
+    STT-->>SYS: READY (sd_notify)
 ```
 
 ---
 
-## 9. Error Handling
+## 12. Error Handling (High-Level)
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
 flowchart TB
     ERR["Error Detected"]
-    TYPE{"Error Type?"}
-    MIC_ERR["Mic Error"]
-    STT_ERR["STT Error"]
-    UART_ERR["UART Error"]
-    RETRY["Retry with backoff"]
-    HALT["Halt & Log"]
+    TYPE{"Type?"}
+    MIC["Audio/Device"]
+    ASR["ASR/Model"]
+    LINK["Transport/Link"]
+    RETRY["Retry/Backoff"]
+    PAUSE["Pause/Degrade"]
+    FAIL["Fail & Log"]
     RESTART["systemd restart"]
 
     ERR --> TYPE
-    TYPE -->|mic disconnected| MIC_ERR
-    TYPE -->|model failed| STT_ERR
-    TYPE -->|serial broken| UART_ERR
-    MIC_ERR --> RETRY
-    STT_ERR --> HALT
-    UART_ERR --> RETRY
-    RETRY -->|max attempts| HALT
-    HALT --> RESTART
+    TYPE -->|mic missing| MIC
+    TYPE -->|model fail| ASR
+    TYPE -->|link broken| LINK
+    MIC --> RETRY
+    ASR --> PAUSE
+    LINK --> RETRY
+    RETRY -->|max| FAIL
+    PAUSE --> FAIL
+    FAIL --> RESTART
 
     style ERR fill:#fdf6e3,stroke:#dc322f,color:#073642
-    style TYPE fill:#fdf6e3,stroke:#b58900,color:#073642
-    style MIC_ERR fill:#eee8d5,stroke:#cb4b16,color:#073642
-    style STT_ERR fill:#eee8d5,stroke:#cb4b16,color:#073642
-    style UART_ERR fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style TYPE fill:#eee8d5,stroke:#b58900,color:#073642
+    style MIC fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style ASR fill:#eee8d5,stroke:#cb4b16,color:#073642
+    style LINK fill:#eee8d5,stroke:#cb4b16,color:#073642
     style RETRY fill:#eee8d5,stroke:#2aa198,color:#073642
-    style HALT fill:#eee8d5,stroke:#dc322f,color:#073642
+    style PAUSE fill:#eee8d5,stroke:#6c71c4,color:#073642
+    style FAIL fill:#eee8d5,stroke:#dc322f,color:#073642
     style RESTART fill:#eee8d5,stroke:#859900,color:#073642
 ```
 
 ---
 
-## 10. Web Panel Architecture (Future)
+## 13. Diagnostics via API (IPC-backed)
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
-flowchart LR
-    subgraph Pi5
-        STT["STT Daemon"]
-        API["FastAPI"]
-        WEB["Web UI"]
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642', 'noteBkgColor': '#eee8d5', 'noteBorderColor': '#268bd2'}}}%%
+sequenceDiagram
+    participant Browser as CP/API Caller
+    participant API as FastAPI (/v1)
+    participant IPC as IPC Client
+    participant SVC as IPC Server
+    participant DIAG as DiagnosticsService
+
+    Browser->>API: GET /v1/api/diagnostics/status
+    API->>IPC: diag.status (UDS)
+    IPC->>SVC: diag.status
+    SVC->>DIAG: quick_status()
+    DIAG-->>SVC: overall/passed/failed/warnings
+    SVC-->>IPC: result
+    IPC-->>API: result
+    API-->>Browser: JSON {healthy,...}
+```
+
+---
+
+## 14. State via CLI (IPC-backed)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant CLI as dictacode-stt-state
+    participant IPC as IPC Client
+    participant SVC as IPC Server
+    participant STATE as SttState
+
+    CLI->>IPC: state.get
+    IPC->>SVC: state.get
+    SVC->>STATE: to_dict()
+    STATE-->>SVC: {state, failure_reason,...}
+    SVC-->>IPC: result
+    IPC-->>CLI: result
+    CLI-->>CLI: render table/JSON
+```
+
+---
+
+## 15. Profile Apply Flow
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant CP as Control Panel
+    participant API as FastAPI (/v1)
+    participant SVC as SttService
+    participant ASR as Transcriber Factory
+    participant LLM as LLM Factory
+
+    CP->>API: POST /v1/api/profile/apply {profile: "whisper_local"}
+    API->>SVC: apply_profile(profile)
+    SVC->>SVC: pause/maintenance
+    SVC->>ASR: build transcriber (per profile)
+    SVC->>LLM: build postproc (per profile)
+    SVC-->>SVC: swap components, update state.profile
+    SVC-->>API: ok
+    API-->>CP: 200 {profile:"whisper_local"}
+```
+
+---
+
+## 16. Metrics Scrape (State)
+
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant PROM as Prometheus
+    participant API as FastAPI /metrics
+    participant MET as Metrics
+    participant STATE as SttState
+
+    STATE-->>MET: record_state_transition(old,new)
+    loop scrape interval
+      PROM->>API: GET /metrics
+      API->>MET: export metrics text
+      MET-->>API: state gauges/counters
+      API-->>PROM: text/plain (Prometheus format)
     end
-    BROWSER[/"Browser"/]
-
-    STT <-->|status/control| API
-    API --> WEB
-    BROWSER -->|HTTP| WEB
-
-    style Pi5 fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style STT fill:#eee8d5,stroke:#859900,color:#073642
-    style API fill:#eee8d5,stroke:#2aa198,color:#073642
-    style WEB fill:#eee8d5,stroke:#6c71c4,color:#073642
-    style BROWSER fill:#eee8d5,stroke:#b58900,color:#073642
 ```
 
 ---
 
-## 11. Deployment Flow
+## 17. IPC Error Handling
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
-flowchart LR
-    REPO["Git Repo"]
-    BUILD["build-deb.sh"]
-    DEB["dictacode-bootstrap.deb"]
-    SCP["scp to device"]
-    DPKG["dpkg -i"]
-    INSTALLED["Installed"]
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant Client as API/CLI IPC client
+    participant IPC as IPC Server
 
-    REPO --> BUILD
-    BUILD --> DEB
-    DEB --> SCP
-    SCP --> DPKG
-    DPKG --> INSTALLED
-
-    style REPO fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style BUILD fill:#fdf6e3,stroke:#859900,color:#073642
-    style DEB fill:#fdf6e3,stroke:#2aa198,color:#073642
-    style SCP fill:#fdf6e3,stroke:#b58900,color:#073642
-    style DPKG fill:#fdf6e3,stroke:#cb4b16,color:#073642
-    style INSTALLED fill:#fdf6e3,stroke:#859900,color:#073642
+    Client->>IPC: diag.run
+    IPC-->>Client: error {code:-32601,msg:"Method not found"} (if unsupported)
+    Note over Client: Fallback? surface 503/clear error
 ```
 
 ---
 
-## 12. Directory Structure
+## 18. CP Page Load
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83'}}}%%
-flowchart TB
-    ROOT["dictacode/"]
-    APPS["apps/"]
-    STT["stt/"]
-    HID["hid/"]
-    CONFIG["config/"]
-    OPS["ops/"]
-    SANDBOX["sandbox/"]
-    SRC["src/"]
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#fdf6e3', 'primaryTextColor': '#073642', 'primaryBorderColor': '#268bd2', 'lineColor': '#657b83', 'actorBkg': '#eee8d5', 'actorTextColor': '#073642'}}}%%
+sequenceDiagram
+    participant Browser
+    participant WEB as CP App
+    participant API as API App
+    participant IPC as IPC Client
+    participant SVC as IPC Server
 
-    ROOT --> APPS
-    ROOT --> CONFIG
-    ROOT --> OPS
-    APPS --> STT
-    APPS --> HID
-    STT --> SANDBOX
-    STT --> SRC
-
-    style ROOT fill:#fdf6e3,stroke:#268bd2,color:#073642
-    style APPS fill:#eee8d5,stroke:#859900,color:#073642
-    style STT fill:#eee8d5,stroke:#2aa198,color:#073642
-    style HID fill:#eee8d5,stroke:#2aa198,color:#073642
-    style CONFIG fill:#eee8d5,stroke:#b58900,color:#073642
-    style OPS fill:#eee8d5,stroke:#6c71c4,color:#073642
-    style SANDBOX fill:#eee8d5,stroke:#cb4b16,color:#073642
-    style SRC fill:#eee8d5,stroke:#859900,color:#073642
+    Browser->>WEB: GET /v1/cp
+    WEB-->>Browser: HTML + JS
+    Browser->>API: GET /v1/api/service/state
+    API->>IPC: state.get
+    IPC->>SVC: state.get
+    SVC-->>IPC: state dict
+    IPC-->>API: state
+    API-->>Browser: JSON state
+    Browser-->>Browser: render state in CP
 ```
