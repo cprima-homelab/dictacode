@@ -1,0 +1,47 @@
+# Version String Inventory (selected sources)
+#
+# Generated snapshot of version strings in source and packaging files (excluding virtualenvs).
+
+# Project packages
+apps/stt/pyproject.toml: 0.3.0
+apps/stt/src/dictacode_stt/__init__.py: 0.3.0
+apps/hid/pyproject.toml: 0.3.0
+apps/hid/src/dictacode_hid/__init__.py: 0.3.0
+
+# Packaging (Debian)
+ops/packaging/debian/dictacode-core/DEBIAN/control: 0.2.0
+ops/packaging/debian/dictacode-stt/DEBIAN/control: 0.3.0
+ops/packaging/debian/dictacode-hid/DEBIAN/control: 0.3.0
+ops/packaging/debian/dictacode-hid/lib/systemd/system/dictacode-hid.service: v0.2.3
+ops/packaging/debian/dictacode-stt/lib/systemd/system/dictacode-stt.service: v0.2.3
+ops/packaging/debian/dictacode-stt/lib/systemd/system/dictacode-stt-api.service: v0.2.15, 127.0.0
+
+# Templates (canonical)
+ops/packaging/templates/stt.conf: v0.3.2 (also contains 127.0.0 placeholder)
+ops/packaging/templates/hid.conf: v0.3.2
+ops/packaging/templates/keymap.conf: keymap=en_us (no explicit version)
+
+# Compatibility matrices
+compatibility.json (repo root) & ops/packaging/debian/dictacode-core/opt/dictacode/shared/compatibility.json:
+  versions listed: 0.0.0, 0.1.0, 0.2.11, 0.2.12, 0.3.0, 1.0.0, v0.2.12, v0.3.0
+apps/stt/src/dictacode_stt/compatibility.json: same as above
+apps/hid/src/dictacode_hid/compatibility.json: same as above
+
+# Docs (representative)
+docs/testing.md: v0.2.3, v0.3.2
+docs/architecture-plan-v0.3.2.md: v0.3.2, v0.3.1, 127.0.0
+AGENTS.md: v0.2.3
+README.md: 0.1.0
+
+# Scripts
+tools/bootstrap.sh: 0.1.0, 0.2.0
+ops/packaging/build-deb.sh: v0.3.2
+
+# API/version references in code (non-package)
+apps/stt/src/dictacode_stt/api.py: 0.2.4, 0.3.0, v0.2.4, v0.2.9, v0.2.13, v0.3.0
+apps/stt/src/dictacode_stt/api_server.py: 0.0.0, 127.0.0, v0.2.4, v0.2.13, v0.2.15
+apps/hid/src/dictacode_hid/main.py: v0.3.2
+apps/stt/src/dictacode_stt/stt_config.py: 127.0.0, v0.2.14, v0.3.2
+
+# Note
+This list focuses on core source/config/packaging files. Numerous docs/backlog/plan files contain historical version tags; see the repo for full context.
