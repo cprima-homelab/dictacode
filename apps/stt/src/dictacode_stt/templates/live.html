@@ -248,6 +248,59 @@
   color: var(--fg-dim);
   margin-left: auto;
 }
+
+/* v0.3.14: Transcription History Panel */
+.transcription-panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.transcription-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.transcription-list .empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
+.transcription-entry {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.transcription-entry:last-child {
+  border-bottom: none;
+}
+
+.transcription-entry:hover {
+  background: var(--bg);
+}
+
+.transcription-entry .text {
+  flex: 1;
+  font-family: inherit;
+  word-break: break-word;
+}
+
+.transcription-entry .time {
+  font-size: 11px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
 </style>
 {% endblock %}
 
@@ -388,6 +441,19 @@
         <dd id="ipc-running">-</dd>
       </dl>
     </div>
+  </div>
+</section>
+
+<!-- v0.3.14: Transcription History -->
+<section class="transcription-panel">
+  <div class="component-header">
+    <h4>Recent Transcriptions</h4>
+    <span class="indicator" id="transcription-indicator"></span>
+  </div>
+  <div class="component-body" style="padding: 0;">
+    <ul class="transcription-list" id="transcription-list">
+      <li class="empty-state">No transcriptions yet</li>
+    </ul>
   </div>
 </section>
 {% endblock %}

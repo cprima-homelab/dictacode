@@ -1,5 +1,5 @@
 /**
- * Live Status Page - Real-time pipeline monitoring (v0.3.13)
+ * Live Status Page - Real-time pipeline monitoring (v0.3.14)
  */
 (function() {
   'use strict';
@@ -29,6 +29,54 @@
    */
   function formatTime(date) {
     return date.toLocaleTimeString();
+  }
+
+  /**
+   * Escape HTML to prevent XSS (v0.3.14)
+   */
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * Update transcription history panel (v0.3.14)
+   */
+  function updateTranscriptions(transcriptions) {
+    const list = document.getElementById('transcription-list');
+    const indicator = document.getElementById('transcription-indicator');
+
+    if (!list) return;
+
+    // Update indicator based on recent activity
+    if (indicator) {
+      indicator.classList.remove('ok', 'warning', 'error');
+      if (transcriptions && transcriptions.length > 0) {
+        const now = Date.now() / 1000;
+        const mostRecent = transcriptions[0]?.timestamp;
+        if (mostRecent && (now - mostRecent) < 10) {
+          indicator.classList.add('ok');
+        } else {
+          indicator.classList.add('warning');
+        }
+      } else {
+        indicator.classList.add('warning');
+      }
+    }
+
+    // Render transcription list
+    if (!transcriptions || transcriptions.length === 0) {
+      list.innerHTML = '<li class="empty-state">No transcriptions yet</li>';
+      return;
+    }
+
+    list.innerHTML = transcriptions.map(t => `
+      <li class="transcription-entry">
+        <span class="text">${escapeHtml(t.text)}</span>
+        <span class="time">${formatRelativeTime(t.timestamp)}</span>
+      </li>
+    `).join('');
   }
 
   /**
@@ -212,6 +260,9 @@
 
     // Update health summary
     updateHealthSummary(flow, components);
+
+    // v0.3.14: Update transcription history
+    updateTranscriptions(components.transcriptions || []);
   }
 
   /**

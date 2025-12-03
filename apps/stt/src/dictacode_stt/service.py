@@ -16,6 +16,8 @@ import logging
 import tempfile
 import time
 import wave
+from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Type
 
@@ -80,6 +82,15 @@ from dictacode_stt.transport import (
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TranscriptionEntry:
+    """Single transcription entry for history (v0.3.14)."""
+
+    text: str
+    timestamp: float
+    final: bool = True
 
 
 class SttService:
@@ -300,6 +311,9 @@ class SttService:
 
         # v0.3.0: WebSocket manager for broadcasting updates
         self.websocket_manager = websocket_manager
+
+        # v0.3.14: Transcription history for live status display
+        self._transcription_history: deque[TranscriptionEntry] = deque(maxlen=12)
 
         # v0.3.10: Current pipeline profile (None = legacy parameters)
         self.current_profile: Optional[PipelineProfile] = None
@@ -1298,6 +1312,31 @@ class SttService:
         except Exception as e:
             logger.error(f"WebSocket broadcast failed: {e}")
 
+    def _record_transcription(self, text: str, final: bool = True) -> None:
+        """
+        Record transcription to history buffer (v0.3.14).
+
+        Args:
+            text: Transcription text
+            final: Whether this is a final (not partial) transcription
+        """
+        if text and text.strip():
+            self._transcription_history.appendleft(
+                TranscriptionEntry(text=text.strip(), timestamp=time.time(), final=final)
+            )
+
+    def transcription_history(self) -> List[dict]:
+        """
+        Return recent transcription history for live status (v0.3.14).
+
+        Returns:
+            List of dicts with text, timestamp, and final flag
+        """
+        return [
+            {"text": e.text, "timestamp": e.timestamp, "final": e.final}
+            for e in self._transcription_history
+        ]
+
     def send_text(self, text: str) -> bool:
         """
         Send text over transport.
@@ -1323,6 +1362,8 @@ class SttService:
             self._broadcast_websocket(
                 {"type": "transcription", "data": {"text": text, "final": True}}
             )
+            # v0.3.14: Record to history
+            self._record_transcription(text, final=True)
             return True
 
         try:
@@ -1343,6 +1384,8 @@ class SttService:
             self._broadcast_websocket(
                 {"type": "transcription", "data": {"text": text, "final": True}}
             )
+            # v0.3.14: Record to history
+            self._record_transcription(text, final=True)
             return True
         except TransportError as e:
             logger.error(f"Transport send failed: {e}")

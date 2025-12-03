@@ -114,6 +114,15 @@ class DiagnosticsAggregator:
         except Exception as e:
             components["ipc"] = {"error": str(e)}
 
+        # v0.3.14: Transcription history for live display
+        try:
+            if hasattr(self.service, "transcription_history"):
+                components["transcriptions"] = self.service.transcription_history()
+            else:
+                components["transcriptions"] = []
+        except Exception as e:
+            components["transcriptions"] = []
+
         # Compute flow staleness
         flow = self._compute_flow_staleness(components, now)
 
