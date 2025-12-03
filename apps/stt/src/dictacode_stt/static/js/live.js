@@ -263,6 +263,98 @@
 
     // v0.3.14: Update transcription history
     updateTranscriptions(components.transcriptions || []);
+
+    // v0.3.16: Update HID typing pause and mic mute status
+    updateTypingStatus(components.hid_typing?.paused || false);
+    updateMuteStatus(components.audio?.muted || false);
+  }
+
+  /**
+   * Update HID typing pause button and indicator (v0.3.16)
+   */
+  function updateTypingStatus(paused) {
+    const btn = document.getElementById('pause-typing-btn');
+    const indicator = document.getElementById('typing-status');
+
+    if (btn) {
+      btn.dataset.paused = paused;
+      btn.textContent = paused ? '\u25B6 Resume Typing' : '\u23F8 Pause Typing';
+      btn.classList.toggle('active', paused);
+    }
+
+    if (indicator) {
+      indicator.classList.toggle('visible', paused);
+    }
+  }
+
+  /**
+   * Update microphone mute button and indicator (v0.3.16)
+   */
+  function updateMuteStatus(muted) {
+    const btn = document.getElementById('mute-mic-btn');
+    const indicator = document.getElementById('mute-status');
+
+    if (btn) {
+      btn.dataset.muted = muted;
+      btn.textContent = muted ? '\uD83D\uDD0A Unmute Mic' : '\uD83C\uDF99 Mute Mic';
+      btn.classList.toggle('active', muted);
+    }
+
+    if (indicator) {
+      indicator.classList.toggle('visible', muted);
+    }
+  }
+
+  /**
+   * Toggle HID typing pause (v0.3.16)
+   */
+  async function toggleTypingPause() {
+    const btn = document.getElementById('pause-typing-btn');
+    if (!btn) return;
+
+    const isPaused = btn.dataset.paused === 'true';
+    const endpoint = isPaused ? '/v1/api/hid/resume' : '/v1/api/hid/pause';
+
+    btn.disabled = true;
+    try {
+      const resp = await fetch(endpoint, { method: 'POST' });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        updateTypingStatus(data.hid_paused);
+      } else {
+        console.error('Failed to toggle typing pause:', data.message);
+      }
+    } catch (err) {
+      console.error('Failed to toggle typing pause:', err);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /**
+   * Toggle microphone mute (v0.3.16)
+   */
+  async function toggleMicMute() {
+    const btn = document.getElementById('mute-mic-btn');
+    if (!btn) return;
+
+    const isMuted = btn.dataset.muted === 'true';
+    const endpoint = isMuted ? '/v1/api/audio/unmute' : '/v1/api/audio/mute';
+
+    btn.disabled = true;
+    try {
+      const resp = await fetch(endpoint, { method: 'POST' });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        updateMuteStatus(data.mic_muted);
+      } else {
+        console.error('Failed to toggle mic mute:', data.message);
+      }
+    } catch (err) {
+      console.error('Failed to toggle mic mute:', err);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   /**
@@ -334,6 +426,18 @@
       if (autoRefresh.checked) {
         toggleAutoRefresh(true);
       }
+    }
+
+    // v0.3.16: Bind pause typing button
+    const pauseTypingBtn = document.getElementById('pause-typing-btn');
+    if (pauseTypingBtn) {
+      pauseTypingBtn.addEventListener('click', toggleTypingPause);
+    }
+
+    // v0.3.16: Bind mute mic button
+    const muteMicBtn = document.getElementById('mute-mic-btn');
+    if (muteMicBtn) {
+      muteMicBtn.addEventListener('click', toggleMicMute);
     }
 
     // Initial fetch

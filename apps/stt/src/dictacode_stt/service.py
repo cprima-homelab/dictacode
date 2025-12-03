@@ -315,6 +315,10 @@ class SttService:
         # v0.3.14: Transcription history for live status display
         self._transcription_history: deque[TranscriptionEntry] = deque(maxlen=12)
 
+        # v0.3.16: HID typing pause and mic mute controls
+        self._hid_typing_paused: bool = False
+        self._mic_muted: bool = False
+
         # v0.3.10: Current pipeline profile (None = legacy parameters)
         self.current_profile: Optional[PipelineProfile] = None
 
@@ -709,6 +713,10 @@ class SttService:
             logger.warning(
                 "Audio buffer/resampler not initialized, dropping audio data"
             )
+            return
+
+        # v0.3.16: Software mic mute - discard audio if muted
+        if self._mic_muted:
             return
 
         # v0.3.13: Update audio timestamps/counters for live status
@@ -1507,6 +1515,83 @@ class SttService:
             Current state value (e.g., 'listening', 'paused', 'degraded')
         """
         return self.state.state.value
+
+    # v0.3.16: HID Typing Pause Controls
+
+    def pause_hid_typing(self) -> bool:
+        """Pause HID typing output (transcription continues, text buffered at HID).
+
+        v0.3.16: Sends pause command to HID device.
+        Transcription continues normally, but HID buffers text instead of typing.
+
+        Returns:
+            True if pause command sent successfully
+        """
+        if self.send_command("pause"):
+            self._hid_typing_paused = True
+            logger.info("HID typing paused (text will be buffered)")
+            return True
+        logger.warning("Failed to send HID pause command")
+        return False
+
+    def resume_hid_typing(self) -> bool:
+        """Resume HID typing output (flushes buffered text).
+
+        v0.3.16: Sends resume command to HID device.
+        HID will flush its buffer and type all buffered text.
+
+        Returns:
+            True if resume command sent successfully
+        """
+        if self.send_command("resume"):
+            self._hid_typing_paused = False
+            logger.info("HID typing resumed (buffer flushed)")
+            return True
+        logger.warning("Failed to send HID resume command")
+        return False
+
+    def is_hid_typing_paused(self) -> bool:
+        """Check if HID typing is currently paused.
+
+        Returns:
+            True if HID is in paused mode (buffering text)
+        """
+        return self._hid_typing_paused
+
+    # v0.3.16: Microphone Software Mute Controls
+
+    def mute_mic(self) -> bool:
+        """Software mute microphone input.
+
+        v0.3.16: Stops feeding audio to transcriber while keeping stream open.
+        Audio chunks will be discarded, no transcriptions will be generated.
+
+        Returns:
+            True (always succeeds)
+        """
+        self._mic_muted = True
+        logger.info("Microphone muted (audio discarded)")
+        return True
+
+    def unmute_mic(self) -> bool:
+        """Unmute microphone input.
+
+        v0.3.16: Resumes feeding audio to transcriber.
+
+        Returns:
+            True (always succeeds)
+        """
+        self._mic_muted = False
+        logger.info("Microphone unmuted (audio flowing)")
+        return True
+
+    def is_mic_muted(self) -> bool:
+        """Check if microphone is currently muted.
+
+        Returns:
+            True if mic is software-muted
+        """
+        return self._mic_muted
 
     def audio_status(self) -> dict:
         """Return live audio status for DiagnosticsAggregator (v0.3.13).

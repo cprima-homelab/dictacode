@@ -301,17 +301,90 @@
   color: var(--fg-dim);
   white-space: nowrap;
 }
+
+/* v0.3.16: Control status indicators */
+.control-status {
+  padding: 10px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.control-status.visible {
+  display: flex;
+}
+
+.control-status .status-icon {
+  font-size: 16px;
+}
+
+#typing-status {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+}
+
+#mute-status {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+/* v0.3.16: Control buttons styling */
+.control-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-alt);
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.control-btn:hover {
+  background: var(--bg);
+  border-color: var(--fg-dim);
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn.active {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="refresh-controls">
   <button class="primary" id="refresh-btn">Refresh</button>
+  <button class="control-btn" id="pause-typing-btn" data-paused="false">&#9208; Pause Typing</button>
+  <button class="control-btn" id="mute-mic-btn" data-muted="false">&#127908; Mute Mic</button>
   <label class="auto-refresh">
     <input type="checkbox" id="auto-refresh" checked>
     Auto-refresh (5s)
   </label>
   <span class="last-update">Last update: <span id="last-update">-</span></span>
+</div>
+
+<!-- v0.3.16: Control status indicators -->
+<div class="control-status" id="typing-status">
+  <span class="status-icon">&#9208;</span>
+  <span>Typing Paused - transcriptions are being buffered at HID</span>
+</div>
+
+<div class="control-status" id="mute-status">
+  <span class="status-icon">&#128263;</span>
+  <span>Microphone Muted - no audio is being captured</span>
 </div>
 
 <div class="health-summary healthy" id="health-summary">

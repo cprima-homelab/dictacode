@@ -823,6 +823,136 @@ async def apply_profile(request: ProfileApplyRequest):
         raise HTTPException(status_code=500, detail=f"Failed to apply profile: {e}")
 
 
+# =============================================================================
+# v0.3.16: HID Typing and Microphone Mute Controls
+# =============================================================================
+
+
+@api_router.post("/api/hid/pause")
+async def pause_hid_typing():
+    """Pause HID typing output (v0.3.16).
+
+    Sends pause command to HID device. Transcription continues
+    but text is buffered at HID instead of being typed.
+
+    Returns:
+        {"status": "ok", "hid_paused": true} on success
+        {"status": "error", "message": "..."} on failure
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        if _service_instance.pause_hid_typing():
+            return {"status": "ok", "hid_paused": True}
+        return {"status": "error", "message": "Failed to send pause command to HID"}
+    except Exception as e:
+        logger.error(f"Failed to pause HID typing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/api/hid/resume")
+async def resume_hid_typing():
+    """Resume HID typing output (v0.3.16).
+
+    Sends resume command to HID device. HID will flush its buffer
+    and type all buffered text.
+
+    Returns:
+        {"status": "ok", "hid_paused": false} on success
+        {"status": "error", "message": "..."} on failure
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        if _service_instance.resume_hid_typing():
+            return {"status": "ok", "hid_paused": False}
+        return {"status": "error", "message": "Failed to send resume command to HID"}
+    except Exception as e:
+        logger.error(f"Failed to resume HID typing: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/api/hid/status")
+async def get_hid_typing_status():
+    """Get HID typing status (v0.3.16).
+
+    Returns:
+        {"hid_paused": true|false}
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    return {"hid_paused": _service_instance.is_hid_typing_paused()}
+
+
+@api_router.post("/api/audio/mute")
+async def mute_microphone():
+    """Software mute microphone input (v0.3.16).
+
+    Stops feeding audio to transcriber while keeping stream open.
+    Audio chunks are discarded, no transcriptions will be generated.
+
+    Returns:
+        {"status": "ok", "mic_muted": true}
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        _service_instance.mute_mic()
+        return {"status": "ok", "mic_muted": True}
+    except Exception as e:
+        logger.error(f"Failed to mute microphone: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/api/audio/unmute")
+async def unmute_microphone():
+    """Unmute microphone input (v0.3.16).
+
+    Resumes feeding audio to transcriber.
+
+    Returns:
+        {"status": "ok", "mic_muted": false}
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        _service_instance.unmute_mic()
+        return {"status": "ok", "mic_muted": False}
+    except Exception as e:
+        logger.error(f"Failed to unmute microphone: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/api/audio/mute/status")
+async def get_microphone_mute_status():
+    """Get microphone mute status (v0.3.16).
+
+    Returns:
+        {"mic_muted": true|false}
+    """
+    from dictacode_stt.health import _service_instance
+
+    if not _service_instance:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    return {"mic_muted": _service_instance.is_mic_muted()}
+
+
 @api_router.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for live updates (v0.3.0).

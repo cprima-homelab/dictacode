@@ -123,6 +123,27 @@ class DiagnosticsAggregator:
         except Exception as e:
             components["transcriptions"] = []
 
+        # v0.3.16: HID typing pause status
+        try:
+            if hasattr(self.service, "is_hid_typing_paused"):
+                components["hid_typing"] = {
+                    "paused": self.service.is_hid_typing_paused()
+                }
+            else:
+                components["hid_typing"] = {"paused": False}
+        except Exception as e:
+            components["hid_typing"] = {"error": str(e)}
+
+        # v0.3.16: Add mic muted status to audio component
+        try:
+            if hasattr(self.service, "is_mic_muted"):
+                if "audio" not in components:
+                    components["audio"] = {}
+                components["audio"]["muted"] = self.service.is_mic_muted()
+        except Exception as e:
+            if "audio" in components:
+                components["audio"]["mute_error"] = str(e)
+
         # Compute flow staleness
         flow = self._compute_flow_staleness(components, now)
 
