@@ -5,7 +5,7 @@ Fixes word cutoff bug by including overlap from previous segments.
 
 import logging
 from collections import deque
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -39,6 +39,7 @@ class AudioRingBuffer:
         sample_rate: int = 16000,
         overlap_seconds: float = 0.5,
         dtype: str = "int16",
+        on_eviction: Optional[Callable[[int], None]] = None,
     ):
         """Initialize ring buffer.
 
@@ -47,6 +48,8 @@ class AudioRingBuffer:
             sample_rate: Audio sample rate (samples per second)
             overlap_seconds: Overlap duration for word cutoff prevention
             dtype: Audio data type ("int16" or "float32")
+            on_eviction: Optional callback when samples are evicted (v0.3.17)
+                         Called with number of samples evicted
         """
         self.sample_rate = sample_rate
         self.overlap_seconds = overlap_seconds
@@ -60,6 +63,9 @@ class AudioRingBuffer:
         self._buffer: deque = deque(maxlen=None)  # No automatic eviction
         self._total_samples = 0  # Total samples written
         self._read_pos = 0  # Last read position
+
+        # v0.3.17: Eviction callback for tracing
+        self._on_eviction = on_eviction
 
         logger.info(
             f"AudioRingBuffer initialized: {max_seconds}s max, "
@@ -87,10 +93,15 @@ class AudioRingBuffer:
         # Evict old samples if buffer exceeds max size
         while self._get_buffer_size() > self.max_samples:
             removed = self._buffer.popleft()
-            self._total_samples -= len(removed)
+            evicted_samples = len(removed)
+            self._total_samples -= evicted_samples
             # Adjust read position
             if self._read_pos > 0:
-                self._read_pos = max(0, self._read_pos - len(removed))
+                self._read_pos = max(0, self._read_pos - evicted_samples)
+            # v0.3.17: Notify eviction callback for tracing
+            if self._on_eviction:
+                self._on_eviction(evicted_samples)
+            logger.debug(f"Buffer eviction: {evicted_samples} samples dropped")
 
         logger.debug(
             f"Wrote {len(samples)} samples to buffer "

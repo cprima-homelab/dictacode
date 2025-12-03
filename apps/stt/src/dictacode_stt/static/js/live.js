@@ -267,6 +267,83 @@
     // v0.3.16: Update HID typing pause and mic mute status
     updateTypingStatus(components.hid_typing?.paused || false);
     updateMuteStatus(components.audio?.muted || false);
+
+    // v0.3.17: Update trace panel
+    if (components.traces) {
+      updateTracePanel(components.traces.stats || {}, components.traces.recent || []);
+    }
+  }
+
+  /**
+   * Update trace panel with stats and recent traces (v0.3.17)
+   */
+  function updateTracePanel(stats, traces) {
+    // Update summary counts
+    setText('trace-completed', stats.completed || 0);
+    setText('trace-dropped', stats.dropped || 0);
+    setText('trace-in-progress', stats.in_progress || 0);
+
+    // Update drop histogram
+    updateDropHistogram(stats.drop_points || {});
+
+    // Update trace list
+    updateTraceList(traces || []);
+  }
+
+  /**
+   * Update drop point histogram (v0.3.17)
+   */
+  function updateDropHistogram(dropPoints) {
+    const container = document.getElementById('histogram-bars');
+    if (!container) return;
+
+    const entries = Object.entries(dropPoints);
+    if (entries.length === 0) {
+      container.innerHTML = '<span class="empty-state">No drops recorded</span>';
+      return;
+    }
+
+    const maxCount = Math.max(...entries.map(([_, count]) => count));
+
+    container.innerHTML = entries.map(([point, count]) => {
+      const height = Math.max(10, (count / maxCount) * 50); // Min 10px height
+      const label = point.replace(/_/g, ' ');
+      return `
+        <div class="histogram-bar" style="height: ${height}px">
+          <span class="count">${count}</span>
+          <span class="label">${escapeHtml(label)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Update trace list table (v0.3.17)
+   */
+  function updateTraceList(traces) {
+    const tbody = document.getElementById('trace-list');
+    if (!tbody) return;
+
+    if (!traces || traces.length === 0) {
+      tbody.innerHTML = '<tr class="empty-state"><td colspan="5">No traces yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = traces.map(t => {
+      const latency = t.latency_ms ? `${Math.round(t.latency_ms)}ms` : '-';
+      const age = formatRelativeTime(t.created_at);
+      const dropPoint = t.drop_point ? escapeHtml(t.drop_point.replace(/_/g, ' ')) : '-';
+      const traceIdShort = t.trace_id ? t.trace_id.slice(-12) : '-';
+      return `
+        <tr class="${t.status}">
+          <td class="trace-id" title="${escapeHtml(t.trace_id || '')}">${escapeHtml(traceIdShort)}</td>
+          <td>${escapeHtml(t.status || '-')}</td>
+          <td>${dropPoint}</td>
+          <td>${latency}</td>
+          <td>${age}</td>
+        </tr>
+      `;
+    }).join('');
   }
 
   /**

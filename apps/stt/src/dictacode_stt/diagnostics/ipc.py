@@ -37,8 +37,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Protocol version (aligned with status.live; profile methods added in v0.3.10)
-API_VERSION = "0.3.13"
+# Protocol version (aligned with status.live; trace methods added in v0.3.17)
+API_VERSION = "0.3.17"
 
 # Default socket path (systemd-friendly runtime dir)
 DEFAULT_SOCKET_PATH = "/run/dictacode/diag.sock"
@@ -646,6 +646,76 @@ class DiagnosticsIpcServer:
             except Exception as e:
                 return _make_error(ERROR_INTERNAL, f"Mic status error: {e}", request_id)
 
+        # v0.3.17: Trace methods for per-utterance tracing
+        elif method == "trace.recent":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                limit = params.get("limit", 20)
+                traces = self._stt_service.trace_registry.get_recent(limit)
+                return _make_response(
+                    {"traces": [t.to_dict() for t in traces]},
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Trace recent error: {e}", request_id)
+
+        elif method == "trace.drops":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                limit = params.get("limit", 20)
+                drops = self._stt_service.trace_registry.get_drops(limit)
+                return _make_response(
+                    {"drops": [t.to_dict() for t in drops]},
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Trace drops error: {e}", request_id)
+
+        elif method == "trace.get":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            trace_id = params.get("trace_id")
+            if not trace_id:
+                return _make_error(
+                    ERROR_INVALID_PARAMS,
+                    "Missing required parameter: trace_id",
+                    request_id,
+                )
+            try:
+                trace = self._stt_service.trace_registry.get_trace(trace_id)
+                if trace:
+                    return _make_response({"trace": trace.to_dict()}, request_id)
+                return _make_error(-32001, f"Trace not found: {trace_id}", request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Trace get error: {e}", request_id)
+
+        elif method == "trace.stats":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                stats = self._stt_service.trace_registry.get_stats()
+                return _make_response(stats, request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Trace stats error: {e}", request_id)
+
         else:
             return _make_error(
                 ERROR_METHOD_NOT_FOUND, f"Method not found: {method}", request_id
@@ -873,3 +943,47 @@ class DiagnosticsIpcClient:
             Response with 'success' bool, 'message' string, 'profile' string
         """
         return self._call("profile.apply", {"name": name})
+
+    # v0.3.17: Trace methods
+
+    def get_recent_traces(self, limit: int = 20) -> dict[str, Any]:
+        """Get recent utterance traces (v0.3.17).
+
+        Args:
+            limit: Maximum number of traces to return
+
+        Returns:
+            Response with 'traces' list
+        """
+        return self._call("trace.recent", {"limit": limit})
+
+    def get_dropped_traces(self, limit: int = 20) -> dict[str, Any]:
+        """Get recent dropped traces (v0.3.17).
+
+        Args:
+            limit: Maximum number of traces to return
+
+        Returns:
+            Response with 'drops' list
+        """
+        return self._call("trace.drops", {"limit": limit})
+
+    def get_trace(self, trace_id: str) -> dict[str, Any]:
+        """Get specific trace by ID (v0.3.17).
+
+        Args:
+            trace_id: Trace ID to retrieve
+
+        Returns:
+            Response with 'trace' dict
+        """
+        return self._call("trace.get", {"trace_id": trace_id})
+
+    def get_trace_stats(self) -> dict[str, Any]:
+        """Get trace statistics (v0.3.17).
+
+        Returns:
+            Stats dict with total_traces, completed, dropped, in_progress,
+            avg_latency_ms, drop_points histogram
+        """
+        return self._call("trace.stats")

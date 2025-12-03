@@ -144,6 +144,21 @@ class DiagnosticsAggregator:
             if "audio" in components:
                 components["audio"]["mute_error"] = str(e)
 
+        # v0.3.17: Per-utterance trace statistics
+        try:
+            if hasattr(self.service, "trace_registry"):
+                trace_registry = self.service.trace_registry
+                stats = trace_registry.get_stats()
+                recent = trace_registry.get_recent(limit=10)
+                components["traces"] = {
+                    "stats": stats,
+                    "recent": [t.to_dict() for t in recent],
+                }
+            else:
+                components["traces"] = {"stats": {}, "recent": []}
+        except Exception as e:
+            components["traces"] = {"error": str(e)}
+
         # Compute flow staleness
         flow = self._compute_flow_staleness(components, now)
 

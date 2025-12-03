@@ -129,6 +129,25 @@ class Metrics:
             ["state"],
         )
 
+        # v0.3.17: Per-utterance tracing metrics
+        self.utterances_total = Counter(
+            "dictacode_utterances_total",
+            "Total utterances processed",
+            ["status"],  # completed, dropped, timeout
+        )
+
+        self.utterance_drops_total = Counter(
+            "dictacode_utterance_drops_total",
+            "Total utterances dropped by location",
+            ["drop_point"],  # buffer_eviction, transcription_empty, mic_muted, etc.
+        )
+
+        self.utterance_latency = Histogram(
+            "dictacode_utterance_latency_seconds",
+            "End-to-end utterance latency (audio capture to HID typed)",
+            buckets=[0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 30.0],
+        )
+
         logger.info("Prometheus metrics initialized")
 
     def start_server(self) -> None:
@@ -287,6 +306,37 @@ class Metrics:
             self.current_state.labels(state=state.value).set(
                 1 if state.value == new_state else 0
             )
+
+    def record_utterance_completed(self, latency_sec: float) -> None:
+        """Record successful utterance completion (v0.3.17).
+
+        Args:
+            latency_sec: End-to-end latency in seconds
+        """
+        if not self.enabled:
+            return
+
+        self.utterances_total.labels(status="completed").inc()
+        self.utterance_latency.observe(latency_sec)
+
+    def record_utterance_dropped(self, drop_point: str) -> None:
+        """Record utterance drop (v0.3.17).
+
+        Args:
+            drop_point: Location where drop occurred (e.g., "transcription_empty")
+        """
+        if not self.enabled:
+            return
+
+        self.utterances_total.labels(status="dropped").inc()
+        self.utterance_drops_total.labels(drop_point=drop_point).inc()
+
+    def record_utterance_timeout(self) -> None:
+        """Record utterance timeout (v0.3.17)."""
+        if not self.enabled:
+            return
+
+        self.utterances_total.labels(status="timeout").inc()
 
     def get_metrics(self) -> bytes:
         """Get metrics in Prometheus format.

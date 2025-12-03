@@ -63,11 +63,13 @@ from dictacode_stt.protocol import (
     ProbeAckMessage,
     ProbeMessage,
     ProtocolAdapter,
+    ResponseMessage,
     TextMessage,
     get_protocol,
 )
 from dictacode_stt.state import SolutionState, SttState
 from dictacode_stt.supervisor import LinkSupervisor, SupervisorConfig
+from dictacode_stt.tracing import TraceRegistry, UtteranceTrace
 from dictacode_stt.transcription import (
     FinalResult,
     PartialResult,
@@ -318,6 +320,9 @@ class SttService:
         # v0.3.16: HID typing pause and mic mute controls
         self._hid_typing_paused: bool = False
         self._mic_muted: bool = False
+
+        # v0.3.17: Per-utterance tracing for pipeline diagnostics
+        self._trace_registry = TraceRegistry(max_traces=100, timeout_sec=30.0)
 
         # v0.3.10: Current pipeline profile (None = legacy parameters)
         self.current_profile: Optional[PipelineProfile] = None
@@ -716,7 +721,9 @@ class SttService:
             return
 
         # v0.3.16: Software mic mute - discard audio if muted
+        # v0.3.17: Log muted audio for tracing (don't create trace per chunk - too granular)
         if self._mic_muted:
+            logger.debug("Audio chunk discarded (mic muted)")
             return
 
         # v0.3.13: Update audio timestamps/counters for live status
@@ -1345,12 +1352,18 @@ class SttService:
             for e in self._transcription_history
         ]
 
-    def send_text(self, text: str) -> bool:
+    @property
+    def trace_registry(self) -> TraceRegistry:
+        """Return trace registry for diagnostics (v0.3.17)."""
+        return self._trace_registry
+
+    def send_text(self, text: str, trace_id: Optional[str] = None) -> bool:
         """
         Send text over transport.
 
         Args:
             text: Text to send
+            trace_id: Optional trace ID for end-to-end tracking (v0.3.17)
 
         Returns:
             True if sent successfully, False otherwise
@@ -1359,7 +1372,8 @@ class SttService:
             logger.warning("Empty text, not sending")
             return False
 
-        msg = TextMessage(payload=text)
+        # v0.3.17: Include trace_id in message for end-to-end tracking
+        msg = TextMessage(payload=text, request_id=trace_id)
         encoded = self.protocol.encode(msg)
 
         if self.dry_run:
@@ -1407,6 +1421,56 @@ class SttService:
             if self.supervisor_enabled:
                 self.supervisor._mark_unhealthy()
             return False
+
+    def _check_responses(self) -> None:
+        """
+        Check for and process HID response messages (v0.3.17).
+
+        Non-blocking check for ResponseMessage from HID device.
+        Updates trace status when responses are received.
+        """
+        if self.dry_run or not self.transport:
+            return
+
+        try:
+            # Non-blocking read attempt
+            if hasattr(self.transport, "readline"):
+                # Set a very short timeout for non-blocking read
+                data = self.transport.readline(timeout=0.01)
+            else:
+                return  # Skip if no readline support
+
+            if data:
+                try:
+                    msg = self.protocol.decode(data)
+                    if isinstance(msg, ResponseMessage):
+                        trace_id = msg.request_id
+                        status = msg.status
+                        logger.debug(
+                            f"Received response for trace {trace_id}: {status}"
+                        )
+
+                        # Update trace based on response
+                        if status == "ok":
+                            self._trace_registry.mark_completed(
+                                trace_id, hid_typed_at=time.time()
+                            )
+                        elif status == "error":
+                            self._trace_registry.mark_drop(
+                                trace_id,
+                                "hid_error",
+                                msg.message or "HID reported error",
+                            )
+                        elif status == "buffered":
+                            # Mark that HID received but buffered (not dropped)
+                            trace = self._trace_registry.get_trace(trace_id)
+                            if trace:
+                                trace.mark_stage("hid_received")
+                except Exception as e:
+                    logger.debug(f"Failed to decode response: {e}")
+        except Exception as e:
+            # Non-blocking read may timeout, that's OK
+            pass
 
     def send_command(self, cmd: str, arg: Optional[str] = None) -> bool:
         """
@@ -1644,12 +1708,17 @@ class SttService:
 
         v0.2.4: Uses streaming + ring buffer when available, falls back to blocking record.
         v0.2.11: Supports audio source injection for testing.
+        v0.3.17: Per-utterance tracing for pipeline diagnostics.
 
         Returns:
             Dictionary with timing stats and results
         """
         stats = {}
         total_start = time.perf_counter()
+
+        # v0.3.17: Create trace for this utterance
+        trace = self._trace_registry.create_trace()
+        stats["trace_id"] = trace.trace_id
 
         # Record audio - prefer audio source, then streaming buffer, then blocking
         try:
@@ -1672,12 +1741,19 @@ class SttService:
 
             if not audio_bytes:
                 logger.warning("No audio data received")
-                return {"error": "No audio data"}
+                # v0.3.17: Mark trace as dropped
+                trace.mark_drop("no_audio", "No audio data received")
+                return {"error": "No audio data", "trace_id": trace.trace_id}
+
+            # v0.3.17: Mark audio captured stage
+            trace.mark_stage("audio_captured")
+            trace.audio_duration_sec = len(audio_bytes) / 2 / self.whisper_sample_rate
 
             stats["record_sec"] = time.perf_counter() - record_start
         except Exception as e:
             logger.error(f"Recording failed: {e}")
-            return {"error": str(e)}
+            trace.mark_drop("audio_error", str(e))
+            return {"error": str(e), "trace_id": trace.trace_id}
 
         # Save to temp file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
@@ -1686,9 +1762,14 @@ class SttService:
 
         # Transcribe
         try:
+            # v0.3.17: Mark transcription started
+            trace.mark_stage("transcription_started")
             transcribe_start = time.perf_counter()
             text = self.transcribe(wav_path)
             stats["transcribe_sec"] = time.perf_counter() - transcribe_start
+            # v0.3.17: Mark transcription completed
+            trace.mark_stage("transcription_completed")
+            trace.text_raw = text
         finally:
             # Clean up temp file
             Path(wav_path).unlink(missing_ok=True)
@@ -1705,17 +1786,29 @@ class SttService:
 
         stats["text"] = text
         stats["text_len"] = len(text)
+        trace.char_count = len(text)
 
         logger.info(f"=== RESULT === {text}")
 
         # Send over UART
         if text:
             send_start = time.perf_counter()
-            self.send_text(text)
+            # v0.3.17: Pass trace_id to send_text for end-to-end tracking
+            self.send_text(text, trace_id=trace.trace_id)
+            # v0.3.17: Mark transport sent stage
+            trace.mark_stage("transport_sent")
             stats["send_sec"] = time.perf_counter() - send_start
+
+            # v0.3.17: Check for HID responses (non-blocking)
+            self._check_responses()
         else:
             logger.info("No text to send (empty transcription)")
+            # v0.3.17: Mark trace as dropped due to empty transcription
+            trace.mark_drop("transcription_empty", "ASR returned empty string")
             stats["send_sec"] = 0
+
+        # v0.3.17: Cleanup stale traces
+        self._trace_registry.cleanup_stale()
 
         stats["total_sec"] = time.perf_counter() - total_start
 

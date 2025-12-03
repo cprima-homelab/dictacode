@@ -32,6 +32,7 @@ from dictacode_hid.protocol import (
     ProbeAckMessage,
     ProbeMessage,
     ProtocolAdapter,
+    ResponseMessage,
     TextMessage,
     get_protocol,
 )
@@ -397,23 +398,33 @@ class HidService:
     def _handle_text(self, msg: TextMessage) -> None:
         """Process a text message based on current state."""
         text = msg.payload
+        # v0.3.17: Extract trace_id for end-to-end tracking
+        trace_id = msg.request_id
 
         if self.state.should_type():
             # Type immediately
             count = self._type_text(text)
             if count > 0:
                 logger.info(f"Typed {count} chars: {text}")
+                # v0.3.17: Send success response with trace_id
+                self._send_response(trace_id, "ok", f"Typed {count} chars")
             else:
                 logger.warning(f"No mappable chars in: {text}")
+                # v0.3.17: Send error response - no mappable chars
+                self._send_response(trace_id, "error", "No mappable chars")
 
         elif self.state.should_buffer():
             # Buffer for later (paused mode)
             self.state.add_to_buffer(text)
             logger.info(f"Buffered (paused): {text}")
+            # v0.3.17: Send buffered response
+            self._send_response(trace_id, "buffered", "Text buffered (paused)")
 
         else:
             # Maintenance mode - log only
             logger.info(f"Received (maintenance): {text}")
+            # v0.3.17: Send response for maintenance mode
+            self._send_response(trace_id, "ok", "Received (maintenance mode)")
 
     def _type_text(self, text: str) -> int:
         """
@@ -468,3 +479,30 @@ class HidService:
             count = self._type_text(text)
             if count > 0:
                 logger.info(f"Typed (from buffer) {count} chars: {text}")
+
+    def _send_response(
+        self, trace_id: Optional[str], status: str, message: Optional[str] = None
+    ) -> None:
+        """
+        Send response message back to STT for trace tracking (v0.3.17).
+
+        Args:
+            trace_id: Trace ID from original TextMessage (may be None for legacy)
+            status: Response status ("ok", "error", "buffered")
+            message: Optional human-readable message
+        """
+        if trace_id is None:
+            # No trace_id means legacy message, skip response
+            return
+
+        try:
+            response = ResponseMessage(
+                request_id=trace_id,
+                status=status,
+                message=message,
+            )
+            encoded = self.protocol.encode(response)
+            self.uart.send(encoded)
+            logger.debug(f"Sent response for trace {trace_id}: {status}")
+        except Exception as e:
+            logger.warning(f"Failed to send response for trace {trace_id}: {e}")
