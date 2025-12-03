@@ -84,6 +84,37 @@ class LicenseSetRequest(BaseModel):
     scope: str = "user"  # "user" or "system"
 
 
+# v0.3.10: Profile management models
+class ProfileApplyRequest(BaseModel):
+    """Request body for POST /api/profile/apply."""
+
+    profile: str  # Profile name to apply
+
+
+class ProfileApplyResponse(BaseModel):
+    """Response for POST /api/profile/apply."""
+
+    success: bool
+    message: str
+    profile: Optional[str] = None
+
+
+class ProfileCurrentResponse(BaseModel):
+    """Response for GET /api/profile/current."""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    audio_source: Optional[str] = None
+    asr_backend: Optional[str] = None
+    asr_model: Optional[str] = None
+
+
+class ProfilesListResponse(BaseModel):
+    """Response for GET /api/profiles."""
+
+    profiles: List[str]
+
+
 # =============================================================================
 # Global state (shared across apps)
 # =============================================================================
@@ -663,6 +694,133 @@ async def delete_license_token():
         "removed": removed,
         "state": _badge_state.to_dict(),
     }
+
+
+# =============================================================================
+# v0.3.10: Pipeline Profile Endpoints (IPC-only)
+# =============================================================================
+
+@api_router.get("/api/profiles", response_model=ProfilesListResponse)
+async def list_profiles():
+    """List available pipeline profiles (v0.3.10).
+
+    Returns list of profile names that can be applied via profile.apply.
+    Profiles are loaded from packaged defaults and user drop-ins.
+
+    IMPORTANT: This endpoint calls IPC to the running service.
+    Returns 503 if IPC is unavailable.
+
+    Returns:
+        ProfilesListResponse with list of profile names
+    """
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+        if not client.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+            )
+
+        result = client.list_profiles()
+        return ProfilesListResponse(profiles=result.get("profiles", []))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list profiles: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list profiles: {e}")
+
+
+@api_router.get("/api/profile/current", response_model=ProfileCurrentResponse)
+async def get_current_profile():
+    """Get the currently active pipeline profile (v0.3.10).
+
+    Returns the profile that is currently loaded in the running service.
+    Returns null values if no profile is active (legacy parameter mode).
+
+    IMPORTANT: This endpoint calls IPC to the running service.
+    Returns 503 if IPC is unavailable.
+
+    Returns:
+        ProfileCurrentResponse with current profile info
+    """
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+        if not client.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+            )
+
+        result = client.get_current_profile()
+        profile_data = result.get("profile")
+
+        if profile_data is None:
+            return ProfileCurrentResponse()
+
+        return ProfileCurrentResponse(
+            name=profile_data.get("name"),
+            description=profile_data.get("description"),
+            audio_source=profile_data.get("audio", {}).get("source"),
+            asr_backend=profile_data.get("asr", {}).get("backend"),
+            asr_model=profile_data.get("asr", {}).get("model"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get current profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get current profile: {e}")
+
+
+@api_router.post("/api/profile/apply", response_model=ProfileApplyResponse)
+async def apply_profile(request: ProfileApplyRequest):
+    """Apply a pipeline profile (v0.3.10).
+
+    Applies the specified profile to the running service. This may:
+    - Change audio source (mic, file, directory)
+    - Update ASR settings (backend, model, language)
+    - Update transport configuration
+
+    IMPORTANT: This endpoint calls IPC to the running service.
+    The profile is applied transactionally - on error, the service
+    rolls back to the previous configuration.
+
+    Returns 503 if IPC is unavailable.
+
+    Args:
+        request: ProfileApplyRequest with profile name
+
+    Returns:
+        ProfileApplyResponse with success/failure and message
+    """
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+        if not client.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+            )
+
+        result = client.apply_profile(request.profile)
+
+        return ProfileApplyResponse(
+            success=result.get("success", False),
+            message=result.get("message", "Unknown error"),
+            profile=result.get("profile"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to apply profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to apply profile: {e}")
 
 
 @api_router.websocket("/api/ws")

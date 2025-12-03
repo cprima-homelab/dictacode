@@ -6,6 +6,7 @@
 - [ ] Expose profile selection in API/CP; apply safely at runtime.
 - [ ] Persist current profile selection across restarts.
 - [ ] Validate profiles per backend/provider; add tests.
+- [ ] Ensure profiles apply to the running service via IPC (API/CP in separate process).
 
 ---
 
@@ -35,8 +36,8 @@
   - Introduce `PipelineConfig` and factory methods for ASR/LLM components.
   - `SttService` consumes `PipelineConfig` instead of scattered defaults.
   - Track current profile name in state; allow runtime apply.
-- Apply flow:
-  - API/CP endpoint to select a profile.
+- Apply flow (IPC-aware):
+  - API/CP endpoint triggers profile apply on the running service via IPC (no local apply in API process).
   - Safe reconfigure: pause (or maintenance), rebuild transcriber/LLM per profile, resume.
   - Persist chosen profile to config/state file so it survives restart.
 
@@ -51,9 +52,10 @@
 ### Phase 2: Service Refactor
 1. Refactor `SttService` init to accept `PipelineConfig`; use factories to create ASR/LLM.
 2. Expose current profile in state; add method to apply a new profile (with pause/reconfigure/resume).
+3. Wire IPC handler to invoke apply on the running service; API/CP only call IPC.
 
 ### Phase 3: Surfaces
-1. API/CP: list profiles, get current, apply profile endpoints/UI.
+1. API/CP: list profiles, get current, apply profile endpoints/UI via IPC; no local apply in API.
 2. State/IPC: include current profile name in state responses.
 
 ### Phase 4: Persistence
@@ -70,6 +72,42 @@
 - Apply flow: transitions to paused/maintenance, rebuilds components, resumes.
 - State/API/IPC reflect current profile; persists across restart.
 - CP/API selection works; drop-in profiles are discovered.
+
+---
+
+## Extracted Default Profile
+
+The following profile represents the current implementation defaults, extracted from the codebase:
+
+### `profiles/default.yaml`
+```yaml
+# Current dictacode-stt defaults extracted from codebase
+# Source files: service.py, transcription/, transport/, llm/
+name: default
+description: "Standard mic input with local whisper transcription via UART"
+
+audio:
+  source: mic           # Continuous capture from audio port
+  port: auto            # AudioPortManager auto-detection
+
+asr:
+  backend: whisper      # From transcription/whisper.py
+  model: tiny           # WhisperAdapter default
+  language: en          # Default language code
+
+llm:
+  enabled: false        # LLM postprocessing disabled by default
+
+transport:
+  type: uart            # From transport/uart.py
+  device: /dev/serial0  # Default serial port for Raspberry Pi
+```
+
+### Profile Storage Locations
+- **Development/Testing**: `apps/stt/profiles/` (repo-relative)
+- **Packaged defaults**: `/opt/dictacode/profiles/` or `<site-packages>/dictacode_stt/profiles/`
+- **User drop-ins**: `/etc/dictacode/stt.d/profiles/` (follows existing `/etc/dictacode/` pattern)
+- **Load order**: User drop-ins override packaged defaults (same name = user wins)
 
 ---
 

@@ -2,9 +2,11 @@
 
 import logging
 from configparser import ConfigParser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import yaml
 
 
 logger = logging.getLogger("dictacode.config")
@@ -358,3 +360,257 @@ def load_stt_config(
         logger.error("Failed to build config: %s", e)
         logger.error("Falling back to safe defaults")
         return SttConfig()
+
+
+# =============================================================================
+# Pipeline Profiles (v0.3.10)
+# =============================================================================
+
+PROFILES_DIR = Path(__file__).parent / "profiles"  # Packaged profiles
+USER_PROFILES_DIR = Path("/etc/dictacode/stt.d/profiles")  # User drop-ins
+
+
+@dataclass
+class AudioConfig:
+    """Audio source configuration for pipeline profile."""
+
+    source: str = "mic"  # mic | file | directory
+    port: str = "auto"  # Audio port ID or "auto"
+    path: Optional[Union[List[str], str]] = None  # For file source (list of paths) or directory source (single path)
+    pattern: str = "*.wav"  # Glob pattern for directory source
+
+
+@dataclass
+class AsrConfig:
+    """ASR (transcription) configuration for pipeline profile."""
+
+    backend: str = "whisper"  # whisper | vosk
+    model: str = "tiny"  # tiny | base | small | medium | large
+    language: str = "en"
+    # Paths: None = auto-detect from common locations
+    binary_path: Optional[str] = None  # ~/whisper.cpp/build/bin/whisper-cli
+    model_path: Optional[str] = None  # ~/whisper.cpp/models/ggml-{model}.bin
+    # Sample rates: None = auto-detect from device/transcriber
+    native_sample_rate: Optional[int] = None  # Mic capture rate (auto-detect)
+    whisper_sample_rate: Optional[int] = None  # Transcriber rate (default: 16000)
+    native_channels: Optional[int] = None  # Mic channels (auto-detect)
+
+
+@dataclass
+class LlmConfig:
+    """LLM post-processing configuration for pipeline profile."""
+
+    enabled: bool = False
+    provider: Optional[str] = None  # ollama | openai | openrouter
+    model: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+
+
+@dataclass
+class TransportConfig:
+    """Transport configuration for pipeline profile."""
+
+    type: str = "uart"  # uart | wifi | null
+    device: str = "/dev/serial0"  # For uart
+    host: Optional[str] = None  # For wifi
+    port: Optional[int] = None  # For wifi
+
+
+def _find_whisper_binary(custom_path: Optional[str] = None) -> Optional[Path]:
+    """Find whisper-cli binary in common locations."""
+    if custom_path:
+        p = Path(custom_path)
+        return p if p.exists() else None
+
+    candidates = [
+        Path.home() / "whisper.cpp" / "build" / "bin" / "whisper-cli",
+        Path("/opt/whisper/whisper-cli"),
+        Path("/usr/local/bin/whisper-cli"),
+        Path("/usr/bin/whisper-cli"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+
+def _find_whisper_model(custom_path: Optional[str] = None, model: str = "tiny") -> Optional[Path]:
+    """Find whisper model in common locations."""
+    if custom_path:
+        p = Path(custom_path)
+        return p if p.exists() else None
+
+    # Try model-specific names
+    model_names = [f"ggml-{model}.bin", f"ggml-{model}.en.bin"]
+    search_dirs = [
+        Path.home() / "whisper.cpp" / "models",
+        Path("/opt/whisper/models"),
+        Path("/usr/share/whisper/models"),
+    ]
+
+    for d in search_dirs:
+        if d.exists():
+            for name in model_names:
+                p = d / name
+                if p.exists():
+                    return p
+    return None
+
+
+@dataclass
+class PipelineProfile:
+    """Complete pipeline configuration profile."""
+
+    name: str
+    description: str = ""
+    audio: AudioConfig = field(default_factory=AudioConfig)
+    asr: AsrConfig = field(default_factory=AsrConfig)
+    llm: LlmConfig = field(default_factory=LlmConfig)
+    transport: TransportConfig = field(default_factory=TransportConfig)
+
+    def validate(self) -> List[str]:
+        """Validate profile configuration. Returns list of errors."""
+        errors = []
+
+        # Validate audio source
+        if self.audio.source not in ("mic", "file", "directory"):
+            errors.append(f"Invalid audio.source: {self.audio.source}")
+
+        # File/directory sources require path
+        if self.audio.source in ("file", "directory") and not self.audio.path:
+            errors.append(f"audio.path required for source={self.audio.source}")
+
+        # Validate files exist for file source
+        if self.audio.source == "file" and self.audio.path:
+            paths = self.audio.path if isinstance(self.audio.path, list) else [self.audio.path]
+            for p in paths:
+                if not Path(p).exists():
+                    errors.append(f"audio.path does not exist: {p}")
+
+        # Validate directory exists for directory source
+        if self.audio.source == "directory" and self.audio.path:
+            dir_path = self.audio.path if isinstance(self.audio.path, str) else self.audio.path[0]
+            if not Path(dir_path).is_dir():
+                errors.append(f"audio.path is not a directory: {dir_path}")
+
+        # Validate ASR backend
+        if self.asr.backend not in ("whisper", "vosk"):
+            errors.append(f"Invalid asr.backend: {self.asr.backend}")
+
+        # Validate whisper paths when backend=whisper
+        if self.asr.backend == "whisper":
+            binary = _find_whisper_binary(self.asr.binary_path)
+            if not binary:
+                searched = self.asr.binary_path or "~/whisper.cpp/build/bin/whisper-cli, /opt/whisper/, /usr/local/bin/, /usr/bin/"
+                errors.append(f"whisper binary not found (searched: {searched})")
+
+            model = _find_whisper_model(self.asr.model_path, self.asr.model)
+            if not model:
+                searched = self.asr.model_path or f"~/whisper.cpp/models/ggml-{self.asr.model}.bin, /opt/whisper/models/"
+                errors.append(f"whisper model not found (searched: {searched})")
+
+        # Validate transport type
+        if self.transport.type not in ("uart", "wifi", "null"):
+            errors.append(f"Invalid transport.type: {self.transport.type}")
+
+        return errors
+
+
+def _load_profile_from_yaml(path: Path) -> Optional[PipelineProfile]:
+    """Load a single profile from YAML file."""
+    try:
+        with open(path) as f:
+            data = yaml.safe_load(f)
+
+        if not data or not isinstance(data, dict):
+            logger.warning("Invalid profile YAML: %s", path)
+            return None
+
+        # Build nested dataclasses
+        audio = AudioConfig(**data.get("audio", {})) if "audio" in data else AudioConfig()
+        asr = AsrConfig(**data.get("asr", {})) if "asr" in data else AsrConfig()
+        llm = LlmConfig(**data.get("llm", {})) if "llm" in data else LlmConfig()
+        transport = (
+            TransportConfig(**data.get("transport", {}))
+            if "transport" in data
+            else TransportConfig()
+        )
+
+        profile = PipelineProfile(
+            name=data.get("name", path.stem),
+            description=data.get("description", ""),
+            audio=audio,
+            asr=asr,
+            llm=llm,
+            transport=transport,
+        )
+
+        # Validate
+        errors = profile.validate()
+        if errors:
+            logger.warning("Profile %s has validation errors: %s", path, errors)
+
+        return profile
+
+    except Exception as e:
+        logger.warning("Failed to load profile %s: %s", path, e)
+        return None
+
+
+def load_profiles(
+    packaged_dir: Optional[Path] = None,
+    user_dir: Optional[Path] = None,
+) -> Dict[str, PipelineProfile]:
+    """
+    Load all available profiles from packaged and user directories.
+
+    User profiles override packaged profiles with the same name.
+
+    Returns:
+        Dict mapping profile name to PipelineProfile
+    """
+    packaged_dir = packaged_dir or PROFILES_DIR
+    user_dir = user_dir or USER_PROFILES_DIR
+
+    profiles: Dict[str, PipelineProfile] = {}
+
+    # Load packaged profiles first
+    if packaged_dir.exists() and packaged_dir.is_dir():
+        for yaml_file in sorted(packaged_dir.glob("*.yaml")):
+            profile = _load_profile_from_yaml(yaml_file)
+            if profile:
+                profiles[profile.name] = profile
+                logger.debug("Loaded packaged profile: %s", profile.name)
+
+    # Load user profiles (override packaged)
+    if user_dir.exists() and user_dir.is_dir():
+        for yaml_file in sorted(user_dir.glob("*.yaml")):
+            profile = _load_profile_from_yaml(yaml_file)
+            if profile:
+                if profile.name in profiles:
+                    logger.info("User profile overrides packaged: %s", profile.name)
+                profiles[profile.name] = profile
+                logger.debug("Loaded user profile: %s", profile.name)
+
+    logger.info("Loaded %d profiles", len(profiles))
+    return profiles
+
+
+def get_profile(name: str, profiles: Optional[Dict[str, PipelineProfile]] = None) -> Optional[PipelineProfile]:
+    """Get a profile by name, loading profiles if not provided."""
+    if profiles is None:
+        profiles = load_profiles()
+    return profiles.get(name)
+
+
+def get_default_profile() -> PipelineProfile:
+    """Return the default profile (mic + whisper + uart)."""
+    return PipelineProfile(
+        name="default",
+        description="Standard mic input with local whisper transcription via UART",
+        audio=AudioConfig(source="mic", port="auto"),
+        asr=AsrConfig(backend="whisper", model="tiny", language="en"),
+        llm=LlmConfig(enabled=False),
+        transport=TransportConfig(type="uart", device="/dev/serial0"),
+    )

@@ -1111,6 +1111,185 @@ All sensitive data (passwords, tokens, API keys) is automatically redacted.
 
 
 # =============================================================================
+# dictacode-stt-profile (v0.3.10)
+# =============================================================================
+
+
+def cmd_profile_list() -> int:
+    """List available pipeline profiles."""
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+
+        if not client.is_available():
+            print(
+                "ERROR: Service not reachable via IPC. "
+                "Ensure dictacode-stt is running.",
+                file=sys.stderr,
+            )
+            return 1
+
+        result = client.list_profiles()
+        profiles = result.get("profiles", [])
+
+        if not profiles:
+            print("No profiles available.")
+            return 0
+
+        print("AVAILABLE PROFILES")
+        print("─" * 40)
+        for name in sorted(profiles):
+            print(f"  {name}")
+
+        print(f"\nTotal: {len(profiles)} profiles")
+        print("\nUse: dictacode-stt-profile apply <name>")
+        return 0
+
+    except Exception as e:
+        print(f"ERROR: Failed to list profiles: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_profile_current() -> int:
+    """Show the currently active profile."""
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+
+        if not client.is_available():
+            print(
+                "ERROR: Service not reachable via IPC. "
+                "Ensure dictacode-stt is running.",
+                file=sys.stderr,
+            )
+            return 1
+
+        result = client.get_current_profile()
+        profile_data = result.get("profile")
+        name = result.get("name")
+
+        if profile_data is None:
+            print("No profile active (legacy parameter mode)")
+            return 0
+
+        print("CURRENT PROFILE")
+        print("─" * 40)
+        print(f"Name:        {name}")
+        print(f"Description: {profile_data.get('description', 'N/A')}")
+        print()
+        print("Audio:")
+        audio = profile_data.get("audio", {})
+        print(f"  Source: {audio.get('source', 'N/A')}")
+        print(f"  Port:   {audio.get('port', 'N/A')}")
+        if audio.get("path"):
+            print(f"  Path:   {audio.get('path')}")
+        print()
+        print("ASR:")
+        asr = profile_data.get("asr", {})
+        print(f"  Backend:  {asr.get('backend', 'N/A')}")
+        print(f"  Model:    {asr.get('model', 'N/A')}")
+        print(f"  Language: {asr.get('language', 'N/A')}")
+        print()
+        print("LLM:")
+        llm = profile_data.get("llm", {})
+        print(f"  Enabled: {llm.get('enabled', False)}")
+        print()
+        print("Transport:")
+        transport = profile_data.get("transport", {})
+        print(f"  Type:   {transport.get('type', 'N/A')}")
+        print(f"  Device: {transport.get('device', 'N/A')}")
+
+        return 0
+
+    except Exception as e:
+        print(f"ERROR: Failed to get current profile: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_profile_apply(name: str) -> int:
+    """Apply a pipeline profile."""
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+
+        if not client.is_available():
+            print(
+                "ERROR: Service not reachable via IPC. "
+                "Ensure dictacode-stt is running.",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(f"Applying profile: {name}...")
+        result = client.apply_profile(name)
+
+        success = result.get("success", False)
+        message = result.get("message", "Unknown result")
+
+        if success:
+            print(f"OK: {message}")
+            return 0
+        else:
+            print(f"FAILED: {message}", file=sys.stderr)
+            return 1
+
+    except Exception as e:
+        print(f"ERROR: Failed to apply profile: {e}", file=sys.stderr)
+        return 1
+
+
+def profile_main(args: Optional[List[str]] = None) -> int:
+    """CLI entry point for dictacode-stt-profile (v0.3.10)."""
+    parser = argparse.ArgumentParser(
+        prog="dictacode-stt-profile",
+        description="Pipeline profile management for dictacode STT (v0.3.10)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  dictacode-stt-profile list               # List available profiles
+  dictacode-stt-profile current            # Show current profile
+  dictacode-stt-profile apply default      # Apply the default profile
+  dictacode-stt-profile apply test_corpus  # Apply test corpus profile
+
+Profiles are loaded from:
+  - Packaged defaults: /opt/dictacode/profiles/ or site-packages
+  - User drop-ins: /etc/dictacode/stt.d/profiles/
+
+User profiles override packaged profiles with the same name.
+        """,
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Commands")
+
+    # list command
+    subparsers.add_parser("list", help="List available profiles")
+
+    # current command
+    subparsers.add_parser("current", help="Show currently active profile")
+
+    # apply command
+    apply_parser = subparsers.add_parser("apply", help="Apply a profile")
+    apply_parser.add_argument("name", help="Profile name to apply")
+
+    parsed = parser.parse_args(args)
+
+    if parsed.command is None:
+        parser.print_help()
+        return 0
+    elif parsed.command == "list":
+        return cmd_profile_list()
+    elif parsed.command == "current":
+        return cmd_profile_current()
+    elif parsed.command == "apply":
+        return cmd_profile_apply(parsed.name)
+    else:
+        parser.print_help()
+        return 1
+
+
+# =============================================================================
 # Main entry points
 # =============================================================================
 
@@ -1123,4 +1302,5 @@ if __name__ == "__main__":
     print("  dictacode-stt-hid")
     print("  dictacode-stt-log         (v0.2.13 - runtime log level control)")
     print("  dictacode-stt-bugreport   (v0.2.9 - bug report generation)")
+    print("  dictacode-stt-profile     (v0.3.10 - pipeline profile management)")
     sys.exit(0)

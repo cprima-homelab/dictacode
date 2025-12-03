@@ -1,0 +1,23 @@
+# Default pipeline profile for dictacode-stt
+name: default
+description: "Standard mic input with local whisper transcription via UART"
+
+audio:
+  source: mic
+  port: auto
+
+asr:
+  backend: whisper
+  model: tiny
+  language: en
+  # binary_path/model_path omitted = auto-detect from:
+  #   ~/whisper.cpp/build/bin/whisper-cli, /opt/whisper/, /usr/local/bin/
+  #   ~/whisper.cpp/models/ggml-{model}.bin, /opt/whisper/models/
+  # Validation fails with clear error if not found.
+
+llm:
+  enabled: false
+
+transport:
+  type: uart
+  device: /dev/serial0

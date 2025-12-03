@@ -511,6 +511,9 @@ Examples:
         )
         ipc_server.set_aggregator(aggregator)
 
+        # v0.3.10: Wire SttService for profile IPC methods
+        ipc_server.set_stt_service(service)
+
         if ipc_server.start():
             logger.info(f"Diagnostics IPC available at {ipc_server.socket_path}")
         else:

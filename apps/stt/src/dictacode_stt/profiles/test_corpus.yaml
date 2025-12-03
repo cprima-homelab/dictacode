@@ -1,0 +1,20 @@
+# Test profile for corpus file processing
+name: test_corpus
+description: "Process corpus files for testing full pipeline"
+
+audio:
+  source: file
+  path:
+    - /home/dictacode/dictacode/corpus/0/speech.wav
+
+asr:
+  backend: whisper
+  model: tiny
+  language: en
+
+llm:
+  enabled: false
+
+transport:
+  type: uart
+  device: /dev/serial0

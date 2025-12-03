@@ -1,15 +1,16 @@
-"""IPC server and client for diagnostics and state (v0.3.7, v0.3.8, v0.3.5).
+"""IPC server and client for diagnostics, state, and profiles (v0.3.7, v0.3.8, v0.3.5, v0.3.10).
 
 Provides Unix Domain Socket server in the STT process for CLI/API access to
-the running service's diagnostics and state.
+the running service's diagnostics, state, and pipeline profiles.
 
+v0.3.10: Added profile.list, profile.current, profile.apply methods.
 v0.3.8: JSON-RPC-like protocol with length-prefixed messages.
 v0.3.5: Added state.get and state.history methods.
 
 Protocol:
     - 4-byte length header (network byte order) + JSON payload
     - Request: {"jsonrpc": "2.0", "method": "diag.run", "params": {...}, "id": 1}
-    - Response: {"jsonrpc": "2.0", "result": {...}, "id": 1, "api_version": "0.3.8"}
+    - Response: {"jsonrpc": "2.0", "result": {...}, "id": 1, "api_version": "0.3.13"}
     - Error: {"jsonrpc": "2.0", "error": {"code": -32600, "message": "..."}, "id": 1}
 
 Environment:
@@ -36,8 +37,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Protocol version
-API_VERSION = "0.3.8"
+# Protocol version (aligned with status.live; profile methods added in v0.3.10)
+API_VERSION = "0.3.13"
 
 # Default socket path (systemd-friendly runtime dir)
 DEFAULT_SOCKET_PATH = "/run/dictacode/diag.sock"
@@ -146,10 +147,10 @@ def _make_error(
 
 
 class DiagnosticsIpcServer:
-    """IPC server for diagnostics and state (v0.3.7, v0.3.8, v0.3.5).
+    """IPC server for diagnostics, state, and profiles (v0.3.7, v0.3.8, v0.3.5, v0.3.10).
 
     Runs a Unix Domain Socket server that accepts JSON-RPC-like requests
-    and returns diagnostics and state results from the running service.
+    and returns diagnostics, state, and profile results from the running service.
 
     Supported methods:
         - diag.list: List available checks
@@ -159,6 +160,9 @@ class DiagnosticsIpcServer:
         - diag.history: Get run history
         - state.get: Get current service state (v0.3.5)
         - state.history: Get state transition history (v0.3.5)
+        - profile.list: List available profiles (v0.3.10)
+        - profile.current: Get current profile (v0.3.10)
+        - profile.apply: Apply a profile (v0.3.10)
 
     Legacy actions (v0.3.7 compat):
         - list, run, status, categories, history
@@ -171,6 +175,7 @@ class DiagnosticsIpcServer:
         state_provider: Callable[[], dict] | None = None,
         history_provider: Callable[[], list] | None = None,
         aggregator: Any | None = None,  # v0.3.13: DiagnosticsAggregator
+        stt_service: Any | None = None,  # v0.3.10: SttService for profile operations
     ):
         """Initialize IPC server.
 
@@ -180,12 +185,14 @@ class DiagnosticsIpcServer:
             state_provider: Callable returning current state dict (v0.3.5)
             history_provider: Callable returning state history list (v0.3.5)
             aggregator: DiagnosticsAggregator instance for status.live (v0.3.13)
+            stt_service: SttService instance for profile operations (v0.3.10)
         """
         self.service = service
         self.socket_path = socket_path or get_socket_path()
         self._get_state = state_provider
         self._get_history = history_provider
         self._aggregator = aggregator  # v0.3.13
+        self._stt_service = stt_service  # v0.3.10
         self._server_socket: socket.socket | None = None
         self._running = False
         self._thread: threading.Thread | None = None
@@ -211,6 +218,17 @@ class DiagnosticsIpcServer:
             aggregator: DiagnosticsAggregator instance
         """
         self._aggregator = aggregator
+
+    def set_stt_service(self, stt_service: Any) -> None:
+        """Set the STT service reference (v0.3.10).
+
+        Allows late-binding of SttService after server creation.
+        Required for profile.* methods.
+
+        Args:
+            stt_service: SttService instance
+        """
+        self._stt_service = stt_service
 
     def start(self) -> bool:
         """Start the IPC server in a background thread.
@@ -441,6 +459,107 @@ class DiagnosticsIpcServer:
                     ERROR_INTERNAL, f"Aggregator error: {e}", request_id
                 )
 
+        # v0.3.10: Profile methods
+        elif method == "profile.list":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured - service may be starting",
+                    request_id,
+                )
+            try:
+                profiles = self._stt_service.list_available_profiles()
+                return _make_response({"profiles": profiles}, request_id)
+            except Exception as e:
+                return _make_error(
+                    ERROR_INTERNAL, f"Profile list error: {e}", request_id
+                )
+
+        elif method == "profile.current":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured - service may be starting",
+                    request_id,
+                )
+            try:
+                profile = self._stt_service.get_current_profile()
+                if profile is None:
+                    return _make_response(
+                        {"profile": None, "name": None},
+                        request_id,
+                    )
+                # Serialize profile to dict
+                return _make_response(
+                    {
+                        "profile": {
+                            "name": profile.name,
+                            "description": profile.description,
+                            "audio": {
+                                "source": profile.audio.source,
+                                "port": profile.audio.port,
+                                "path": profile.audio.path,
+                                "pattern": profile.audio.pattern,
+                            },
+                            "asr": {
+                                "backend": profile.asr.backend,
+                                "model": profile.asr.model,
+                                "language": profile.asr.language,
+                            },
+                            "llm": {
+                                "enabled": profile.llm.enabled,
+                            },
+                            "transport": {
+                                "type": profile.transport.type,
+                                "device": profile.transport.device,
+                            },
+                        },
+                        "name": profile.name,
+                    },
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(
+                    ERROR_INTERNAL, f"Profile current error: {e}", request_id
+                )
+
+        elif method == "profile.apply":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured - service may be starting",
+                    request_id,
+                )
+            profile_name = params.get("name")
+            if not profile_name:
+                return _make_error(
+                    ERROR_INVALID_PARAMS,
+                    "Missing required parameter: name",
+                    request_id,
+                )
+            try:
+                # Load and apply profile
+                from dictacode_stt.stt_config import get_profile, load_profiles
+
+                profiles = load_profiles()
+                profile = profiles.get(profile_name)
+                if profile is None:
+                    return _make_error(
+                        ERROR_INVALID_PARAMS,
+                        f"Profile not found: {profile_name}",
+                        request_id,
+                    )
+
+                success, message = self._stt_service.apply_profile(profile)
+                return _make_response(
+                    {"success": success, "message": message, "profile": profile_name},
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(
+                    ERROR_INTERNAL, f"Profile apply error: {e}", request_id
+                )
+
         else:
             return _make_error(
                 ERROR_METHOD_NOT_FOUND, f"Method not found: {method}", request_id
@@ -448,9 +567,9 @@ class DiagnosticsIpcServer:
 
 
 class DiagnosticsIpcClient:
-    """IPC client for diagnostics and state (v0.3.7, v0.3.8, v0.3.5).
+    """IPC client for diagnostics, state, and profiles (v0.3.7, v0.3.8, v0.3.5, v0.3.10).
 
-    Connects to the running STT service's IPC socket for diagnostics and state.
+    Connects to the running STT service's IPC socket for diagnostics, state, and profiles.
     """
 
     def __init__(self, socket_path: str | None = None, timeout: float = 5.0):
@@ -639,3 +758,32 @@ class DiagnosticsIpcClient:
             Aggregated status with components and flow staleness info
         """
         return self._call("status.live")
+
+    # v0.3.10: Profile methods
+
+    def list_profiles(self) -> dict[str, Any]:
+        """List available profiles (v0.3.10).
+
+        Returns:
+            Response with 'profiles' list of profile names
+        """
+        return self._call("profile.list")
+
+    def get_current_profile(self) -> dict[str, Any]:
+        """Get the currently active profile (v0.3.10).
+
+        Returns:
+            Response with 'profile' dict and 'name' string (None if no profile)
+        """
+        return self._call("profile.current")
+
+    def apply_profile(self, name: str) -> dict[str, Any]:
+        """Apply a profile by name (v0.3.10).
+
+        Args:
+            name: Profile name to apply
+
+        Returns:
+            Response with 'success' bool, 'message' string, 'profile' string
+        """
+        return self._call("profile.apply", {"name": name})

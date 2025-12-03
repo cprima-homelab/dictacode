@@ -17,7 +17,7 @@ import tempfile
 import time
 import wave
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple, Type
 
 
 try:
@@ -35,7 +35,19 @@ from dictacode_stt.audio import (
     Resampler,
 )
 from dictacode_stt.audio.source import AudioSource
+from dictacode_stt.audio.sources import create_source_from_profile, PlaybackMode
 from dictacode_stt.compatibility import CompatibilityChecker
+from dictacode_stt.stt_config import (
+    PipelineProfile,
+    AudioConfig,
+    AsrConfig,
+    LlmConfig as ProfileLlmConfig,
+    TransportConfig,
+    _find_whisper_binary,
+    _find_whisper_model,
+    get_default_profile,
+    load_profiles,
+)
 from dictacode_stt.hid import HidDevice, HidDeviceRegistry
 from dictacode_stt.llm import (
     BUILTIN_PROFILES,
@@ -289,6 +301,9 @@ class SttService:
         # v0.3.0: WebSocket manager for broadcasting updates
         self.websocket_manager = websocket_manager
 
+        # v0.3.10: Current pipeline profile (None = legacy parameters)
+        self.current_profile: Optional[PipelineProfile] = None
+
         # v0.3.6: Central diagnostics service
         from dictacode_stt.diagnostics.service import DiagnosticsService
 
@@ -365,6 +380,204 @@ class SttService:
                 f"Supervisor enabled: timeout={supervisor_timeout}s, "
                 f"ping_interval={supervisor_ping_interval}s"
             )
+
+    @classmethod
+    def from_profile(
+        cls,
+        profile: PipelineProfile,
+        dry_run: bool = False,
+        supervisor_enabled: bool = True,
+        websocket_manager: Optional[any] = None,
+    ) -> "SttService":
+        """
+        Create SttService from a PipelineProfile (v0.3.10).
+
+        Args:
+            profile: Pipeline profile configuration
+            dry_run: If True, don't send to transport
+            supervisor_enabled: Enable supervisor
+            websocket_manager: WebSocket manager for broadcasting
+
+        Returns:
+            Configured SttService instance
+
+        Raises:
+            ValueError: If profile validation fails
+        """
+        # Validate profile first
+        errors = profile.validate()
+        if errors:
+            raise ValueError(f"Profile validation failed: {errors}")
+
+        # Resolve whisper paths
+        whisper_binary = _find_whisper_binary(profile.asr.binary_path)
+        whisper_model = _find_whisper_model(profile.asr.model_path, profile.asr.model)
+
+        if not whisper_binary:
+            raise ValueError("Whisper binary not found")
+        if not whisper_model:
+            raise ValueError(f"Whisper model not found for {profile.asr.model}")
+
+        # Create audio source from profile (for non-mic sources)
+        audio_source = None
+        if profile.audio.source != "mic":
+            audio_source = create_source_from_profile(
+                profile.audio,
+                port_manager=None,  # Will be set up internally
+                sample_rate=profile.asr.whisper_sample_rate or 16000,
+                channels=1,
+                playback_mode=PlaybackMode.FAST,
+            )
+
+        # Determine sample rates (auto-detect or profile override)
+        native_sample_rate = profile.asr.native_sample_rate or 48000
+        whisper_sample_rate = profile.asr.whisper_sample_rate or 16000
+        native_channels = profile.asr.native_channels or 2
+
+        # Create service instance
+        service = cls(
+            uart_device=profile.transport.device,
+            protocol_name="json",
+            transcriber_name=profile.asr.backend,
+            whisper_binary=whisper_binary,
+            whisper_model=whisper_model,
+            native_sample_rate=native_sample_rate,
+            native_channels=native_channels,
+            whisper_sample_rate=whisper_sample_rate,
+            language=profile.asr.language,
+            dry_run=dry_run,
+            supervisor_enabled=supervisor_enabled,
+            transport_type=profile.transport.type,
+            audio_source=audio_source,
+            websocket_manager=websocket_manager,
+            llm_enabled=profile.llm.enabled,
+            llm_provider=profile.llm.provider or "ollama",
+            llm_model=profile.llm.model or "llama3.2",
+        )
+
+        # Store active profile
+        service.current_profile = profile
+        logger.info(f"Created service from profile: {profile.name}")
+
+        return service
+
+    def apply_profile(self, profile: PipelineProfile) -> Tuple[bool, str]:
+        """
+        Apply a new pipeline profile at runtime (v0.3.10 IPC-aware).
+
+        This method implements transactional profile apply:
+        1. Validate profile assets exist
+        2. Pause pipeline (if running)
+        3. Build new components
+        4. On success: swap components, resume
+        5. On error: rollback, return failure
+
+        Args:
+            profile: New pipeline profile to apply
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        logger.info(f"Applying profile: {profile.name}")
+
+        # 1. Validate profile before making any changes
+        errors = profile.validate()
+        if errors:
+            return False, f"Validation failed: {'; '.join(errors)}"
+
+        # Store previous state for rollback
+        prev_profile = self.current_profile
+        prev_audio_source = self.audio_source
+        prev_source_mode = self._source_mode
+        was_active = self._audio_stream_active or (self.audio_source and self.audio_source.is_active())
+
+        try:
+            # 2. Pause pipeline
+            if was_active:
+                logger.info("Pausing pipeline for profile apply...")
+                if self._audio_stream_active:
+                    self.stop_audio_stream()
+                if self.audio_source and self.audio_source.is_active():
+                    self.audio_source.stop()
+                    self.audio_source.close()
+
+            # 3. Build new audio source
+            new_audio_source = None
+            if profile.audio.source != "mic":
+                new_audio_source = create_source_from_profile(
+                    profile.audio,
+                    port_manager=self.audio_manager,
+                    sample_rate=profile.asr.whisper_sample_rate or 16000,
+                    channels=1,
+                    playback_mode=PlaybackMode.FAST,
+                )
+                logger.info(f"Created audio source: {type(new_audio_source).__name__}")
+
+            # 4. Update transcriber if backend/model changed
+            if (prev_profile is None or
+                profile.asr.backend != prev_profile.asr.backend or
+                profile.asr.model != prev_profile.asr.model):
+                # Need new transcriber
+                whisper_binary = _find_whisper_binary(profile.asr.binary_path)
+                whisper_model = _find_whisper_model(profile.asr.model_path, profile.asr.model)
+
+                if profile.asr.backend == "whisper":
+                    if not whisper_binary or not whisper_model:
+                        raise ValueError("Whisper binary/model not found")
+
+                    new_transcriber = get_transcriber(
+                        profile.asr.backend,
+                        binary_path=whisper_binary,
+                        model_path=whisper_model,
+                    )
+                    self.transcriber = new_transcriber
+                    logger.info(f"Updated transcriber: {profile.asr.backend}/{profile.asr.model}")
+
+            # Update language
+            self.language = profile.asr.language
+
+            # 5. Swap audio source
+            self.audio_source = new_audio_source
+            self._source_mode = new_audio_source is not None
+
+            # 6. Update profile reference
+            self.current_profile = profile
+
+            # 7. Resume if was active
+            if was_active and profile.audio.source == "mic":
+                logger.info("Resuming audio stream...")
+                self.start_audio_stream()
+            elif was_active and new_audio_source:
+                logger.info("Starting new audio source...")
+                new_audio_source.open()
+
+            logger.info(f"Profile applied successfully: {profile.name}")
+            return True, f"Profile '{profile.name}' applied successfully"
+
+        except Exception as e:
+            # Rollback on error
+            logger.error(f"Profile apply failed, rolling back: {e}")
+            self.audio_source = prev_audio_source
+            self._source_mode = prev_source_mode
+            self.current_profile = prev_profile
+
+            # Try to restore previous state
+            if was_active and not self._source_mode:
+                try:
+                    self.start_audio_stream()
+                except Exception as restore_err:
+                    logger.error(f"Failed to restore audio stream: {restore_err}")
+
+            return False, f"Apply failed: {e}"
+
+    def get_current_profile(self) -> Optional[PipelineProfile]:
+        """Return the currently active profile (v0.3.10)."""
+        return self.current_profile
+
+    def list_available_profiles(self) -> List[str]:
+        """List names of available profiles (v0.3.10)."""
+        profiles = load_profiles()
+        return list(profiles.keys())
 
     def _resolve_hid_device(self) -> Optional[HidDevice]:
         """
