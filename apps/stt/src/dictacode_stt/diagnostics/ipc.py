@@ -560,6 +560,92 @@ class DiagnosticsIpcServer:
                     ERROR_INTERNAL, f"Profile apply error: {e}", request_id
                 )
 
+        # v0.3.16: HID typing pause/resume
+        elif method == "hid.pause":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                success = self._stt_service.pause_hid_typing()
+                return _make_response(
+                    {"status": "ok" if success else "error", "hid_paused": success},
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"HID pause error: {e}", request_id)
+
+        elif method == "hid.resume":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                success = self._stt_service.resume_hid_typing()
+                return _make_response(
+                    {"status": "ok" if success else "error", "hid_paused": not success},
+                    request_id,
+                )
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"HID resume error: {e}", request_id)
+
+        elif method == "hid.status":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                paused = self._stt_service.is_hid_typing_paused()
+                return _make_response({"hid_paused": paused}, request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"HID status error: {e}", request_id)
+
+        # v0.3.16: Microphone mute/unmute
+        elif method == "mic.mute":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                self._stt_service.mute_mic()
+                return _make_response({"status": "ok", "mic_muted": True}, request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Mic mute error: {e}", request_id)
+
+        elif method == "mic.unmute":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                self._stt_service.unmute_mic()
+                return _make_response({"status": "ok", "mic_muted": False}, request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Mic unmute error: {e}", request_id)
+
+        elif method == "mic.status":
+            if self._stt_service is None:
+                return _make_error(
+                    ERROR_INTERNAL,
+                    "STT service not configured",
+                    request_id,
+                )
+            try:
+                muted = self._stt_service.is_mic_muted()
+                return _make_response({"mic_muted": muted}, request_id)
+            except Exception as e:
+                return _make_error(ERROR_INTERNAL, f"Mic status error: {e}", request_id)
+
         else:
             return _make_error(
                 ERROR_METHOD_NOT_FOUND, f"Method not found: {method}", request_id

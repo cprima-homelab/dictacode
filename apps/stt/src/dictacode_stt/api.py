@@ -824,58 +824,68 @@ async def apply_profile(request: ProfileApplyRequest):
 
 
 # =============================================================================
-# v0.3.16: HID Typing and Microphone Mute Controls
+# v0.3.16: HID Typing and Microphone Mute Controls (via IPC)
 # =============================================================================
+
+
+def _try_ipc_call_v316(method: str) -> dict | None:
+    """Try to call IPC method for v0.3.16 controls.
+
+    Args:
+        method: IPC method name (e.g., "hid.pause", "mic.mute")
+
+    Returns:
+        Result dict if successful, None if IPC unavailable
+    """
+    try:
+        from dictacode_stt.diagnostics.ipc import DiagnosticsIpcClient
+
+        client = DiagnosticsIpcClient()
+        if client.is_available():
+            return client._call(method)
+    except Exception as e:
+        logger.debug(f"IPC call {method} failed: {e}")
+    return None
 
 
 @api_router.post("/api/hid/pause")
 async def pause_hid_typing():
     """Pause HID typing output (v0.3.16).
 
-    Sends pause command to HID device. Transcription continues
+    Sends pause command to HID device via IPC. Transcription continues
     but text is buffered at HID instead of being typed.
 
     Returns:
         {"status": "ok", "hid_paused": true} on success
         {"status": "error", "message": "..."} on failure
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        if _service_instance.pause_hid_typing():
-            return {"status": "ok", "hid_paused": True}
-        return {"status": "error", "message": "Failed to send pause command to HID"}
-    except Exception as e:
-        logger.error(f"Failed to pause HID typing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    result = _try_ipc_call_v316("hid.pause")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.post("/api/hid/resume")
 async def resume_hid_typing():
     """Resume HID typing output (v0.3.16).
 
-    Sends resume command to HID device. HID will flush its buffer
+    Sends resume command to HID device via IPC. HID will flush its buffer
     and type all buffered text.
 
     Returns:
         {"status": "ok", "hid_paused": false} on success
         {"status": "error", "message": "..."} on failure
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        if _service_instance.resume_hid_typing():
-            return {"status": "ok", "hid_paused": False}
-        return {"status": "error", "message": "Failed to send resume command to HID"}
-    except Exception as e:
-        logger.error(f"Failed to resume HID typing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    result = _try_ipc_call_v316("hid.resume")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.get("/api/hid/status")
@@ -885,12 +895,13 @@ async def get_hid_typing_status():
     Returns:
         {"hid_paused": true|false}
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    return {"hid_paused": _service_instance.is_hid_typing_paused()}
+    result = _try_ipc_call_v316("hid.status")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.post("/api/audio/mute")
@@ -903,17 +914,13 @@ async def mute_microphone():
     Returns:
         {"status": "ok", "mic_muted": true}
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        _service_instance.mute_mic()
-        return {"status": "ok", "mic_muted": True}
-    except Exception as e:
-        logger.error(f"Failed to mute microphone: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    result = _try_ipc_call_v316("mic.mute")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.post("/api/audio/unmute")
@@ -925,17 +932,13 @@ async def unmute_microphone():
     Returns:
         {"status": "ok", "mic_muted": false}
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    try:
-        _service_instance.unmute_mic()
-        return {"status": "ok", "mic_muted": False}
-    except Exception as e:
-        logger.error(f"Failed to unmute microphone: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    result = _try_ipc_call_v316("mic.unmute")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.get("/api/audio/mute/status")
@@ -945,12 +948,13 @@ async def get_microphone_mute_status():
     Returns:
         {"mic_muted": true|false}
     """
-    from dictacode_stt.health import _service_instance
-
-    if not _service_instance:
-        raise HTTPException(status_code=503, detail="Service not initialized")
-
-    return {"mic_muted": _service_instance.is_mic_muted()}
+    result = _try_ipc_call_v316("mic.status")
+    if result is not None:
+        return result
+    raise HTTPException(
+        status_code=503,
+        detail="Service not reachable via IPC. Ensure dictacode-stt is running.",
+    )
 
 
 @api_router.websocket("/api/ws")
