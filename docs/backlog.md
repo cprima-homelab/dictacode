@@ -415,4 +415,36 @@ cors
 
 ---
 
+modularize the templates
+
+---
+
+
+  Key discoveries:
+  1. The deb package did NOT reset ALSA settings - no postinst/preinst touches mixer
+  2. alsa-utils is already a dependency (includes amixer, alsactl)
+  3. Mixer settings don't persist by default - ALSA resets on reboot/device reconnect without alsactl store
+  4. v0.3.99 has a diagnostic gap - no mixer level checks planned
+
+  The mic gain reset was likely caused by a reboot or USB device reconnection - ALSA defaults mixer levels unless explicitly saved.
+
+
+
+---
+
+### Platform-Specific ALSA Diagnostics (v0.3.15 Technical Debt)
+**File:** `apps/stt/src/dictacode_stt/diagnostics/audio.py`
+**Gap:** `get_mixer_capture_level()`, `check_alsa_state_persisted()`, `run_mixer_checks()` have Linux-only hardcoded dependencies:
+- Calls `amixer` binary directly via subprocess
+- Hardcoded path `/var/lib/alsa/asound.state`
+- No Windows/macOS fallback (will fail or produce misleading results)
+**Nice-to-have:**
+- Platform detection before running ALSA checks
+- Skip mixer checks on non-Linux platforms with informational message
+- Abstract audio mixer interface for cross-platform support
+**Impact:** Low - dictacode targets Raspberry Pi (Linux), but breaks diagnostics on dev machines
+**Related:** v0.3.15 ALSA Mixer Auto-Setup
+
+---
+
 

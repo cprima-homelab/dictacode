@@ -130,7 +130,11 @@ observability_hardening:
   diagnostics_coverage:
     - os/resources: cpu/mem/disk, temps (psutil/lm-sensors)
     - network/interfaces status
-    - audio: device presence, active port validation
+    - audio:
+        - device presence, active port validation
+        - mixer_levels: capture volume via amixer (v0.3.15)
+        - alsa_state: /var/lib/alsa/asound.state persistence (v0.3.15)
+        - platform_tools: alsactl, amixer availability
     - transport: UART/WiFi link status
     - config/profile validation: paths readable, models present
     - protocol version mismatch warnings (stt/hid)

@@ -1,13 +1,22 @@
 """Audio device diagnostic checks for STT.
 
-Checks microphone detection and recording capability.
+Checks microphone detection, recording capability, and ALSA mixer levels.
+
+v0.3.15: Added mixer level and ALSA state persistence checks.
 """
 
 from __future__ import annotations
 
-from typing import List
+import re
+import subprocess
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 from .base import DiagnosticResult
+
+
+# ALSA state file location (where alsactl store saves mixer settings)
+ALSA_STATE_FILE = Path("/var/lib/alsa/asound.state")
 
 
 def get_audio_devices() -> List[dict]:
@@ -71,6 +80,110 @@ def test_audio_recording(device_index: int, duration: float = 1.0) -> bool:
         return True
     except Exception:
         return False
+
+
+def get_mixer_capture_level(card: int = 0) -> Optional[Tuple[int, int]]:
+    """Get ALSA mixer capture level for Mic control.
+
+    Args:
+        card: ALSA card number
+
+    Returns:
+        Tuple of (current_value, max_value) or None if not available
+    """
+    try:
+        result = subprocess.run(
+            ["amixer", "-c", str(card), "sget", "Mic"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+
+        # Parse output like: "Mono: Playback [on] Capture 20 [83%] [20.00dB]"
+        # Look for "Capture N [X%]"
+        match = re.search(r"Capture\s+(\d+)\s+\[(\d+)%\]", result.stdout)
+        if match:
+            value = int(match.group(1))
+            percent = int(match.group(2))
+            return (percent, 100)
+
+        return None
+    except Exception:
+        return None
+
+
+def check_alsa_state_persisted() -> bool:
+    """Check if ALSA state file exists (settings will persist across reboots)."""
+    return ALSA_STATE_FILE.exists()
+
+
+def run_mixer_checks(card: int = 0) -> DiagnosticResult:
+    """Run ALSA mixer diagnostic checks.
+
+    v0.3.15: Check mixer capture levels and state persistence.
+
+    Args:
+        card: ALSA card number to check
+    """
+    result = DiagnosticResult(component="stt")
+
+    # Check if amixer is available
+    try:
+        subprocess.run(
+            ["amixer", "--version"],
+            capture_output=True,
+            timeout=5,
+        )
+        result.ok("alsa_tools", "amixer available")
+    except FileNotFoundError:
+        result.warn(
+            "alsa_tools",
+            "amixer not found",
+            "Install alsa-utils: apt install alsa-utils",
+        )
+        return result
+    except Exception as e:
+        result.warn("alsa_tools", f"amixer check failed: {e}")
+        return result
+
+    # Check mixer capture level
+    level = get_mixer_capture_level(card)
+    if level is not None:
+        percent, _ = level
+        if percent == 0:
+            result.fail(
+                "mixer_capture_level",
+                f"Mic capture level is 0% (muted) on card {card}",
+                f"Run: amixer -c {card} sset 'Mic' 80%",
+            )
+        elif percent < 50:
+            result.warn(
+                "mixer_capture_level",
+                f"Mic capture level is low ({percent}%) on card {card}",
+                f"Consider: amixer -c {card} sset 'Mic' 80%",
+            )
+        else:
+            result.ok("mixer_capture_level", f"Mic capture level: {percent}%")
+    else:
+        result.warn(
+            "mixer_capture_level",
+            f"Could not read Mic capture level on card {card}",
+            "Check if audio device has 'Mic' control",
+        )
+
+    # Check ALSA state persistence
+    if check_alsa_state_persisted():
+        result.ok("alsa_state", "ALSA state file exists (settings will persist)")
+    else:
+        result.warn(
+            "alsa_state",
+            "ALSA state file not found - mixer settings may reset on reboot",
+            "Run: alsactl store",
+        )
+
+    return result
 
 
 def run_audio_checks(device_index: int = 0) -> DiagnosticResult:
@@ -140,5 +253,10 @@ def run_audio_checks(device_index: int = 0) -> DiagnosticResult:
             f"Audio recording test failed: {e}",
             "Check microphone permissions and ALSA configuration",
         )
+
+    # v0.3.15: Include mixer checks
+    mixer_result = run_mixer_checks(card=0)
+    for check in mixer_result.checks:
+        result.add(check)
 
     return result

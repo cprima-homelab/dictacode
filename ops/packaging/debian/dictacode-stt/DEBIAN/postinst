@@ -22,6 +22,20 @@ case "$1" in
         # Reload systemd
         systemctl daemon-reload
 
+        # v0.3.15: Auto-configure ALSA mixer for capture devices
+        # USB audio devices often reset to 0% gain on reconnect/reboot
+        echo ""
+        echo "Configuring ALSA mixer for audio capture..."
+        for card in 0 1 2; do
+            if amixer -c "$card" sget 'Mic' >/dev/null 2>&1; then
+                echo "  Found Mic control on card $card"
+                amixer -c "$card" sset 'Mic' 80% 2>/dev/null || true
+                # Save state so it persists across reboots
+                alsactl store "$card" 2>/dev/null || echo "  (alsactl store not available)"
+                break
+            fi
+        done
+
         echo ""
         echo "Installation complete."
         echo ""
